@@ -3,6 +3,9 @@ import '@mdi/font/css/materialdesignicons.css'
 
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import * as components from 'vuetify/components'
+import * as directives from 'vuetify/directives'
+
 
 // Material Design 3 baseline palette (primary = #6750A4).
 // Source: m3.material.io baseline scheme. Roles map 1:1 to Vuetify color keys
@@ -82,6 +85,8 @@ const darkColors = {
 }
 
 export default createVuetify({
+  components,
+  directives,
   defaults: {
     VBtn: { rounded: 'pill' },
     VTextField: { variant: 'filled' },

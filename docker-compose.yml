@@ -35,7 +35,11 @@ services:
     container_name: hardhat-api
     environment:
       MIX_ENV: dev
-      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@postgres:5432/${POSTGRES_DB:-hardhat_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
+      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-hardhat_dev}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY}
       MAIL_HOST: mailpit

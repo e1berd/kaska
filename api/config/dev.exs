@@ -2,10 +2,10 @@ import Config
 
 # Configure your database
 config :hardhat, Hardhat.Repo,
-  username: "hardhat",
-  password: "hardhat",
-  hostname: "localhost",
-  database: "hardhat_dev",
+  username: System.get_env("DB_USERNAME", "hardhat"),
+  password: System.get_env("DB_PASSWORD", "hardhat"),
+  hostname: System.get_env("DB_HOSTNAME", "postgres"),
+  database: System.get_env("DB_DATABASE", "hardhat_dev"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -19,7 +19,7 @@ config :hardhat, Hardhat.Repo,
 config :hardhat, HardhatWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  http: [ip: {0, 0, 0, 0}],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
