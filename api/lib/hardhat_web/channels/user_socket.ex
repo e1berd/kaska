@@ -13,8 +13,11 @@ defmodule HardhatWeb.UserSocket do
       {:ok, user, _claims} ->
         {:ok, assign(socket, :current_user, user)}
 
+      # Invalid / expired token: still connect, but as anonymous. The client
+      # will discover the demotion (e.g. join `user:<id>` returns forbidden,
+      # mutating events return :unauthorized) and clear its stale credentials.
       _ ->
-        :error
+        {:ok, assign(socket, :current_user, nil)}
     end
   end
 
