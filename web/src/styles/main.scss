@@ -6,11 +6,68 @@ body,
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Roboto Flex is the M3 system font; opsz/wght axes are loaded in index.html */
+  font-family: 'Roboto Flex', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+body {
+  background-color: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* M3 emphasised scrollbars — slim, surface-tinted, only on hover. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-on-surface), 0.18);
+  border-radius: var(--md-shape-full);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), 0.32);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Vuetify v-app uses its own background — make it follow the theme. */
+.v-application {
+  background-color: rgb(var(--v-theme-surface)) !important;
+}
+
+/* Snap a more correct M3 corner family onto common Vuetify widgets. */
+.v-card {
+  border-radius: var(--md-shape-l) !important;
+}
+.v-btn {
+  text-transform: none;
+  letter-spacing: 0.1px;
+  font-weight: 500;
+}
+.v-text-field .v-field {
+  border-radius: var(--md-shape-xs) var(--md-shape-xs) 0 0;
+}
+
+/* Disable Vuetify's accidentally-bumpy global font weight on big text. */
+.text-h1,
+.text-h2,
+.text-h3,
+.text-h4,
+.text-h5,
+.text-h6 {
+  font-family: 'Roboto Flex', 'Roboto', system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }

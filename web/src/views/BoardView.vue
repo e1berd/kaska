@@ -230,124 +230,164 @@ async function commitNewColumn() {
 function backToProjects() {
   router.push({ name: 'projects' })
 }
+
+const accents = ['primary', 'secondary', 'tertiary'] as const
+function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
+  return accents[idx % accents.length]
+}
 </script>
 
 <template>
-  <div class="board-view">
-    <header class="board-view__bar">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="backToProjects" />
-      <div class="board-view__title">
-        <span class="text-h6">{{ board.project?.name ?? '…' }}</span>
-        <span v-if="board.project" class="text-medium-emphasis">/{{ board.project.slug }}</span>
+  <div class="hh-board">
+    <header class="hh-board__bar">
+      <v-btn
+        icon="mdi-arrow-left"
+        variant="text"
+        density="comfortable"
+        @click="backToProjects"
+      />
+      <div class="hh-board__title">
+        <span class="md-title-large">{{ board.project?.name ?? '…' }}</span>
+        <code v-if="board.project" class="hh-board__slug">/{{ board.project.slug }}</code>
       </div>
       <v-spacer />
       <v-btn
         v-if="auth.isAuthed"
         prepend-icon="mdi-plus"
         variant="tonal"
+        rounded="pill"
         @click="openNewColumn"
       >
-        Колонка
+        Новая колонка
       </v-btn>
     </header>
 
-    <div v-if="loading" class="pa-12 text-center text-medium-emphasis">Загрузка…</div>
-    <v-alert v-else-if="error" type="error" variant="tonal" class="ma-4">{{ error }}</v-alert>
+    <div v-if="loading" class="hh-board__state">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+    <v-alert
+      v-else-if="error"
+      type="error"
+      variant="tonal"
+      class="ma-4"
+      rounded="lg"
+    >
+      {{ error }}
+    </v-alert>
 
-    <div v-else class="board-view__columns">
+    <div v-else class="hh-board__cols">
       <BoardColumn
-        v-for="column in board.orderedColumns"
+        v-for="(column, idx) in board.orderedColumns"
         :key="column.id"
         :column="column"
+        :accent="accentFor(idx)"
         @open-task="openTask"
         @rename="onRename"
         @delete="onDeleteColumn"
       />
     </div>
 
-    <v-dialog v-model="renameDialog" max-width="420">
-      <v-card>
-        <v-card-title>Переименовать колонку</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="renameValue" autofocus density="comfortable" />
+    <v-dialog v-model="renameDialog" max-width="460">
+      <v-card rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Переименовать колонку</v-card-title>
+        <v-card-text class="px-6 pt-2">
+          <v-text-field
+            v-model="renameValue"
+            variant="filled"
+            density="comfortable"
+            autofocus
+            hide-details
+          />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-6">
           <v-spacer />
-          <v-btn variant="text" @click="renameDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="flat" @click="commitRename">Сохранить</v-btn>
+          <v-btn variant="text" rounded="pill" @click="renameDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="flat" rounded="pill" @click="commitRename">
+            Сохранить
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="deleteDialog" max-width="420">
-      <v-card>
-        <v-card-title>Удалить колонку?</v-card-title>
-        <v-card-text>
+    <v-dialog v-model="deleteDialog" max-width="460">
+      <v-card rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Удалить колонку?</v-card-title>
+        <v-card-text class="px-6 pt-2 md-body-medium text-medium-emphasis">
           Все её карточки тоже исчезнут. Действие нельзя отменить.
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-6">
           <v-spacer />
-          <v-btn variant="text" @click="deleteDialog = false">Отмена</v-btn>
-          <v-btn color="error" variant="flat" @click="commitDelete">Удалить</v-btn>
+          <v-btn variant="text" rounded="pill" @click="deleteDialog = false">Отмена</v-btn>
+          <v-btn color="error" variant="flat" rounded="pill" @click="commitDelete">
+            Удалить
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="newColumnDialog" max-width="420">
-      <v-card>
-        <v-card-title>Новая колонка</v-card-title>
-        <v-card-text>
+    <v-dialog v-model="newColumnDialog" max-width="460">
+      <v-card rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Новая колонка</v-card-title>
+        <v-card-text class="px-6 pt-2">
           <v-text-field
             v-model="newColumnName"
-            autofocus
-            density="comfortable"
             label="название"
+            variant="filled"
+            density="comfortable"
+            autofocus
+            hide-details
             @keydown.enter.exact.prevent="commitNewColumn"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-6">
           <v-spacer />
-          <v-btn variant="text" @click="newColumnDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="flat" @click="commitNewColumn">Создать</v-btn>
+          <v-btn variant="text" rounded="pill" @click="newColumnDialog = false">Отмена</v-btn>
+          <v-btn color="primary" variant="flat" rounded="pill" @click="commitNewColumn">
+            Создать
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="taskDialog" max-width="600" persistent>
-      <v-card v-if="taskTarget">
-        <v-card-title>Карточка</v-card-title>
-        <v-card-text>
+    <v-dialog v-model="taskDialog" max-width="640" persistent>
+      <v-card v-if="taskTarget" rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
+        <v-card-text class="px-6 pt-2">
           <v-text-field
             v-model="taskTitle"
             label="название"
-            :readonly="!auth.isAuthed"
+            variant="filled"
             density="comfortable"
+            :readonly="!auth.isAuthed"
           />
           <v-textarea
             v-model="taskDescription"
             label="описание"
+            variant="filled"
             rows="5"
             auto-grow
             :readonly="!auth.isAuthed"
             density="comfortable"
-            class="mt-2"
+            class="mt-3"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-6">
           <v-btn
             v-if="auth.isAuthed"
             color="error"
             variant="text"
+            rounded="pill"
             @click="deleteCurrentTask"
           >
             Удалить
           </v-btn>
           <v-spacer />
-          <v-btn variant="text" @click="taskDialog = false">Закрыть</v-btn>
+          <v-btn variant="text" rounded="pill" @click="taskDialog = false">Закрыть</v-btn>
           <v-btn
             v-if="auth.isAuthed"
             color="primary"
             variant="flat"
+            rounded="pill"
             @click="saveTask"
           >
             Сохранить
@@ -359,28 +399,42 @@ function backToProjects() {
 </template>
 
 <style scoped>
-.board-view {
+.hh-board {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px);
+  background:
+    radial-gradient(1200px 600px at 0% 0%, rgba(var(--v-theme-primary), 0.05), transparent 60%),
+    radial-gradient(1200px 600px at 100% 100%, rgba(var(--v-theme-tertiary), 0.05), transparent 60%),
+    rgb(var(--v-theme-surface));
 }
-.board-view__bar {
+.hh-board__bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  padding: 12px 16px;
 }
-.board-view__title {
+.hh-board__title {
   display: inline-flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
+  color: rgb(var(--v-theme-on-surface));
 }
-.board-view__columns {
+.hh-board__slug {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.hh-board__state {
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+.hh-board__cols {
   flex: 1;
   display: flex;
-  gap: 12px;
-  padding: 16px;
+  gap: 14px;
+  padding: 8px 16px 20px;
   overflow-x: auto;
   overflow-y: hidden;
   align-items: stretch;

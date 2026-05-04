@@ -17,7 +17,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    const next = (route.query.next as string) || '/me'
+    const next = (route.query.next as string) || '/projects'
     router.push(next)
   } catch (e: any) {
     error.value = e?.message ?? 'Не удалось войти'
@@ -28,50 +28,94 @@ async function submit() {
 </script>
 
 <template>
-  <v-container class="py-12">
-    <v-row justify="center">
-      <v-col cols="12" sm="8" md="5">
-        <v-card class="pa-6" elevation="2">
-          <h2 class="text-h5 mb-6">Вход</h2>
-          <v-form @submit.prevent="submit">
-            <v-text-field
-              v-model="email"
-              label="Email"
-              type="email"
-              autocomplete="email"
-              required
-              class="mb-2"
-            />
-            <v-text-field
-              v-model="password"
-              label="Пароль"
-              type="password"
-              autocomplete="current-password"
-              required
-            />
+  <div class="hh-auth">
+    <v-card class="hh-auth__card" rounded="xl" elevation="0">
+      <h1 class="md-headline-medium mb-1">С возвращением</h1>
+      <p class="md-body-medium text-medium-emphasis mb-6">
+        Войдите, чтобы создавать и менять задачи.
+      </p>
 
-            <v-alert v-if="error" type="error" variant="tonal" class="mb-4" :text="error" />
+      <v-form @submit.prevent="submit">
+        <v-text-field
+          v-model="email"
+          label="Email"
+          type="email"
+          variant="filled"
+          density="comfortable"
+          autocomplete="email"
+          required
+          class="mb-3"
+        />
+        <v-text-field
+          v-model="password"
+          label="Пароль"
+          type="password"
+          variant="filled"
+          density="comfortable"
+          autocomplete="current-password"
+          required
+        />
 
-            <v-btn
-              type="submit"
-              color="primary"
-              variant="flat"
-              block
-              size="large"
-              :loading="loading"
-            >
-              Войти
-            </v-btn>
-          </v-form>
+        <v-alert
+          v-if="error"
+          type="error"
+          variant="tonal"
+          rounded="lg"
+          class="mt-4"
+          :text="error"
+        />
 
-          <v-divider class="my-6" />
+        <v-btn
+          type="submit"
+          color="primary"
+          variant="flat"
+          rounded="pill"
+          block
+          size="large"
+          :loading="loading"
+          class="mt-6"
+        >
+          Войти
+        </v-btn>
+      </v-form>
 
-          <div class="d-flex flex-column ga-2">
-            <v-btn variant="text" :to="{ name: 'register' }">Создать аккаунт</v-btn>
-            <v-btn variant="text" :to="{ name: 'forgot' }">Забыли пароль?</v-btn>
-          </div>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-container>
+      <div class="hh-auth__links">
+        <router-link :to="{ name: 'forgot' }" class="hh-auth__link">
+          Забыли пароль?
+        </router-link>
+        <router-link :to="{ name: 'register' }" class="hh-auth__link">
+          Создать аккаунт
+        </router-link>
+      </div>
+    </v-card>
+  </div>
 </template>
+
+<style scoped>
+.hh-auth {
+  min-height: calc(100vh - 64px);
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+.hh-auth__card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  background: rgb(var(--v-theme-surface-container-low)) !important;
+}
+.hh-auth__links {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+.hh-auth__link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+}
+.hh-auth__link:hover {
+  text-decoration: underline;
+}
+</style>

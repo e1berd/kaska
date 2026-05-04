@@ -28,42 +28,64 @@ async function submit() {
 </script>
 
 <template>
-  <v-container class="py-12">
-    <v-row justify="center">
-      <v-col cols="12" sm="8" md="5">
-        <v-card class="pa-6" elevation="2">
-          <h2 class="text-h5 mb-6">Новый пароль</h2>
+  <div class="hh-auth">
+    <v-card class="hh-auth__card" rounded="xl" elevation="0">
+      <h1 class="md-headline-medium mb-6">Новый пароль</h1>
 
-          <template v-if="!success">
-            <v-form @submit.prevent="submit">
-              <v-text-field
-                v-model="password"
-                label="Новый пароль"
-                type="password"
-                autocomplete="new-password"
-                hint="Минимум 8 символов"
-                required
-                class="mb-2"
-              />
-              <v-alert v-if="error" type="error" variant="tonal" class="mb-4" :text="error" />
-              <v-btn
-                type="submit"
-                color="primary"
-                variant="flat"
-                block
-                size="large"
-                :loading="loading"
-              >
-                Сохранить пароль
-              </v-btn>
-            </v-form>
-          </template>
+      <template v-if="!success">
+        <v-form @submit.prevent="submit">
+          <v-text-field
+            v-model="password"
+            label="Новый пароль"
+            type="password"
+            variant="filled"
+            density="comfortable"
+            autocomplete="new-password"
+            hint="Минимум 8 символов"
+            persistent-hint
+            required
+          />
+          <v-alert
+            v-if="error"
+            type="error"
+            variant="tonal"
+            rounded="lg"
+            class="mt-4"
+            :text="error"
+          />
+          <v-btn
+            type="submit"
+            color="primary"
+            variant="flat"
+            rounded="pill"
+            block
+            size="large"
+            :loading="loading"
+            class="mt-6"
+          >
+            Сохранить пароль
+          </v-btn>
+        </v-form>
+      </template>
 
-          <v-alert v-else type="success" variant="tonal">
-            Пароль обновлён. Перенаправляем на страницу входа…
-          </v-alert>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-container>
+      <v-alert v-else type="success" variant="tonal" rounded="lg">
+        Пароль обновлён. Перенаправляем на страницу входа…
+      </v-alert>
+    </v-card>
+  </div>
 </template>
+
+<style scoped>
+.hh-auth {
+  min-height: calc(100vh - 64px);
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+.hh-auth__card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  background: rgb(var(--v-theme-surface-container-low)) !important;
+}
+</style>

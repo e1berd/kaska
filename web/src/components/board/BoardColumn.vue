@@ -5,7 +5,7 @@ import { useBoardStore, type Column, type Task } from '../../stores/board'
 import { useAuthStore } from '../../stores/auth'
 import BoardCard from './BoardCard.vue'
 
-const props = defineProps<{ column: Column }>()
+const props = defineProps<{ column: Column; accent: 'primary' | 'secondary' | 'tertiary' }>()
 defineEmits<{
   (e: 'open-task', task: Task): void
   (e: 'rename', column: Column): void
@@ -69,11 +69,17 @@ function cancelAdd() {
 </script>
 
 <template>
-  <section ref="root" class="board-column" :class="{ 'board-column--over': isOver }">
-    <header class="board-column__header">
-      <div class="board-column__title">
-        {{ column.name }}
-        <span class="board-column__count">{{ tasksInColumn.length }}</span>
+  <section
+    ref="root"
+    class="hh-col"
+    :class="{ 'hh-col--over': isOver }"
+    :data-accent="accent"
+  >
+    <header class="hh-col__head">
+      <div class="hh-col__title">
+        <span class="hh-col__dot" />
+        <span class="md-title-medium">{{ column.name }}</span>
+        <span class="hh-col__count md-label-medium">{{ tasksInColumn.length }}</span>
       </div>
       <v-menu v-if="auth.isAuthed">
         <template #activator="{ props: act }">
@@ -83,39 +89,38 @@ function cancelAdd() {
             variant="text"
             density="comfortable"
             size="small"
+            class="hh-col__menu"
           />
         </template>
-        <v-list density="compact">
-          <v-list-item @click="$emit('rename', column)">
+        <v-list density="compact" rounded="lg">
+          <v-list-item @click="$emit('rename', column)" prepend-icon="mdi-pencil-outline">
             <v-list-item-title>Переименовать</v-list-item-title>
           </v-list-item>
-          <v-list-item @click="$emit('delete', column)">
+          <v-list-item @click="$emit('delete', column)" prepend-icon="mdi-trash-can-outline">
             <v-list-item-title>Удалить</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
     </header>
 
-    <div class="board-column__cards">
+    <div class="hh-col__cards">
       <BoardCard
         v-for="task in tasksInColumn"
         :key="task.id"
         :task="task"
         @open="$emit('open-task', $event)"
       />
+      <div v-if="!tasksInColumn.length" class="hh-col__empty md-body-small">
+        Нет карточек
+      </div>
     </div>
 
-    <div v-if="auth.isAuthed" class="board-column__add">
+    <div v-if="auth.isAuthed" class="hh-col__add">
       <template v-if="!adding">
-        <v-btn
-          variant="tonal"
-          block
-          prepend-icon="mdi-plus"
-          density="comfortable"
-          @click="startAdd"
-        >
-          Добавить карточку
-        </v-btn>
+        <button class="hh-col__addbtn md-state-layer" type="button" @click="startAdd">
+          <v-icon size="18">mdi-plus</v-icon>
+          <span class="md-label-large">Добавить карточку</span>
+        </button>
       </template>
       <template v-else>
         <v-textarea
@@ -125,8 +130,10 @@ function cancelAdd() {
           auto-grow
           variant="outlined"
           density="comfortable"
+          rounded="lg"
           :disabled="submitting"
           placeholder="Название карточки…"
+          hide-details
           @keydown.enter.exact.prevent="commitAdd"
           @keydown.escape.prevent="cancelAdd"
         />
@@ -135,12 +142,19 @@ function cancelAdd() {
             color="primary"
             variant="flat"
             density="comfortable"
+            rounded="pill"
             :loading="submitting"
             @click="commitAdd"
           >
             Добавить
           </v-btn>
-          <v-btn variant="text" density="comfortable" :disabled="submitting" @click="cancelAdd">
+          <v-btn
+            variant="text"
+            density="comfortable"
+            rounded="pill"
+            :disabled="submitting"
+            @click="cancelAdd"
+          >
             Отмена
           </v-btn>
         </div>
@@ -150,48 +164,97 @@ function cancelAdd() {
 </template>
 
 <style scoped>
-.board-column {
+.hh-col {
+  --col-accent: var(--v-theme-primary);
+  --col-accent-container: var(--v-theme-primary-container);
+  --col-accent-on-container: var(--v-theme-on-primary-container);
+
   display: flex;
   flex-direction: column;
-  width: 280px;
+  width: 296px;
   flex: 0 0 auto;
   background: rgb(var(--v-theme-surface-container));
-  border-radius: 16px;
+  border-radius: var(--md-shape-l);
   padding: 12px;
   max-height: 100%;
-  transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1);
+  transition: background-color var(--md-duration-short4) var(--md-easing-standard);
 }
-.board-column--over {
-  background: rgb(var(--v-theme-surface-container-highest));
+.hh-col[data-accent='secondary'] {
+  --col-accent: var(--v-theme-secondary);
+  --col-accent-container: var(--v-theme-secondary-container);
+  --col-accent-on-container: var(--v-theme-on-secondary-container);
 }
-.board-column__header {
+.hh-col[data-accent='tertiary'] {
+  --col-accent: var(--v-theme-tertiary);
+  --col-accent-container: var(--v-theme-tertiary-container);
+  --col-accent-on-container: var(--v-theme-on-tertiary-container);
+}
+.hh-col--over {
+  background: rgb(var(--v-theme-surface-container-high));
+  outline: 2px dashed rgba(var(--col-accent), 0.5);
+  outline-offset: -2px;
+}
+
+.hh-col__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 0 4px;
+  padding: 4px 6px 8px;
 }
-.board-column__title {
-  font-weight: 600;
-  letter-spacing: 0.01em;
+.hh-col__title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  color: rgb(var(--v-theme-on-surface));
 }
-.board-column__count {
-  font-weight: 400;
-  font-size: 0.85rem;
-  color: rgba(var(--v-theme-on-surface), 0.62);
+.hh-col__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--col-accent));
 }
-.board-column__cards {
+.hh-col__count {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--col-accent-container));
+  color: rgb(var(--col-accent-on-container));
+}
+
+.hh-col__cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 4px 4px 8px;
   min-height: 8px;
 }
-.board-column__add {
-  margin-top: 8px;
+.hh-col__empty {
+  text-align: center;
+  padding: 16px 8px;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.7);
+  border-radius: var(--md-shape-m);
+}
+
+.hh-col__add {
+  margin-top: 4px;
+}
+.hh-col__addbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--md-shape-m);
+  background: transparent;
+  color: rgb(var(--v-theme-on-surface));
+  cursor: pointer;
+  --md-state-color: rgb(var(--v-theme-on-surface));
+  transition: background-color var(--md-duration-short3) var(--md-easing-standard);
+}
+.hh-col__addbtn:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
 }
 </style>

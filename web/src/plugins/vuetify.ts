@@ -88,8 +88,11 @@ export default createVuetify({
   components,
   directives,
   defaults: {
-    VBtn: { rounded: 'pill' },
+    // M3 buttons are pill-shaped by default; opt out by passing `rounded`.
+    VBtn: { rounded: 'pill', class: 'md-label-large' },
     VTextField: { variant: 'filled' },
+    VTextarea: { variant: 'filled' },
+    VSelect: { variant: 'filled' },
     VCard: { rounded: 'lg' },
   },
   theme: {

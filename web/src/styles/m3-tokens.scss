@@ -1,7 +1,8 @@
 /* Material Design 3 design tokens.
- * Vuetify gives us colors via its theme; everything else (motion, shape,
- * elevation, state-layer opacities) lives here as CSS custom properties.
- * Animations should pull from these vars instead of hard-coding numbers. */
+ * Vuetify supplies the colour roles via its theme; everything else (motion,
+ * shape, elevation, state-layer opacity, type scale) lives here as CSS
+ * custom properties so components can pull from these vars rather than
+ * hard-coding numbers. */
 
 :root {
   /* --- Motion: durations --- */
@@ -40,6 +41,21 @@
   --md-shape-xl: 28px;
   --md-shape-full: 9999px;
 
+  /* --- Elevation (paper-style) ---
+   * MD3 is mostly tonal, but real shadows still anchor floating surfaces.
+   * Levels follow the spec's dual-shadow recipe.
+   */
+  --md-elev-1:
+    0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --md-elev-2:
+    0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --md-elev-3:
+    0 1px 3px 0 rgba(0, 0, 0, 0.30), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+  --md-elev-4:
+    0 2px 3px 0 rgba(0, 0, 0, 0.30), 0 6px 10px 4px rgba(0, 0, 0, 0.15);
+  --md-elev-5:
+    0 4px 4px 0 rgba(0, 0, 0, 0.30), 0 8px 12px 6px rgba(0, 0, 0, 0.15);
+
   /* --- State layer opacity --- */
   --md-state-hover: 0.08;
   --md-state-focus: 0.12;
@@ -62,6 +78,122 @@
   --md-type-label-large: 14px;
   --md-type-label-medium: 12px;
   --md-type-label-small: 11px;
+}
+
+/* M3 type-scale classes — apply directly when Vuetify's text-* util is too
+ * coarse or you need precise spacing for headers. Letter-spacing values are
+ * the M3 reference tracking. */
+.md-display-large {
+  font-size: var(--md-type-display-large);
+  line-height: 64px;
+  font-weight: 400;
+  letter-spacing: -0.25px;
+}
+.md-display-medium {
+  font-size: var(--md-type-display-medium);
+  line-height: 52px;
+  font-weight: 400;
+}
+.md-display-small {
+  font-size: var(--md-type-display-small);
+  line-height: 44px;
+  font-weight: 400;
+}
+.md-headline-large {
+  font-size: var(--md-type-headline-large);
+  line-height: 40px;
+  font-weight: 400;
+}
+.md-headline-medium {
+  font-size: var(--md-type-headline-medium);
+  line-height: 36px;
+  font-weight: 400;
+}
+.md-headline-small {
+  font-size: var(--md-type-headline-small);
+  line-height: 32px;
+  font-weight: 400;
+}
+.md-title-large {
+  font-size: var(--md-type-title-large);
+  line-height: 28px;
+  font-weight: 500;
+}
+.md-title-medium {
+  font-size: var(--md-type-title-medium);
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+}
+.md-title-small {
+  font-size: var(--md-type-title-small);
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+.md-body-large {
+  font-size: var(--md-type-body-large);
+  line-height: 24px;
+  letter-spacing: 0.5px;
+}
+.md-body-medium {
+  font-size: var(--md-type-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+.md-body-small {
+  font-size: var(--md-type-body-small);
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+.md-label-large {
+  font-size: var(--md-type-label-large);
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+.md-label-medium {
+  font-size: var(--md-type-label-medium);
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.md-label-small {
+  font-size: var(--md-type-label-small);
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Reusable state-layer overlay. Apply on a positioned host with a coloured
+ * `--md-state-color` (defaults to current text colour). */
+.md-state-layer {
+  position: relative;
+  isolation: isolate;
+}
+.md-state-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--md-state-color, currentColor);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--md-duration-short3) var(--md-easing-standard);
+  z-index: 0;
+}
+.md-state-layer:hover::after {
+  opacity: var(--md-state-hover);
+}
+.md-state-layer:focus-visible::after {
+  opacity: var(--md-state-focus);
+}
+.md-state-layer:active::after {
+  opacity: var(--md-state-pressed);
+}
+.md-state-layer > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Page transition presets following M3 emphasized motion. */

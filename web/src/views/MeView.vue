@@ -8,7 +8,7 @@ const router = useRouter()
 
 onMounted(() => {
   auth.fetchMe().catch(() => {
-    /* token may be expired — handle later via refresh */
+    /* token may be expired — bootstrap will recover */
   })
 })
 
@@ -19,43 +19,93 @@ function logout() {
 </script>
 
 <template>
-  <v-container class="py-12">
-    <v-row justify="center">
-      <v-col cols="12" sm="8" md="6">
-        <v-card class="pa-6" elevation="2">
-          <h2 class="text-h5 mb-6">Профиль</h2>
+  <div class="hh-me">
+    <v-card class="hh-me__card" rounded="xl" elevation="0">
+      <header class="hh-me__head">
+        <div class="hh-me__avatar">
+          <v-icon size="32">mdi-account</v-icon>
+        </div>
+        <div>
+          <h1 class="md-headline-small mb-0">{{ auth.user?.email }}</h1>
+          <p class="md-body-small text-medium-emphasis mt-1 mb-0">
+            Профиль пользователя
+          </p>
+        </div>
+      </header>
 
-          <div v-if="auth.user">
-            <v-list lines="one" class="bg-transparent">
-              <v-list-item>
-                <template #prepend>
-                  <v-icon>mdi-email-outline</v-icon>
-                </template>
-                <v-list-item-title>{{ auth.user.email }}</v-list-item-title>
-                <v-list-item-subtitle>Email</v-list-item-subtitle>
-              </v-list-item>
-              <v-list-item>
-                <template #prepend>
-                  <v-icon>mdi-shield-account-outline</v-icon>
-                </template>
-                <v-list-item-title>{{ auth.user.role }}</v-list-item-title>
-                <v-list-item-subtitle>Роль</v-list-item-subtitle>
-              </v-list-item>
-              <v-list-item v-if="auth.user.confirmed_at">
-                <template #prepend>
-                  <v-icon color="primary">mdi-check-decagram</v-icon>
-                </template>
-                <v-list-item-title>Почта подтверждена</v-list-item-title>
-                <v-list-item-subtitle>{{ auth.user.confirmed_at }}</v-list-item-subtitle>
-              </v-list-item>
-            </v-list>
+      <v-divider class="my-4" />
 
-            <v-divider class="my-4" />
-
-            <v-btn variant="tonal" color="error" @click="logout">Выйти</v-btn>
+      <ul v-if="auth.user" class="hh-me__list">
+        <li class="hh-me__row">
+          <v-icon class="hh-me__icon">mdi-shield-account-outline</v-icon>
+          <div>
+            <div class="md-label-medium text-medium-emphasis">Роль</div>
+            <div class="md-body-large">{{ auth.user.role }}</div>
           </div>
-        </v-card>
-      </v-col>
-    </v-row>
-  </v-container>
+        </li>
+        <li class="hh-me__row">
+          <v-icon class="hh-me__icon" :color="auth.user.confirmed_at ? 'primary' : undefined">
+            {{ auth.user.confirmed_at ? 'mdi-check-decagram' : 'mdi-email-alert-outline' }}
+          </v-icon>
+          <div>
+            <div class="md-label-medium text-medium-emphasis">Почта</div>
+            <div class="md-body-large">
+              {{ auth.user.confirmed_at ? 'Подтверждена' : 'Не подтверждена' }}
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <v-divider class="my-4" />
+
+      <div class="d-flex justify-end">
+        <v-btn variant="text" color="error" rounded="pill" @click="logout">
+          Выйти из аккаунта
+        </v-btn>
+      </div>
+    </v-card>
+  </div>
 </template>
+
+<style scoped>
+.hh-me {
+  max-width: 640px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+.hh-me__card {
+  padding: 32px;
+  background: rgb(var(--v-theme-surface-container-low)) !important;
+}
+.hh-me__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.hh-me__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-primary-container));
+  color: rgb(var(--v-theme-on-primary-container));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hh-me__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.hh-me__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 4px;
+}
+.hh-me__icon {
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+</style>
