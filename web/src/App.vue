@@ -23,6 +23,7 @@ function logout() {
       </v-app-bar-title>
 
       <template #append>
+        <v-btn variant="text" :to="{ name: 'projects' }" class="mr-2">Проекты</v-btn>
         <template v-if="auth.isAuthed">
           <v-btn variant="text" :to="{ name: 'me' }">{{ auth.user?.email }}</v-btn>
           <v-btn variant="text" @click="logout">Выйти</v-btn>

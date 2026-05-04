@@ -51,7 +51,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function authChannel() {
     const sock = useSocketStore()
-    return sock.joinChannel('auth:lobby')
+    const { channel } = await sock.joinChannel('auth:lobby')
+    return channel
   }
 
   async function register(email: string, password: string) {
@@ -98,8 +99,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     if (!access.value || !user.value?.id) return null
     const sock = useSocketStore()
-    const ch = await sock.joinChannel(`user:${user.value.id}`)
-    const me = await pushAsync<User>(ch, 'me', {})
+    const { channel } = await sock.joinChannel(`user:${user.value.id}`)
+    const me = await pushAsync<User>(channel, 'me', {})
     user.value = me
     return me
   }

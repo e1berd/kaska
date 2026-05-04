@@ -14,12 +14,13 @@ const auth = useAuthStore()
           только зарегистрированные пользователи.
         </p>
 
-        <div class="d-flex ga-3" v-if="!auth.isAuthed">
-          <v-btn color="primary" variant="flat" :to="{ name: 'register' }">Создать аккаунт</v-btn>
-          <v-btn variant="tonal" :to="{ name: 'login' }">Войти</v-btn>
-        </div>
-        <div v-else>
-          <v-btn color="primary" variant="flat" :to="{ name: 'me' }">Мой профиль</v-btn>
+        <div class="d-flex ga-3 flex-wrap">
+          <v-btn color="primary" variant="flat" :to="{ name: 'projects' }">К проектам</v-btn>
+          <v-btn v-if="!auth.isAuthed" variant="tonal" :to="{ name: 'register' }">
+            Создать аккаунт
+          </v-btn>
+          <v-btn v-if="!auth.isAuthed" variant="text" :to="{ name: 'login' }">Войти</v-btn>
+          <v-btn v-else variant="tonal" :to="{ name: 'me' }">Мой профиль</v-btn>
         </div>
       </v-col>
     </v-row>

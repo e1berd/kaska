@@ -62,18 +62,22 @@ export const useSocketStore = defineStore('socket', () => {
     if (!socket.value) connect(null)
   }
 
-  function joinChannel(topic: string, params: object = {}): Promise<Channel> {
+  function joinChannel<T = unknown>(
+    topic: string,
+    params: object = {},
+  ): Promise<{ channel: Channel; reply: T }> {
     ensureConnected()
     const existing = channels.value.get(topic)
     if (existing && (existing.state === 'joined' || existing.state === 'joining')) {
-      return Promise.resolve(existing)
+      // No fresh reply when re-using a channel; surface an empty payload.
+      return Promise.resolve({ channel: existing, reply: {} as T })
     }
 
     return new Promise((resolve, reject) => {
       const ch = socket.value!.channel(topic, params)
       channels.value.set(topic, ch)
       ch.join()
-        .receive('ok', () => resolve(ch))
+        .receive('ok', (reply) => resolve({ channel: ch, reply: reply as T }))
         .receive('error', (resp) => {
           channels.value.delete(topic)
           reject(resp)

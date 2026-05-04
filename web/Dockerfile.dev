@@ -6,4 +6,4 @@ WORKDIR /app
 
 EXPOSE 5173
 
-CMD ["sh", "-c", "pnpm install --prefer-offline && pnpm dev --host 0.0.0.0"]
+CMD ["sh", "-c", "pnpm install --prefer-offline --frozen-lockfile --offline || pnpm install --prefer-offline; pnpm dev --host 0.0.0.0"]

@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -67,11 +67,14 @@ services:
     container_name: hardhat-web
     environment:
       VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
+      # Tell pnpm we're non-interactive so it doesn't bail on modules-purge prompts.
+      CI: "true"
     ports:
       - "${WEB_PORT:-5173}:5173"
+    # Bind-mount the host's node_modules so the container reuses packages
+    # already installed on the host. Avoids a network fetch on every start.
     volumes:
       - ./web:/app
-      - web-node-modules:/app/node_modules
     depends_on:
       - api
 
@@ -79,4 +82,3 @@ volumes:
   postgres-data:
   api-deps:
   api-build:
-  web-node-modules:
