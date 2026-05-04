@@ -1,0 +1,81 @@
+/* Material Design 3 design tokens.
+ * Vuetify gives us colors via its theme; everything else (motion, shape,
+ * elevation, state-layer opacities) lives here as CSS custom properties.
+ * Animations should pull from these vars instead of hard-coding numbers. */
+
+:root {
+  /* --- Motion: durations --- */
+  --md-duration-short1: 50ms;
+  --md-duration-short2: 100ms;
+  --md-duration-short3: 150ms;
+  --md-duration-short4: 200ms;
+  --md-duration-medium1: 250ms;
+  --md-duration-medium2: 300ms;
+  --md-duration-medium3: 350ms;
+  --md-duration-medium4: 400ms;
+  --md-duration-long1: 450ms;
+  --md-duration-long2: 500ms;
+  --md-duration-long3: 550ms;
+  --md-duration-long4: 600ms;
+  --md-duration-extra-long1: 700ms;
+  --md-duration-extra-long2: 800ms;
+  --md-duration-extra-long3: 900ms;
+  --md-duration-extra-long4: 1000ms;
+
+  /* --- Motion: easings --- */
+  --md-easing-linear: cubic-bezier(0, 0, 1, 1);
+  --md-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --md-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --md-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --md-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+
+  /* --- Shape: corner radius --- */
+  --md-shape-none: 0;
+  --md-shape-xs: 4px;
+  --md-shape-s: 8px;
+  --md-shape-m: 12px;
+  --md-shape-l: 16px;
+  --md-shape-xl: 28px;
+  --md-shape-full: 9999px;
+
+  /* --- State layer opacity --- */
+  --md-state-hover: 0.08;
+  --md-state-focus: 0.12;
+  --md-state-pressed: 0.12;
+  --md-state-dragged: 0.16;
+
+  /* --- Typography: type scale (sizes) --- */
+  --md-type-display-large: 57px;
+  --md-type-display-medium: 45px;
+  --md-type-display-small: 36px;
+  --md-type-headline-large: 32px;
+  --md-type-headline-medium: 28px;
+  --md-type-headline-small: 24px;
+  --md-type-title-large: 22px;
+  --md-type-title-medium: 16px;
+  --md-type-title-small: 14px;
+  --md-type-body-large: 16px;
+  --md-type-body-medium: 14px;
+  --md-type-body-small: 12px;
+  --md-type-label-large: 14px;
+  --md-type-label-medium: 12px;
+  --md-type-label-small: 11px;
+}
+
+/* Page transition presets following M3 emphasized motion. */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity var(--md-duration-medium2) var(--md-easing-emphasized),
+    transform var(--md-duration-medium2) var(--md-easing-emphasized);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}

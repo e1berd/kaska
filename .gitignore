@@ -1,0 +1,19 @@
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+*.log
+
+# Erlang crash dumps
+erl_crash.dump
