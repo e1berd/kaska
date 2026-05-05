@@ -17,3 +17,5 @@ Thumbs.db
 
 # Erlang crash dumps
 erl_crash.dump
+
+**/node_modules
