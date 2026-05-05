@@ -53,7 +53,10 @@ defmodule Hardhat.MixProject do
       {:bandit, "~> 1.5"},
       {:bcrypt_elixir, "~> 3.3"},
       {:guardian, "~> 2.4"},
-      {:guardian_db, "~> 3.0"}
+      {:guardian_db, "~> 3.0"},
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:sweet_xml, "~> 0.7"}
     ]
   end
 

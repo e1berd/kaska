@@ -1,12 +1,15 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { pushAsync, useSocketStore } from './socket'
+import { uploadToPresignedUrl } from '../utils/upload'
 
 export interface User {
   id: string
   email: string
   role: 'user' | 'admin'
   confirmed_at: string | null
+  display_name: string | null
+  avatar_url: string | null
 }
 
 interface TokensReply {
@@ -105,6 +108,39 @@ export const useAuthStore = defineStore('auth', () => {
     return me
   }
 
+  async function userChannel() {
+    if (!user.value?.id) throw new Error('not authenticated')
+    const sock = useSocketStore()
+    const { channel } = await sock.joinChannel(`user:${user.value.id}`)
+    return channel
+  }
+
+  async function updateProfile(input: { display_name: string }) {
+    const ch = await userChannel()
+    const me = await pushAsync<User>(ch, 'update_profile', input)
+    user.value = me
+    return me
+  }
+
+  async function uploadAvatar(file: File, onProgress?: (f: number) => void) {
+    const ch = await userChannel()
+    const meta = await pushAsync<{ attachment_id: string; put_url: string }>(
+      ch,
+      'request_avatar_upload',
+      {
+        filename: file.name,
+        mime: file.type || 'application/octet-stream',
+        size: file.size,
+      },
+    )
+    await uploadToPresignedUrl(meta.put_url, file, onProgress)
+    const me = await pushAsync<User>(ch, 'confirm_avatar_upload', {
+      attachment_id: meta.attachment_id,
+    })
+    user.value = me
+    return me
+  }
+
   function logout() {
     const sock = useSocketStore()
     access.value = null
@@ -154,6 +190,8 @@ export const useAuthStore = defineStore('auth', () => {
     resetPassword,
     refreshTokens,
     fetchMe,
+    updateProfile,
+    uploadAvatar,
     logout,
   }
 })

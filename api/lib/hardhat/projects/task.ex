@@ -11,7 +11,7 @@ defmodule Hardhat.Projects.Task do
 
   schema "tasks" do
     field :title, :string
-    field :description, :string
+    field :body_doc, :map, default: %{"type" => "doc", "content" => []}
     field :rank, :string
 
     belongs_to :project, Project
@@ -23,20 +23,35 @@ defmodule Hardhat.Projects.Task do
 
   def create_changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :description, :rank, :project_id, :column_id, :creator_id])
+    |> cast(attrs, [:title, :body_doc, :rank, :project_id, :column_id, :creator_id])
     |> validate_required([:title, :rank, :project_id, :column_id])
     |> validate_length(:title, min: 1, max: 200)
-    |> validate_length(:description, max: 8000)
+    |> validate_doc(:body_doc)
     |> assoc_constraint(:project)
     |> assoc_constraint(:column)
   end
 
   def update_changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :description])
+    |> cast(attrs, [:title, :body_doc])
     |> validate_required([:title])
     |> validate_length(:title, min: 1, max: 200)
-    |> validate_length(:description, max: 8000)
+    |> validate_doc(:body_doc)
+  end
+
+  # Tiptap doc must be a map with `"type": "doc"`. Anything else is rejected
+  # — keeps the field from accumulating malformed payloads.
+  defp validate_doc(changeset, field) do
+    case Ecto.Changeset.get_change(changeset, field) do
+      nil ->
+        changeset
+
+      %{"type" => "doc"} ->
+        changeset
+
+      _ ->
+        Ecto.Changeset.add_error(changeset, field, "must be a tiptap doc node")
+    end
   end
 
   def move_changeset(task, attrs) do

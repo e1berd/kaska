@@ -91,9 +91,22 @@ defmodule HardhatWeb.AuthChannel do
       id: user.id,
       email: user.email,
       role: user.role,
-      confirmed_at: user.confirmed_at
+      confirmed_at: user.confirmed_at,
+      display_name: user.display_name,
+      avatar_url: avatar_url(user)
     }
   end
+
+  defp avatar_url(%{avatar_key: nil}), do: nil
+
+  defp avatar_url(%{avatar_key: key}) when is_binary(key) do
+    case Hardhat.Storage.presigned_get(key, expires_in: 3600 * 6) do
+      {:ok, url} -> url
+      _ -> nil
+    end
+  end
+
+  defp avatar_url(_), do: nil
 
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->

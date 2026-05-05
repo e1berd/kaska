@@ -10,10 +10,21 @@ import {
   type Edge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
-import type { Task } from '../../stores/board'
+import { computed } from 'vue'
+import { useBoardStore, type Task } from '../../stores/board'
+import { docPreview } from '../../utils/tiptap'
+
+const board = useBoardStore()
 
 const props = defineProps<{ task: Task }>()
 defineEmits<{ (e: 'open', task: Task): void }>()
+
+const preview = computed(() => docPreview(props.task.body_doc, 140))
+const attachmentCount = computed(() => board.attachmentsFor(props.task.id).length)
+const firstImageUrl = computed(() => {
+  const first = board.attachmentsFor(props.task.id).find((a) => a.kind === 'image')
+  return first?.url ?? null
+})
 
 const root = ref<HTMLElement | null>(null)
 const dragging = ref(false)
@@ -68,9 +79,16 @@ onBeforeUnmount(() => {
     :data-task-id="task.id"
     @click="$emit('open', task)"
   >
+    <div v-if="firstImageUrl" class="hh-card__cover">
+      <img :src="firstImageUrl" :alt="task.title" />
+    </div>
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
-    <div v-if="task.description" class="hh-card__desc md-body-small">
-      {{ task.description }}
+    <div v-if="preview" class="hh-card__desc md-body-small">{{ preview }}</div>
+    <div v-if="attachmentCount > 0" class="hh-card__meta">
+      <span class="hh-card__chip">
+        <v-icon size="14">mdi-paperclip</v-icon>
+        {{ attachmentCount }}
+      </span>
     </div>
     <div class="hh-card__edge hh-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
     <div class="hh-card__edge hh-card__edge--bottom" :class="{ 'is-on': closestEdge === 'bottom' }" />
@@ -139,5 +157,33 @@ onBeforeUnmount(() => {
 }
 .hh-card__edge--bottom {
   bottom: -5px;
+}
+.hh-card__cover {
+  margin: -12px -14px 10px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface-container-high));
+}
+.hh-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hh-card__meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+.hh-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-surface-container));
+  color: rgba(var(--v-theme-on-surface), 0.78);
+  font-size: 12px;
+  font-weight: 500;
 }
 </style>

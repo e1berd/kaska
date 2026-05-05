@@ -51,6 +51,25 @@ guardian_secret =
 
 config :hardhat, Hardhat.Guardian, secret_key: guardian_secret
 
+# --- S3 / RustFS ---
+config :hardhat, :s3,
+  bucket: System.get_env("S3_BUCKET", "hardhat"),
+  internal_endpoint: System.get_env("S3_INTERNAL_ENDPOINT", "http://rustfs:9000"),
+  public_endpoint: System.get_env("S3_PUBLIC_ENDPOINT", "http://localhost:9000")
+
+config :ex_aws,
+  access_key_id: System.get_env("S3_ACCESS_KEY", "rustfsadmin"),
+  secret_access_key: System.get_env("S3_SECRET_KEY", "rustfsadmin")
+
+if internal = System.get_env("S3_INTERNAL_ENDPOINT") do
+  uri = URI.parse(internal)
+
+  config :ex_aws, :s3,
+    scheme: "#{uri.scheme}://",
+    host: uri.host,
+    port: uri.port
+end
+
 if mail_host = System.get_env("MAIL_HOST") do
   config :hardhat, Hardhat.Mailer,
     adapter: Swoosh.Adapters.SMTP,

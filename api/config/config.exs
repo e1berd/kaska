@@ -39,6 +39,19 @@ config :guardian, Guardian.DB,
   token_types: ["refresh"],
   sweep_interval: 60
 
+# ex_aws — talks to RustFS (S3-compatible). The default region is irrelevant
+# for RustFS but ex_aws/SigV4 require *something* sensible.
+# Endpoint host/port are filled in at runtime (see runtime.exs).
+config :ex_aws,
+  json_codec: Jason,
+  region: "us-east-1",
+  http_client: Hardhat.S3.ReqClient
+
+config :ex_aws, :s3,
+  scheme: "http://",
+  host: "rustfs",
+  port: 9000
+
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",

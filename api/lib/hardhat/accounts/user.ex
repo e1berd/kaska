@@ -12,8 +12,22 @@ defmodule Hardhat.Accounts.User do
     field :password, :string, virtual: true, redact: true
     field :confirmed_at, :utc_datetime
     field :role, Ecto.Enum, values: [:user, :admin], default: :user
+    field :display_name, :string
+    field :avatar_key, :string
 
     timestamps()
+  end
+
+  def profile_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:display_name])
+    |> validate_length(:display_name, min: 1, max: 60)
+  end
+
+  def avatar_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:avatar_key])
+    |> validate_length(:avatar_key, max: 512)
   end
 
   def registration_changeset(user, attrs) do

@@ -13,7 +13,8 @@ defmodule Hardhat.Application do
       {DNSCluster, query: Application.get_env(:hardhat, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Hardhat.PubSub},
       Guardian.DB.Sweeper,
-      HardhatWeb.Endpoint
+      HardhatWeb.Endpoint,
+      Hardhat.Storage.Bootstrap
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Channel } from 'phoenix'
 import { pushAsync, useSocketStore } from './socket'
 import type { Project } from './projects'
+import { uploadToPresignedUrl } from '../utils/upload'
 
 export interface Column {
   id: string
@@ -11,28 +12,47 @@ export interface Column {
   rank: string
 }
 
+// We borrow tiptap's own JSONContent shape so the editor accepts the doc
+// without a manual cast.
+import type { JSONContent } from '@tiptap/vue-3'
+export type TiptapDoc = JSONContent & { type: 'doc' }
+
 export interface Task {
   id: string
   project_id: string
   column_id: string
   title: string
-  description: string | null
+  body_doc: TiptapDoc
   rank: string
   creator_id: string | null
   inserted_at?: string
   updated_at?: string
 }
 
+export interface Attachment {
+  id: string
+  task_id: string
+  kind: 'image' | 'video' | 'file'
+  filename: string
+  mime: string
+  size: number
+  url: string | null
+  creator_id: string | null
+  inserted_at?: string
+}
+
 interface BoardSnapshot {
   project: Project
   columns: Column[]
   tasks: Task[]
+  attachments: Attachment[]
 }
 
 export const useBoardStore = defineStore('board', () => {
   const project = ref<Project | null>(null)
   const columns = ref<Column[]>([])
   const tasks = ref<Task[]>([])
+  const attachments = ref<Attachment[]>([])
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
 
@@ -62,6 +82,7 @@ export const useBoardStore = defineStore('board', () => {
     project.value = reply.project
     columns.value = reply.columns.slice()
     tasks.value = reply.tasks.slice()
+    attachments.value = (reply.attachments ?? []).slice()
 
     ch.on('column_created', (c: Column) => upsertColumn(c))
     ch.on('column_updated', (c: Column) => upsertColumn(c))
@@ -72,6 +93,9 @@ export const useBoardStore = defineStore('board', () => {
     ch.on('task_updated', (t: Task) => upsertTask(t))
     ch.on('task_moved', (t: Task) => upsertTask(t))
     ch.on('task_deleted', ({ id }: { id: string }) => removeTask(id))
+
+    ch.on('task_attachment_added', (a: Attachment) => upsertAttachment(a))
+    ch.on('task_attachment_removed', ({ id }: { id: string }) => removeAttachment(id))
 
     channel.value = ch
     topic.value = targetTopic
@@ -86,6 +110,21 @@ export const useBoardStore = defineStore('board', () => {
     project.value = null
     columns.value = []
     tasks.value = []
+    attachments.value = []
+  }
+
+  function attachmentsFor(taskId: string): Attachment[] {
+    return attachments.value.filter((a) => a.task_id === taskId)
+  }
+
+  function upsertAttachment(a: Attachment) {
+    const idx = attachments.value.findIndex((x) => x.id === a.id)
+    if (idx === -1) attachments.value.push(a)
+    else attachments.value[idx] = a
+  }
+
+  function removeAttachment(id: string) {
+    attachments.value = attachments.value.filter((a) => a.id !== id)
   }
 
   function upsertColumn(c: Column) {
@@ -142,8 +181,38 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync<Task>(ch(), 'create_task', { column_id: columnId, ...input })
   }
 
-  function updateTask(id: string, input: { title?: string; description?: string }) {
+  function updateTask(
+    id: string,
+    input: { title?: string; body_doc?: TiptapDoc },
+  ) {
     return pushAsync<Task>(ch(), 'update_task', { id, ...input })
+  }
+
+  async function uploadTaskAttachment(
+    taskId: string,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): Promise<Attachment> {
+    const meta = await pushAsync<{
+      attachment_id: string
+      put_url: string
+      mime: string
+    }>(ch(), 'request_task_attachment_upload', {
+      task_id: taskId,
+      filename: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+    })
+
+    await uploadToPresignedUrl(meta.put_url, file, onProgress)
+
+    return await pushAsync<Attachment>(ch(), 'confirm_task_attachment_upload', {
+      attachment_id: meta.attachment_id,
+    })
+  }
+
+  function deleteTaskAttachment(id: string) {
+    return pushAsync(ch(), 'delete_task_attachment', { id })
   }
 
   function deleteTask(id: string) {
@@ -168,8 +237,10 @@ export const useBoardStore = defineStore('board', () => {
     project,
     columns,
     tasks,
+    attachments,
     orderedColumns,
     tasksFor,
+    attachmentsFor,
     join,
     leave,
     createColumn,
@@ -180,5 +251,7 @@ export const useBoardStore = defineStore('board', () => {
     updateTask,
     deleteTask,
     moveTask,
+    uploadTaskAttachment,
+    deleteTaskAttachment,
   }
 })

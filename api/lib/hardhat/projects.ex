@@ -189,6 +189,8 @@ defmodule Hardhat.Projects do
 
   def get_task(_), do: nil
 
+  @empty_doc %{"type" => "doc", "content" => []}
+
   @doc """
   Creates a task at the end of `column_id` (which must belong to `project_id`).
   """
@@ -197,15 +199,17 @@ defmodule Hardhat.Projects do
       last_rank = last_task_rank(column_id)
       rank = Rank.between(last_rank, nil)
 
-      %Task{}
-      |> Task.create_changeset(
+      attrs =
         attrs
         |> Map.new()
         |> Map.put(:project_id, project_id)
         |> Map.put(:column_id, column_id)
         |> Map.put(:creator_id, creator_id)
         |> Map.put(:rank, rank)
-      )
+        |> Map.put_new(:body_doc, @empty_doc)
+
+      %Task{}
+      |> Task.create_changeset(attrs)
       |> Repo.insert()
     else
       _ -> {:error, :column_not_found}

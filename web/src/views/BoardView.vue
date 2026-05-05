@@ -6,9 +6,16 @@ import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { animate } from 'animejs'
 
 import { useAuthStore } from '../stores/auth'
-import { useBoardStore, type Column, type Task } from '../stores/board'
+import {
+  useBoardStore,
+  type Attachment,
+  type Column,
+  type Task,
+  type TiptapDoc,
+} from '../stores/board'
 import { useProjectsStore } from '../stores/projects'
 import BoardColumn from '../components/board/BoardColumn.vue'
+import RichEditor from '../components/RichEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,7 +39,14 @@ const deleteTarget = ref<Column | null>(null)
 const taskDialog = ref(false)
 const taskTarget = ref<Task | null>(null)
 const taskTitle = ref('')
-const taskDescription = ref('')
+const taskBody = ref<TiptapDoc>({ type: 'doc', content: [] })
+const taskUploading = ref(false)
+const taskUploadProgress = ref(0)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const taskAttachments = computed<Attachment[]>(() => {
+  return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
+})
 
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
@@ -184,7 +198,7 @@ async function commitDelete() {
 function openTask(task: Task) {
   taskTarget.value = task
   taskTitle.value = task.title
-  taskDescription.value = task.description ?? ''
+  taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
   taskDialog.value = true
 }
 
@@ -193,7 +207,7 @@ async function saveTask() {
   try {
     await board.updateTask(taskTarget.value.id, {
       title: taskTitle.value.trim(),
-      description: taskDescription.value.trim(),
+      body_doc: taskBody.value,
     })
     taskDialog.value = false
   } catch (e) {
@@ -209,6 +223,48 @@ async function deleteCurrentTask() {
   } catch (e) {
     console.warn('[board] delete task failed', e)
   }
+}
+
+async function pickAttachment() {
+  fileInput.value?.click()
+}
+
+async function onAttachmentPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!taskTarget.value) return
+
+  for (const file of files) {
+    taskUploading.value = true
+    taskUploadProgress.value = 0
+    try {
+      await board.uploadTaskAttachment(taskTarget.value.id, file, (f) => {
+        taskUploadProgress.value = f
+      })
+    } catch (err) {
+      console.warn('[board] upload failed', err)
+    } finally {
+      taskUploading.value = false
+      taskUploadProgress.value = 0
+    }
+  }
+}
+
+async function removeAttachmentClick(att: Attachment) {
+  if (!confirm(`Удалить «${att.filename}»?`)) return
+  try {
+    await board.deleteTaskAttachment(att.id)
+  } catch (e) {
+    console.warn('[board] delete attachment failed', e)
+  }
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
 function openNewColumn() {
@@ -349,7 +405,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="taskDialog" max-width="640" persistent>
+    <v-dialog v-model="taskDialog" max-width="760" persistent scrollable>
       <v-card v-if="taskTarget" rounded="xl">
         <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
         <v-card-text class="px-6 pt-2">
@@ -360,16 +416,92 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
             density="comfortable"
             :readonly="!auth.isAuthed"
           />
-          <v-textarea
-            v-model="taskDescription"
-            label="описание"
-            variant="filled"
-            rows="5"
-            auto-grow
+
+          <div class="md-label-large mt-4 mb-2">Описание</div>
+          <RichEditor
+            v-model="taskBody"
             :readonly="!auth.isAuthed"
-            density="comfortable"
-            class="mt-3"
+            placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
           />
+
+          <div class="hh-attach__head mt-5 mb-2">
+            <div class="md-label-large">Вложения</div>
+            <v-btn
+              v-if="auth.isAuthed"
+              variant="tonal"
+              rounded="pill"
+              size="small"
+              prepend-icon="mdi-paperclip"
+              :loading="taskUploading"
+              @click="pickAttachment"
+            >
+              Прикрепить файл
+            </v-btn>
+          </div>
+          <v-progress-linear
+            v-if="taskUploading"
+            :model-value="taskUploadProgress * 100"
+            color="primary"
+            rounded
+            height="6"
+            class="mb-3"
+          />
+          <input
+            ref="fileInput"
+            type="file"
+            multiple
+            accept="image/*,video/*,.pdf,.zip,.txt,.md"
+            class="hh-attach__input"
+            @change="onAttachmentPicked"
+          />
+
+          <div v-if="taskAttachments.length === 0" class="hh-attach__empty md-body-small">
+            Пока вложений нет.
+          </div>
+
+          <div v-else class="hh-attach__grid">
+            <div
+              v-for="a in taskAttachments"
+              :key="a.id"
+              class="hh-attach"
+              :class="`hh-attach--${a.kind}`"
+            >
+              <div class="hh-attach__media">
+                <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
+                <video
+                  v-else-if="a.kind === 'video' && a.url"
+                  :src="a.url"
+                  controls
+                  preload="metadata"
+                />
+                <div v-else class="hh-attach__file">
+                  <v-icon size="32">mdi-file-outline</v-icon>
+                </div>
+              </div>
+              <div class="hh-attach__meta">
+                <a
+                  v-if="a.url"
+                  class="hh-attach__name md-body-medium"
+                  :href="a.url"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  {{ a.filename }}
+                </a>
+                <span v-else class="hh-attach__name md-body-medium">{{ a.filename }}</span>
+                <span class="hh-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
+              </div>
+              <v-btn
+                v-if="auth.isAuthed"
+                icon="mdi-close"
+                variant="text"
+                density="comfortable"
+                size="small"
+                class="hh-attach__remove"
+                @click="removeAttachmentClick(a)"
+              />
+            </div>
+          </div>
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
           <v-btn
@@ -379,7 +511,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
             rounded="pill"
             @click="deleteCurrentTask"
           >
-            Удалить
+            Удалить карточку
           </v-btn>
           <v-spacer />
           <v-btn variant="text" rounded="pill" @click="taskDialog = false">Закрыть</v-btn>
@@ -438,5 +570,82 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   overflow-x: auto;
   overflow-y: hidden;
   align-items: stretch;
+}
+
+/* Attachments inside the task dialog */
+.hh-attach__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hh-attach__input {
+  display: none;
+}
+.hh-attach__empty {
+  padding: 16px;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.7);
+  border-radius: var(--md-shape-m);
+}
+.hh-attach__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.hh-attach {
+  position: relative;
+  background: rgb(var(--v-theme-surface-container-low));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
+  border-radius: var(--md-shape-m);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.hh-attach__media {
+  aspect-ratio: 16 / 10;
+  background: rgb(var(--v-theme-surface-container-high));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.hh-attach__media img,
+.hh-attach__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hh-attach__file {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.hh-attach__meta {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hh-attach__name {
+  color: rgb(var(--v-theme-on-surface));
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.hh-attach__name:hover {
+  color: rgb(var(--v-theme-primary));
+}
+.hh-attach__size {
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.hh-attach__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.45) !important;
+  color: white !important;
 }
 </style>

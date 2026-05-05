@@ -34,15 +34,25 @@ function logout() {
           Проекты
         </v-btn>
         <template v-if="auth.isAuthed">
-          <v-btn
-            variant="text"
+          <router-link
             :to="{ name: 'me' }"
-            class="hh-bar__link"
-            rounded="pill"
+            class="hh-bar__profile md-state-layer"
+            :title="auth.user?.email"
           >
-            <v-icon start size="18">mdi-account-circle-outline</v-icon>
-            {{ auth.user?.email }}
-          </v-btn>
+            <span class="hh-bar__avatar">
+              <img
+                v-if="auth.user?.avatar_url"
+                :src="auth.user.avatar_url"
+                alt=""
+              />
+              <span v-else>{{
+                (auth.user?.display_name || auth.user?.email || '?').slice(0, 1).toUpperCase()
+              }}</span>
+            </span>
+            <span class="hh-bar__profile-name">
+              {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
+            </span>
+          </router-link>
           <v-btn
             variant="text"
             class="hh-bar__link ml-1"
@@ -113,5 +123,42 @@ function logout() {
 
 .hh-bar__link {
   font-weight: 500;
+}
+
+.hh-bar__profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--md-shape-full);
+  text-decoration: none;
+  color: inherit;
+  --md-state-color: rgb(var(--v-theme-on-surface));
+}
+.hh-bar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-primary-container));
+  color: rgb(var(--v-theme-on-primary-container));
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+.hh-bar__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hh-bar__profile-name {
+  font-weight: 500;
+  font-size: 14px;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
