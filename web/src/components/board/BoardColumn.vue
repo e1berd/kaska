@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { useBoardStore, type Column, type Task } from '../../stores/board'
 import { useAuthStore } from '../../stores/auth'
 import BoardCard from './BoardCard.vue'
@@ -17,6 +19,7 @@ const auth = useAuthStore()
 const tasksInColumn = computed(() => board.tasksFor(props.column.id))
 
 const root = ref<HTMLElement | null>(null)
+const cardsScroll = ref<HTMLElement | null>(null)
 const isOver = ref(false)
 let cleanup: (() => void) | null = null
 
@@ -25,15 +28,23 @@ const newTitle = ref('')
 const submitting = ref(false)
 
 onMounted(() => {
-  if (!root.value) return
-  cleanup = dropTargetForElements({
-    element: root.value,
-    canDrop: ({ source }) => source.data.type === 'task',
-    getData: () => ({ type: 'column', columnId: props.column.id }),
-    onDragEnter: () => (isOver.value = true),
-    onDragLeave: () => (isOver.value = false),
-    onDrop: () => (isOver.value = false),
-  })
+  if (!root.value || !cardsScroll.value) return
+  cleanup = combine(
+    dropTargetForElements({
+      element: root.value,
+      canDrop: ({ source }) => source.data.type === 'task',
+      getData: () => ({ type: 'column', columnId: props.column.id }),
+      onDragEnter: () => (isOver.value = true),
+      onDragLeave: () => (isOver.value = false),
+      onDrop: () => (isOver.value = false),
+    }),
+    // Vertical auto-scroll: when the cursor is near the top/bottom edge of
+    // the cards list while dragging, the list scrolls in that direction.
+    autoScrollForElements({
+      element: cardsScroll.value,
+      canScroll: ({ source }) => source.data.type === 'task',
+    }),
+  )
 })
 
 onBeforeUnmount(() => {
@@ -103,7 +114,7 @@ function cancelAdd() {
       </v-menu>
     </header>
 
-    <div class="hh-col__cards">
+    <div ref="cardsScroll" class="hh-col__cards">
       <BoardCard
         v-for="task in tasksInColumn"
         :key="task.id"
@@ -111,7 +122,7 @@ function cancelAdd() {
         @open="$emit('open-task', $event)"
       />
       <div v-if="!tasksInColumn.length" class="hh-col__empty md-body-small">
-        Нет карточек
+        Перетащите карточку сюда
       </div>
     </div>
 
@@ -169,6 +180,7 @@ function cancelAdd() {
   --col-accent-container: var(--v-theme-primary-container);
   --col-accent-on-container: var(--v-theme-on-primary-container);
 
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 296px;
@@ -177,7 +189,9 @@ function cancelAdd() {
   border-radius: var(--md-shape-l);
   padding: 12px;
   max-height: 100%;
-  transition: background-color var(--md-duration-short4) var(--md-easing-standard);
+  transition:
+    background-color var(--md-duration-short4) var(--md-easing-standard),
+    box-shadow var(--md-duration-short4) var(--md-easing-standard);
 }
 .hh-col[data-accent='secondary'] {
   --col-accent: var(--v-theme-secondary);
@@ -191,8 +205,7 @@ function cancelAdd() {
 }
 .hh-col--over {
   background: rgb(var(--v-theme-surface-container-high));
-  outline: 2px dashed rgba(var(--col-accent), 0.5);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1.5px rgba(var(--col-accent), 0.55);
 }
 
 .hh-col__head {
@@ -231,10 +244,19 @@ function cancelAdd() {
 }
 .hh-col__empty {
   text-align: center;
-  padding: 16px 8px;
+  padding: 24px 8px;
   color: rgba(var(--v-theme-on-surface), 0.45);
-  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.7);
+  border: 1.5px dashed rgba(var(--v-theme-outline-variant), 0.8);
   border-radius: var(--md-shape-m);
+  transition:
+    border-color var(--md-duration-short3) var(--md-easing-standard),
+    background-color var(--md-duration-short3) var(--md-easing-standard),
+    color var(--md-duration-short3) var(--md-easing-standard);
+}
+.hh-col--over .hh-col__empty {
+  border-color: rgb(var(--col-accent));
+  background: rgba(var(--col-accent), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
 .hh-col__add {

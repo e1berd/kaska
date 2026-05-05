@@ -4,6 +4,7 @@ import {
   draggable,
   dropTargetForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview'
 import {
   attachClosestEdge,
   extractClosestEdge,
@@ -32,6 +33,19 @@ const closestEdge = ref<Edge | null>(null)
 
 let cleanup: (() => void) | null = null
 
+// We bypass the browser's rasterised drag image entirely (it always looks
+// blurry on hi-DPI screens) and instead show a live cloned DOM node that
+// follows the cursor via `dragover` events. Crisp text, real shadows,
+// no canvas snapshots involved.
+let ghost: HTMLElement | null = null
+let grabOffsetX = 0
+let grabOffsetY = 0
+
+function moveGhost(x: number, y: number) {
+  if (!ghost) return
+  ghost.style.transform = `translate3d(${x - grabOffsetX}px, ${y - grabOffsetY}px, 0)`
+}
+
 onMounted(() => {
   if (!root.value) return
   const el = root.value
@@ -40,8 +54,44 @@ onMounted(() => {
     draggable({
       element: el,
       getInitialData: () => ({ type: 'task', task: props.task }),
-      onDragStart: () => (dragging.value = true),
-      onDrop: () => (dragging.value = false),
+
+      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+        // Make the native drag image transparent so only our DOM follower
+        // is visible while dragging.
+        disableNativeDragPreview({ nativeSetDragImage })
+      },
+
+      onDragStart: ({ location }) => {
+        dragging.value = true
+        document.body.classList.add('hh-dragging')
+
+        const rect = el.getBoundingClientRect()
+        grabOffsetX = location.current.input.clientX - rect.left
+        grabOffsetY = location.current.input.clientY - rect.top
+
+        const clone = el.cloneNode(true) as HTMLElement
+        clone.classList.add('hh-card--ghost')
+        clone.style.width = `${rect.width}px`
+        clone.style.height = `${rect.height}px`
+        clone
+          .querySelectorAll('.hh-card__edge')
+          .forEach((node) => node.remove())
+        document.body.appendChild(clone)
+        ghost = clone
+
+        moveGhost(location.current.input.clientX, location.current.input.clientY)
+      },
+
+      onDrag: ({ location }) => {
+        moveGhost(location.current.input.clientX, location.current.input.clientY)
+      },
+
+      onDrop: () => {
+        dragging.value = false
+        document.body.classList.remove('hh-dragging')
+        ghost?.remove()
+        ghost = null
+      },
     }),
     dropTargetForElements({
       element: el,
@@ -118,8 +168,46 @@ onBeforeUnmount(() => {
 .hh-card:active {
   cursor: grabbing;
 }
+
+/* The card the user is currently carrying — leave a quiet placeholder
+ * (dashed outline, hidden content, no shadow) instead of a ghost copy. */
 .hh-card--dragging {
-  opacity: 0.4;
+  background: transparent !important;
+  border: 1.5px dashed rgba(var(--v-theme-primary), 0.5) !important;
+  box-shadow: none !important;
+}
+.hh-card--dragging > *:not(.hh-card__edge) {
+  visibility: hidden;
+}
+
+/* Live DOM follower that tracks the cursor. Lives directly on <body>
+ * (`:global` is required because we move it out of the component tree). */
+:global(.hh-card.hh-card--ghost) {
+  position: fixed !important;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: rgb(var(--v-theme-surface-container-lowest));
+  color: rgb(var(--v-theme-on-surface));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.7);
+  border-radius: var(--md-shape-m);
+  padding: 12px 14px;
+  box-shadow: var(--md-elev-4);
+  transition: none !important;
+  transform-origin: 16px 16px;
+  will-change: transform;
+}
+/* No edge bars or overlays on the floating copy. */
+:global(.hh-card--ghost .md-state-layer::after) {
+  display: none;
+}
+
+/* During an active drag, freeze the cursor across the whole app. */
+:global(body.hh-dragging),
+:global(body.hh-dragging *) {
+  cursor: grabbing !important;
+  user-select: none !important;
 }
 .hh-card__title {
   font-weight: 500;
@@ -134,29 +222,44 @@ onBeforeUnmount(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* Drop indicator: a 3px primary line + a small terminal dot on the leading
+ * edge. The line is hidden until the closest-edge resolver flips `is-on`. */
 .hh-card__edge {
   position: absolute;
-  left: 6px;
-  right: 6px;
+  left: 4px;
+  right: 4px;
   height: 3px;
   background: rgb(var(--v-theme-primary));
   border-radius: var(--md-shape-full);
   opacity: 0;
-  transform: scaleX(0.4);
+  transform: scaleX(0.6);
+  transform-origin: left center;
   transition:
     opacity var(--md-duration-short3) var(--md-easing-standard),
     transform var(--md-duration-short3) var(--md-easing-standard);
   pointer-events: none;
+}
+.hh-card__edge::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 9px;
+  height: 9px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 2px rgb(var(--v-theme-surface-container));
 }
 .hh-card__edge.is-on {
   opacity: 1;
   transform: scaleX(1);
 }
 .hh-card__edge--top {
-  top: -5px;
+  top: -7px;
 }
 .hh-card__edge--bottom {
-  bottom: -5px;
+  bottom: -7px;
 }
 .hh-card__cover {
   margin: -12px -14px 10px;

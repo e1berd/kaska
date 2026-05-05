@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { animate } from 'animejs'
 
 import { useAuthStore } from '../stores/auth'
 import {
@@ -26,7 +26,9 @@ const projects = useProjectsStore()
 const slug = computed(() => route.params.slug as string)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const colsScroll = ref<HTMLElement | null>(null)
 let monitorCleanup: (() => void) | null = null
+let scrollCleanup: (() => void) | null = null
 
 // dialogs
 const renameDialog = ref(false)
@@ -70,6 +72,13 @@ async function load() {
 onMounted(async () => {
   await load()
 
+  if (colsScroll.value) {
+    scrollCleanup = autoScrollForElements({
+      element: colsScroll.value,
+      canScroll: ({ source }) => source.data.type === 'task',
+    })
+  }
+
   monitorCleanup = monitorForElements({
     canMonitor: ({ source }) => source.data.type === 'task',
     onDrop: ({ source, location }) => {
@@ -77,8 +86,6 @@ onMounted(async () => {
       if (!target) return
 
       const sourceTask = source.data.task as Task
-      const positionsBefore = snapshotPositions()
-
       const targetType = target.data.type as 'task' | 'column'
       let targetColumnId: string
       let beforeId: string | null = null
@@ -105,16 +112,8 @@ onMounted(async () => {
         afterId = null
       }
 
-      // skip true no-op (drop within same column at the exact same neighbours)
-      const before = sourceTask.id
-      void before
-
       board
         .moveTask(sourceTask.id, targetColumnId, beforeId, afterId)
-        .then(async () => {
-          await nextTick()
-          flipAnimate(positionsBefore)
-        })
         .catch((e) => {
           console.warn('[board] move failed', e)
         })
@@ -124,45 +123,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   monitorCleanup?.()
+  scrollCleanup?.()
   board.leave()
 })
 
 watch(slug, () => {
   load()
 })
-
-function snapshotPositions(): Map<string, DOMRect> {
-  const map = new Map<string, DOMRect>()
-  document.querySelectorAll<HTMLElement>('[data-task-id]').forEach((el) => {
-    const id = el.dataset.taskId
-    if (id) map.set(id, el.getBoundingClientRect())
-  })
-  return map
-}
-
-function flipAnimate(before: Map<string, DOMRect>) {
-  document.querySelectorAll<HTMLElement>('[data-task-id]').forEach((el) => {
-    const id = el.dataset.taskId
-    if (!id) return
-    const prev = before.get(id)
-    if (!prev) return
-    const now = el.getBoundingClientRect()
-    const dx = prev.left - now.left
-    const dy = prev.top - now.top
-    if (dx === 0 && dy === 0) return
-    el.style.transform = `translate(${dx}px, ${dy}px)`
-    el.style.transition = 'none'
-    requestAnimationFrame(() => {
-      el.style.removeProperty('transition')
-      animate(el, {
-        translateX: 0,
-        translateY: 0,
-        duration: 280,
-        ease: 'cubicBezier(0.2, 0, 0, 1)',
-      })
-    })
-  })
-}
 
 function onRename(column: Column) {
   renameTarget.value = column
@@ -331,7 +298,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       {{ error }}
     </v-alert>
 
-    <div v-else class="hh-board__cols">
+    <div v-else ref="colsScroll" class="hh-board__cols">
       <BoardColumn
         v-for="(column, idx) in board.orderedColumns"
         :key="column.id"
