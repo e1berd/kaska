@@ -1,4 +1,4 @@
-FROM elixir:1.19-otp-28-alpine AS builder
+FROM elixir:1.18-alpine AS builder
 
 RUN apk add --no-cache build-base git
 
@@ -19,7 +19,7 @@ RUN MIX_ENV=prod mix compile
 RUN MIX_ENV=prod mix release
 
 
-FROM alpine:3.21 AS runner
+FROM elixir:1.18-alpine AS runner
 
 RUN apk add --no-cache libstdc++ openssl ncurses-libs
 

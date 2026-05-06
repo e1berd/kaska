@@ -34,8 +34,8 @@ services:
     restart: unless-stopped
     user: "10001:10001"
     environment:
-      RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:?}
-      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:?}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ROOT_USER:?}
+      RUSTFS_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:?}
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_VOLUMES: /data
     ports:
@@ -44,10 +44,10 @@ services:
     volumes:
       - rustfs-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/ || exit 1"]
+      test: ["CMD-SHELL", "timeout 2 bash -c 'echo >/dev/tcp/127.0.0.1/9000' || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 12
+      timeout: 5s
+      retries: 10
 
   api:
     build:
@@ -81,7 +81,7 @@ services:
       mailpit:
         condition: service_started
       rustfs:
-        condition: service_healthy
+        condition: service_started
 
   web:
     build:
