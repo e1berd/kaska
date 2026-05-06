@@ -22,6 +22,10 @@ defmodule Hardhat.Accounts do
 
   def get_user_by_email(_), do: nil
 
+  def list_users do
+    Repo.all(User)
+  end
+
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user = get_user_by_email(email)
@@ -72,7 +76,10 @@ defmodule Hardhat.Accounts do
   defp confirm_user_multi(user) do
     Ecto.Multi.new()
     |> Ecto.Multi.update(:user, User.confirm_changeset(user))
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["verify_email"]))
+    |> Ecto.Multi.delete_all(
+      :tokens,
+      UserToken.by_user_and_contexts_query(user, ["verify_email"])
+    )
   end
 
   defp reset_password_multi(user, attrs) do

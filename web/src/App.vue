@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
+
+const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
 
 function logout() {
   auth.logout()
@@ -25,14 +30,6 @@ function logout() {
       </template>
 
       <template #append>
-        <v-btn
-          variant="text"
-          :to="{ name: 'projects' }"
-          class="hh-bar__link"
-          rounded="pill"
-        >
-          Проекты
-        </v-btn>
         <template v-if="auth.isAuthed">
           <router-link
             :to="{ name: 'me' }"
@@ -77,6 +74,34 @@ function logout() {
       </template>
     </v-app-bar>
 
+    <v-navigation-drawer
+      permanent
+      width="240"
+      color="surface"
+      class="hh-nav"
+      :border="0"
+    >
+      <v-list nav class="hh-nav__list pa-3">
+        <v-list-item
+          :to="{ name: 'projects' }"
+          prepend-icon="mdi-view-grid-outline"
+          title="Проекты"
+          rounded="pill"
+          class="hh-nav__item md-label-large"
+          color="primary"
+        />
+        <v-list-item
+          v-if="currentSlug"
+          :to="{ name: 'board_types', params: { slug: currentSlug } }"
+          prepend-icon="mdi-tag-multiple-outline"
+          title="Типы задач"
+          rounded="pill"
+          class="hh-nav__item md-label-large"
+          color="primary"
+        />
+      </v-list>
+    </v-navigation-drawer>
+
     <v-main>
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
@@ -92,6 +117,7 @@ function logout() {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
   backdrop-filter: saturate(180%) blur(8px);
   background: rgba(var(--v-theme-surface), 0.85) !important;
+  z-index: 1006;
 }
 
 .hh-brand {
@@ -160,5 +186,27 @@ function logout() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* M3 navigation drawer — surface-tinted, no border, items are pill-shaped
+ * so the active state reads as a primary container chip. */
+.hh-nav {
+  background: rgb(var(--v-theme-surface)) !important;
+}
+.hh-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hh-nav :deep(.hh-nav__item) {
+  min-height: 56px;
+  padding-inline: 16px;
+}
+.hh-nav :deep(.hh-nav__item.v-list-item--active) {
+  background: rgb(var(--v-theme-secondary-container));
+  color: rgb(var(--v-theme-on-secondary-container));
+}
+.hh-nav :deep(.hh-nav__item.v-list-item--active .v-icon) {
+  color: rgb(var(--v-theme-on-secondary-container));
 }
 </style>

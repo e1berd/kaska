@@ -21,7 +21,7 @@ if System.get_env("PHX_SERVER") do
 end
 
 config :hardhat, HardhatWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+  http: [port: System.get_env("PORT", "4000") |> String.to_integer]
 
 # --- Cross-env overrides (apply in dev too, so docker-compose can drive everything) ---
 
@@ -29,12 +29,11 @@ if database_url = System.get_env("DATABASE_URL") do
   config :hardhat, Hardhat.Repo, url: database_url
 end
 
-# Bind to 0.0.0.0 when running inside docker so the host can reach us.
 if System.get_env("BIND_ALL") in ["1", "true"] or System.get_env("DATABASE_URL") do
-  config :hardhat, HardhatWeb.Endpoint, http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT", "4000"))]
+  config :hardhat, HardhatWeb.Endpoint,
+    http: [ip: {0, 0, 0, 0}, port: System.get_env("PORT", "4000") |> String.to_integer]
 end
 
-# Allow the web SPA origin to open WebSocket connections.
 web_base_url = System.get_env("WEB_BASE_URL")
 
 if web_base_url do

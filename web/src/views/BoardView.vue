@@ -5,17 +5,19 @@ import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/ad
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore, type User } from '../stores/auth'
 import {
   useBoardStore,
   type Attachment,
   type Column,
   type Task,
+  type TaskType,
   type TiptapDoc,
 } from '../stores/board'
 import { useProjectsStore } from '../stores/projects'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import RichEditor from '../components/RichEditor.vue'
+import { docToHtml, isDocEmpty } from '../utils/tiptap'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +32,8 @@ const colsScroll = ref<HTMLElement | null>(null)
 let monitorCleanup: (() => void) | null = null
 let scrollCleanup: (() => void) | null = null
 
+const viewMode = ref<'columns' | 'list'>('columns')
+
 // dialogs
 const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
@@ -42,9 +46,20 @@ const taskDialog = ref(false)
 const taskTarget = ref<Task | null>(null)
 const taskTitle = ref('')
 const taskBody = ref<TiptapDoc>({ type: 'doc', content: [] })
+const taskStartDate = ref<string | null>(null)
+const taskEndDate = ref<string | null>(null)
+const taskType = ref<string | null>(null)
+const taskAssignee = ref<string | null>(null)
 const taskUploading = ref(false)
 const taskUploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+// Description rendering: cards with content default to a read-only HTML
+// preview with an "edit" affordance; cards without content drop straight
+// into the tiptap editor so creators don't see an empty viewer.
+const editingDescription = ref(false)
+const descriptionHtml = computed(() => docToHtml(taskBody.value))
+const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
 
 const taskAttachments = computed<Attachment[]>(() => {
   return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
@@ -52,6 +67,41 @@ const taskAttachments = computed<Attachment[]>(() => {
 
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
+
+// List view: order tasks by their column position, then their per-column
+// rank, so the table mirrors what the columns view shows.
+const orderedTasks = computed<Task[]>(() => {
+  const colIndex = new Map(board.orderedColumns.map((c, i) => [c.id, i]))
+  return [...board.tasks].sort((a, b) => {
+    const ca = colIndex.get(a.column_id) ?? Number.MAX_SAFE_INTEGER
+    const cb = colIndex.get(b.column_id) ?? Number.MAX_SAFE_INTEGER
+    if (ca !== cb) return ca - cb
+    return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0
+  })
+})
+
+const listHeaders = computed(() => [
+  { title: 'Карточка', key: 'title', sortable: true, minWidth: '260px' },
+  { title: 'Тип', key: 'task_type_id', sortable: true, width: '180px' },
+  { title: 'Колонка', key: 'column_id', sortable: false, width: '200px' },
+  { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: '200px' },
+  { title: 'Сроки', key: 'dates', sortable: false, width: '200px' },
+])
+
+function taskTypeFor(id: string | null | undefined) {
+  if (!id) return null
+  return board.task_types.find((t) => t.id === id) ?? null
+}
+
+function userFor(id: string | null | undefined) {
+  if (!id) return null
+  return board.users.find((u) => u.id === id) ?? null
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString()
+}
 
 async function load() {
   loading.value = true
@@ -166,6 +216,13 @@ function openTask(task: Task) {
   taskTarget.value = task
   taskTitle.value = task.title
   taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
+  taskStartDate.value = task.start_date ?? null
+  taskEndDate.value = task.end_date ?? null
+  taskType.value = task.task_type_id ?? null
+  taskAssignee.value = task.assignee_id ?? null
+  // Editor opens by default only when there's nothing to read yet (or the
+  // viewer is impossible because the user can't edit anyway).
+  editingDescription.value = auth.isAuthed && isDocEmpty(taskBody.value)
   taskDialog.value = true
 }
 
@@ -175,10 +232,14 @@ async function saveTask() {
     await board.updateTask(taskTarget.value.id, {
       title: taskTitle.value.trim(),
       body_doc: taskBody.value,
+      start_date: taskStartDate.value,
+      end_date: taskEndDate.value,
+      task_type_id: taskType.value,
+      assignee_id: taskAssignee.value,
     })
     taskDialog.value = false
-  } catch (e) {
-    console.warn('[board] update task failed', e)
+  } catch (err: any) {
+    alert(err.message || 'Ошибка сохранения задачи')
   }
 }
 
@@ -254,6 +315,21 @@ function backToProjects() {
   router.push({ name: 'projects' })
 }
 
+// Inline column change from the list-view table. Drops the task at the end
+// of the new column so the move is unambiguous; realtime broadcasts will
+// reorder elsewhere if needed.
+async function changeColumn(task: Task, newColumnId: unknown) {
+  const targetId = typeof newColumnId === 'string' ? newColumnId : null
+  if (!targetId || targetId === task.column_id) return
+  const trailing = board.tasksFor(targetId).filter((t) => t.id !== task.id)
+  const beforeId = trailing.length ? trailing[trailing.length - 1].id : null
+  try {
+    await board.moveTask(task.id, targetId, beforeId, null)
+  } catch (e) {
+    console.warn('[board] change column failed', e)
+  }
+}
+
 const accents = ['primary', 'secondary', 'tertiary'] as const
 function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   return accents[idx % accents.length]
@@ -274,8 +350,19 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         <code v-if="board.project" class="hh-board__slug">/{{ board.project.slug }}</code>
       </div>
       <v-spacer />
+      <v-btn-toggle
+        v-model="viewMode"
+        mandatory
+        rounded="pill"
+        color="primary"
+        class="mr-4"
+        density="compact"
+      >
+        <v-btn value="columns" prepend-icon="mdi-view-column-outline">Колонки</v-btn>
+        <v-btn value="list" prepend-icon="mdi-format-list-bulleted">Список</v-btn>
+      </v-btn-toggle>
       <v-btn
-        v-if="auth.isAuthed"
+        v-if="auth.isAuthed && viewMode === 'columns'"
         prepend-icon="mdi-plus"
         variant="tonal"
         rounded="pill"
@@ -298,7 +385,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       {{ error }}
     </v-alert>
 
-    <div v-else ref="colsScroll" class="hh-board__cols">
+    <div v-else-if="viewMode === 'columns'" ref="colsScroll" class="hh-board__cols">
       <BoardColumn
         v-for="(column, idx) in board.orderedColumns"
         :key="column.id"
@@ -308,6 +395,104 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         @rename="onRename"
         @delete="onDeleteColumn"
       />
+    </div>
+
+    <div v-else-if="viewMode === 'list'" class="hh-board__list">
+      <v-card class="hh-board__table" rounded="lg" variant="elevated" :elevation="1">
+        <v-data-table
+          :headers="listHeaders"
+          :items="orderedTasks"
+          :items-per-page="-1"
+          item-value="id"
+          density="comfortable"
+          hover
+          fixed-header
+          class="hh-table"
+          @click:row="(_: unknown, ctx: { item: Task }) => openTask(ctx.item)"
+        >
+          <template #no-data>
+            <div class="text-center text-medium-emphasis py-8">
+              Карточек пока нет.
+            </div>
+          </template>
+
+          <template #bottom />
+
+          <template #item.title="{ item }">
+            <span class="hh-table__title md-body-medium">{{ item.title }}</span>
+          </template>
+
+          <template #item.task_type_id="{ item }">
+            <v-chip
+              v-if="taskTypeFor(item.task_type_id)"
+              :color="taskTypeFor(item.task_type_id)?.color || undefined"
+              size="small"
+              label
+              text-color="white"
+            >
+              {{ taskTypeFor(item.task_type_id)?.name }}
+            </v-chip>
+            <span v-else class="text-medium-emphasis md-body-small">—</span>
+          </template>
+
+          <template #item.column_id="{ item }">
+            <v-select
+              :model-value="item.column_id"
+              :items="board.orderedColumns"
+              item-title="name"
+              item-value="id"
+              variant="solo-filled"
+              density="compact"
+              hide-details
+              flat
+              rounded="pill"
+              :menu-props="{ closeOnContentClick: true }"
+              :readonly="!auth.isAuthed"
+              class="hh-table__col-select"
+              @click.stop
+              @update:model-value="(v: unknown) => changeColumn(item, v)"
+            />
+          </template>
+
+          <template #item.assignee_id="{ item }">
+            <div v-if="userFor(item.assignee_id)" class="hh-table__assignee">
+              <v-avatar
+                :image="userFor(item.assignee_id)?.avatar_url || ''"
+                size="24"
+                color="primary"
+              >
+                <span
+                  v-if="!userFor(item.assignee_id)?.avatar_url"
+                  class="text-white"
+                  style="font-size: 11px"
+                >
+                  {{
+                    (
+                      userFor(item.assignee_id)?.display_name ||
+                      userFor(item.assignee_id)?.email ||
+                      '?'
+                    )
+                      .slice(0, 1)
+                      .toUpperCase()
+                  }}
+                </span>
+              </v-avatar>
+              <span class="md-body-small">
+                {{ userFor(item.assignee_id)?.display_name || userFor(item.assignee_id)?.email }}
+              </span>
+            </div>
+            <span v-else class="text-medium-emphasis md-body-small">—</span>
+          </template>
+
+          <template #item.dates="{ item }">
+            <span v-if="item.start_date || item.end_date" class="hh-table__dates md-body-small">
+              <v-icon size="14" class="mr-1">mdi-calendar</v-icon>
+              {{ fmtDate(item.start_date) || '—' }} → {{ fmtDate(item.end_date) || '—' }}
+            </span>
+            <span v-else class="text-medium-emphasis md-body-small">—</span>
+          </template>
+        </v-data-table>
+      </v-card>
     </div>
 
     <v-dialog v-model="renameDialog" max-width="460">
@@ -372,7 +557,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="taskDialog" max-width="760" persistent scrollable>
+    <v-dialog v-model="taskDialog" max-width="760" scrollable>
       <v-card v-if="taskTarget" rounded="xl">
         <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
         <v-card-text class="px-6 pt-2">
@@ -384,12 +569,158 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
             :readonly="!auth.isAuthed"
           />
 
-          <div class="md-label-large mt-4 mb-2">Описание</div>
+          <div class="hh-task__row">
+            <v-text-field
+              v-model="taskStartDate"
+              label="Дата начала"
+              variant="filled"
+              density="comfortable"
+              type="date"
+              :readonly="!auth.isAuthed"
+            />
+            <v-text-field
+              v-model="taskEndDate"
+              label="Дата окончания"
+              variant="filled"
+              density="comfortable"
+              type="date"
+              clearable
+              :readonly="!auth.isAuthed"
+            />
+          </div>
+
+          <div class="hh-task__row">
+            <v-select
+              v-model="taskType"
+              :items="board.task_types"
+              item-title="name"
+              item-value="id"
+              label="Тип задачи"
+              variant="filled"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item v-bind="itemProps">
+                  <template #prepend>
+                    <v-icon :color="(item as TaskType).color">mdi-circle</v-icon>
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <v-chip
+                  :color="(item as TaskType).color"
+                  size="small"
+                  text-color="white"
+                  class="mr-2"
+                >
+                  {{ (item as TaskType).name }}
+                </v-chip>
+              </template>
+            </v-select>
+
+            <v-select
+              v-model="taskAssignee"
+              :items="board.users"
+              item-title="display_name"
+              item-value="id"
+              label="Исполнитель"
+              variant="filled"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item
+                  v-bind="itemProps"
+                  :title="(item as User).display_name || (item as User).email"
+                >
+                  <template #prepend>
+                    <v-avatar
+                      :image="(item as User).avatar_url || ''"
+                      size="24"
+                      class="mr-2"
+                      color="primary"
+                    >
+                      <span
+                        v-if="!(item as User).avatar_url"
+                        class="text-white text-caption"
+                      >
+                        {{
+                          ((item as User).display_name || (item as User).email)
+                            .slice(0, 1)
+                            .toUpperCase()
+                        }}
+                      </span>
+                    </v-avatar>
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <div class="d-flex align-center">
+                  <v-avatar
+                    :image="(item as User).avatar_url || ''"
+                    size="20"
+                    class="mr-2"
+                    color="primary"
+                  >
+                    <span
+                      v-if="!(item as User).avatar_url"
+                      class="text-white"
+                      style="font-size: 10px"
+                    >
+                      {{
+                        ((item as User).display_name || (item as User).email)
+                          .slice(0, 1)
+                          .toUpperCase()
+                      }}
+                    </span>
+                  </v-avatar>
+                  {{ (item as User).display_name || (item as User).email }}
+                </div>
+              </template>
+            </v-select>
+          </div>
+
+          <div class="hh-desc__head mt-4 mb-2">
+            <div class="md-label-large">Описание</div>
+            <v-btn
+              v-if="auth.isAuthed && !editingDescription && !descriptionEmpty"
+              variant="text"
+              size="small"
+              rounded="pill"
+              prepend-icon="mdi-pencil-outline"
+              @click="editingDescription = true"
+            >
+              Редактировать
+            </v-btn>
+            <v-btn
+              v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
+              variant="text"
+              size="small"
+              rounded="pill"
+              prepend-icon="mdi-eye-outline"
+              @click="editingDescription = false"
+            >
+              Просмотр
+            </v-btn>
+          </div>
+
           <RichEditor
+            v-if="editingDescription"
             v-model="taskBody"
             :readonly="!auth.isAuthed"
             placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
           />
+          <div
+            v-else-if="!descriptionEmpty"
+            class="hh-desc__view"
+            v-html="descriptionHtml"
+          />
+          <div v-else class="hh-desc__empty md-body-medium">
+            Описание не заполнено.
+          </div>
 
           <div class="hh-attach__head mt-5 mb-2">
             <div class="md-label-large">Вложения</div>
@@ -537,6 +868,138 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   overflow-x: auto;
   overflow-y: hidden;
   align-items: stretch;
+}
+
+/* List view — surface-tinted card hosting the data table. */
+.hh-board__list {
+  flex: 1;
+  padding: 8px 16px 20px;
+  overflow-y: auto;
+}
+.hh-board__table {
+  background: rgb(var(--v-theme-surface-container-low));
+  overflow: hidden;
+}
+.hh-table :deep(thead th) {
+  background: rgb(var(--v-theme-surface-container)) !important;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+.hh-table :deep(tbody tr) {
+  transition: background-color var(--md-duration-short3) var(--md-easing-standard);
+}
+.hh-table :deep(tbody tr:hover td) {
+  background: rgba(var(--v-theme-on-surface), 0.04) !important;
+}
+.hh-table :deep(tbody tr) {
+  cursor: pointer;
+}
+.hh-table__title {
+  color: rgb(var(--v-theme-on-surface));
+  font-weight: 500;
+}
+.hh-table__col-select {
+  max-width: 180px;
+}
+.hh-table__col-select :deep(.v-field) {
+  background: rgb(var(--v-theme-surface-container-high));
+  border-radius: var(--md-shape-full);
+}
+.hh-table__assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hh-table__dates {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.78);
+}
+
+/* Task dialog rows */
+.hh-task__row {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+.hh-task__row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Description: switch between read-only viewer and the tiptap editor. */
+.hh-desc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hh-desc__view {
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
+  border-radius: var(--md-shape-m);
+  padding: 12px 16px;
+  background: rgb(var(--v-theme-surface-container-lowest));
+  color: rgb(var(--v-theme-on-surface));
+  min-height: 60px;
+  font-family: 'Roboto Flex', 'Roboto', sans-serif;
+}
+.hh-desc__view :deep(p) {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.hh-desc__view :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.hh-desc__view :deep(h2) {
+  font-size: var(--md-type-title-large);
+  line-height: 1.25;
+  font-weight: 500;
+  margin: 16px 0 8px;
+}
+.hh-desc__view :deep(h3) {
+  font-size: var(--md-type-title-medium);
+  line-height: 1.3;
+  font-weight: 500;
+  margin: 12px 0 6px;
+}
+.hh-desc__view :deep(ul),
+.hh-desc__view :deep(ol) {
+  padding-left: 22px;
+  margin: 4px 0;
+}
+.hh-desc__view :deep(blockquote) {
+  border-left: 3px solid rgb(var(--v-theme-primary));
+  padding: 2px 12px;
+  margin: 8px 0;
+  color: rgba(var(--v-theme-on-surface), 0.78);
+}
+.hh-desc__view :deep(pre) {
+  background: rgb(var(--v-theme-surface-container-high));
+  border-radius: var(--md-shape-s);
+  padding: 10px 12px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+.hh-desc__view :deep(code) {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 0.92em;
+  background: rgb(var(--v-theme-surface-container-high));
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.hh-desc__view :deep(a) {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: underline;
+}
+.hh-desc__empty {
+  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.6);
+  border-radius: var(--md-shape-m);
+  padding: 18px;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* Attachments inside the task dialog */

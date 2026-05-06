@@ -14,16 +14,32 @@ defmodule Hardhat.Projects.Task do
     field :body_doc, :map, default: %{"type" => "doc", "content" => []}
     field :rank, :string
 
+    field :start_date, :utc_datetime
+    field :end_date, :utc_datetime
+
     belongs_to :project, Project
     belongs_to :column, Column
     belongs_to :creator, User
+    belongs_to :assignee, User
+    belongs_to :task_type, Hardhat.Projects.TaskType
 
     timestamps()
   end
 
   def create_changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :body_doc, :rank, :project_id, :column_id, :creator_id])
+    |> cast(attrs, [
+      :title,
+      :body_doc,
+      :rank,
+      :project_id,
+      :column_id,
+      :creator_id,
+      :start_date,
+      :end_date,
+      :assignee_id,
+      :task_type_id
+    ])
     |> validate_required([:title, :rank, :project_id, :column_id])
     |> validate_length(:title, min: 1, max: 200)
     |> validate_doc(:body_doc)
@@ -33,7 +49,7 @@ defmodule Hardhat.Projects.Task do
 
   def update_changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :body_doc])
+    |> cast(attrs, [:title, :body_doc, :start_date, :end_date, :assignee_id, :task_type_id])
     |> validate_required([:title])
     |> validate_length(:title, min: 1, max: 200)
     |> validate_doc(:body_doc)

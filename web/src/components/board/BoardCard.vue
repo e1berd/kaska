@@ -27,6 +27,26 @@ const firstImageUrl = computed(() => {
   return first?.url ?? null
 })
 
+const startDate = computed(() => {
+  if (!props.task.start_date) return null
+  return new Date(props.task.start_date).toLocaleDateString()
+})
+
+const endDate = computed(() => {
+  if (!props.task.end_date) return null
+  return new Date(props.task.end_date).toLocaleDateString()
+})
+
+const taskType = computed(() => {
+  if (!props.task.task_type_id) return null
+  return board.task_types.find(t => t.id === props.task.task_type_id) || null
+})
+
+const assignee = computed(() => {
+  if (!props.task.assignee_id) return null
+  return board.users.find(u => u.id === props.task.assignee_id) || null
+})
+
 const root = ref<HTMLElement | null>(null)
 const dragging = ref(false)
 const closestEdge = ref<Edge | null>(null)
@@ -134,12 +154,27 @@ onBeforeUnmount(() => {
     </div>
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
     <div v-if="preview" class="hh-card__desc md-body-small">{{ preview }}</div>
-    <div v-if="attachmentCount > 0" class="hh-card__meta">
-      <span class="hh-card__chip">
-        <v-icon size="14">mdi-paperclip</v-icon>
+    <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="hh-card__meta">
+      <span v-if="taskType" class="hh-card__chip" :style="{ backgroundColor: taskType.color, color: '#fff' }">
+        {{ taskType.name }}
+      </span>
+      <span v-if="attachmentCount > 0" class="hh-card__chip">
+        <v-icon size="14">mdi-paperclip</v-icon>    
         {{ attachmentCount }}
       </span>
+      <span v-if="startDate || endDate" class="hh-card__chip hh-card__dates">
+        <v-icon size="14">mdi-calendar</v-icon>
+        {{ startDate || '??' }} - {{ endDate || '??' }}
+      </span>
     </div>
+    
+    <div v-if="assignee" class="mt-2 text-caption text-medium-emphasis d-flex align-center">
+      <v-avatar :image="assignee.avatar_url || ''" size="20" class="mr-1" color="primary">
+        <span v-if="!assignee.avatar_url" class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>
+      </v-avatar>
+      {{ assignee.display_name || assignee.email }}
+    </div>
+
     <div class="hh-card__edge hh-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
     <div class="hh-card__edge hh-card__edge--bottom" :class="{ 'is-on': closestEdge === 'bottom' }" />
   </div>

@@ -10,6 +10,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/BoardView.vue'),
     props: true,
   },
+  {
+    path: '/p/:slug/types',
+    name: 'board_types',
+    component: () => import('../views/TaskTypesView.vue'),
+    props: true,
+  },
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
   { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
   {

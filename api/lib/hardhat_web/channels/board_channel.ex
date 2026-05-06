@@ -24,6 +24,9 @@ defmodule HardhatWeb.BoardChannel do
       {project, columns, tasks} ->
         socket = assign(socket, :project_id, project.id)
         task_ids = Enum.map(tasks, & &1.id)
+        
+        task_types = Projects.list_task_types(project.id)
+        users = Hardhat.Accounts.list_users()
 
         attachments =
           for t_id <- task_ids,
@@ -36,6 +39,8 @@ defmodule HardhatWeb.BoardChannel do
            project: project_view(project),
            columns: Enum.map(columns, &column_view/1),
            tasks: Enum.map(tasks, &task_view/1),
+           task_types: Enum.map(task_types, &task_type_view/1),
+           users: Enum.map(users, &user_view/1),
            attachments: attachments
          }, socket}
     end
@@ -106,6 +111,55 @@ defmodule HardhatWeb.BoardChannel do
     end
   end
 
+  ## Task Types ─────────────────────────────────────────────────────────
+
+  def handle_in("create_task_type", payload, socket) do
+    project_id = socket.assigns.project_id
+    
+    attrs = %{
+      name: Map.get(payload, "name"),
+      color: Map.get(payload, "color") || "gray",
+      project_id: project_id
+    }
+
+    case Projects.create_task_type(attrs) do
+      {:ok, task_type} ->
+        view = task_type_view(task_type)
+        broadcast!(socket, "task_type_created", view)
+        {:reply, {:ok, view}, socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+    end
+  end
+
+  def handle_in("update_task_type", %{"id" => id} = payload, socket) do
+    attrs = take_present(payload, ["name", "color"])
+    
+    with %Hardhat.Projects.TaskType{} = task_type <- get_owned_task_type(id, socket),
+         {:ok, task_type} <- Projects.update_task_type(task_type, attrs) do
+      view = task_type_view(task_type)
+      broadcast!(socket, "task_type_updated", view)
+      {:reply, {:ok, view}, socket}
+    else
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+
+      _ ->
+        {:reply, {:error, %{message: "task_type_not_found"}}, socket}
+    end
+  end
+
+  def handle_in("delete_task_type", %{"id" => id}, socket) do
+    with %Hardhat.Projects.TaskType{} = task_type <- get_owned_task_type(id, socket),
+         {:ok, _} <- Projects.delete_task_type(task_type) do
+      broadcast!(socket, "task_type_deleted", %{id: id})
+      {:reply, :ok, socket}
+    else
+      _ -> {:reply, {:error, %{message: "task_type_not_found"}}, socket}
+    end
+  end
+
   ## Tasks ───────────────────────────────────────────────────────────────
 
   def handle_in("create_task", %{"column_id" => column_id} = payload, socket) do
@@ -114,7 +168,11 @@ defmodule HardhatWeb.BoardChannel do
 
     attrs = %{
       title: Map.get(payload, "title"),
-      description: Map.get(payload, "description")
+      description: Map.get(payload, "description"),
+      start_date: Map.get(payload, "start_date"),
+      end_date: Map.get(payload, "end_date"),
+      assignee_id: Map.get(payload, "assignee_id"),
+      task_type_id: Map.get(payload, "task_type_id")
     }
 
     case Projects.create_task(project_id, column_id, attrs, creator_id) do
@@ -132,7 +190,7 @@ defmodule HardhatWeb.BoardChannel do
   end
 
   def handle_in("update_task", %{"id" => id} = payload, socket) do
-    attrs = take_present(payload, ["title", "body_doc"])
+    attrs = take_present(payload, ["title", "body_doc", "start_date", "end_date", "assignee_id", "task_type_id"])
 
     with %Task{} = task <- get_owned_task(id, socket),
          {:ok, task} <- Projects.update_task(task, attrs) do
@@ -254,6 +312,13 @@ defmodule HardhatWeb.BoardChannel do
     end
   end
 
+  defp get_owned_task_type(id, socket) do
+    case Projects.get_task_type(id) do
+      %Hardhat.Projects.TaskType{project_id: pid} = tt when pid == socket.assigns.project_id -> tt
+      _ -> nil
+    end
+  end
+
   defp project_view(%Project{} = p) do
     %{
       id: p.id,
@@ -277,10 +342,44 @@ defmodule HardhatWeb.BoardChannel do
       body_doc: t.body_doc,
       rank: t.rank,
       creator_id: t.creator_id,
+      assignee_id: t.assignee_id,
+      task_type_id: t.task_type_id,
+      start_date: t.start_date,
+      end_date: t.end_date,
       inserted_at: t.inserted_at,
       updated_at: t.updated_at
     }
   end
+
+  defp task_type_view(%Hardhat.Projects.TaskType{} = tt) do
+    %{
+      id: tt.id,
+      project_id: tt.project_id,
+      name: tt.name,
+      color: tt.color
+    }
+  end
+
+  defp user_view(%Hardhat.Accounts.User{} = u) do
+    %{
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      confirmed_at: u.confirmed_at,
+      display_name: u.display_name,
+      avatar_url: avatar_url(u)
+    }
+  end
+
+  defp avatar_url(%{avatar_key: nil}), do: nil
+
+  defp avatar_url(%{avatar_key: key}) when is_binary(key) do
+    case Hardhat.Storage.presigned_get(key, expires_in: 3600 * 6) do
+      {:ok, url} -> url
+      _ -> nil
+    end
+  end
+  defp avatar_url(_), do: nil
 
   defp attachment_view(%Attachment{} = a) do
     %{

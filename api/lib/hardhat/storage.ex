@@ -30,8 +30,7 @@ defmodule Hardhat.Storage do
       {:error, {:http_error, status, _body}} when status in [200, 201, 204] ->
         :ok
 
-      {:error,
-       {:http_error, _, %{body: body}}}
+      {:error, {:http_error, _, %{body: body}}}
       when is_binary(body) ->
         # RustFS replies with a 200/409 body containing
         # "BucketAlreadyOwnedByYou" / "BucketAlreadyExists" — also fine.

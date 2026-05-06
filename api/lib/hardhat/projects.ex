@@ -13,7 +13,7 @@ defmodule Hardhat.Projects do
   alias Ecto.Multi
   alias Hardhat.Repo
   alias Hardhat.Rank
-  alias Hardhat.Projects.{Column, Project, Task}
+  alias Hardhat.Projects.{Column, Project, Task, TaskType}
 
   @default_columns [
     {"Todo", "F"},
@@ -41,6 +41,30 @@ defmodule Hardhat.Projects do
   end
 
   def get_project_by_slug(_), do: nil
+
+  ## Task Types ─────────────────────────────────────────────────────────
+
+  def list_task_types(project_id) do
+    Repo.all(from t in TaskType, where: t.project_id == ^project_id, order_by: t.name)
+  end
+
+  def get_task_type(id), do: Repo.get(TaskType, id)
+
+  def create_task_type(attrs \\ %{}) do
+    %TaskType{}
+    |> TaskType.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_task_type(%TaskType{} = task_type, attrs) do
+    task_type
+    |> TaskType.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_task_type(%TaskType{} = task_type) do
+    Repo.delete(task_type)
+  end
 
   @doc """
   Creates a project owned by `owner_id` and seeds three default columns
@@ -207,6 +231,7 @@ defmodule Hardhat.Projects do
         |> Map.put(:creator_id, creator_id)
         |> Map.put(:rank, rank)
         |> Map.put_new(:body_doc, @empty_doc)
+        |> Map.put_new(:start_date, DateTime.utc_now() |> DateTime.truncate(:second))
 
       %Task{}
       |> Task.create_changeset(attrs)

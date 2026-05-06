@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Channel } from 'phoenix'
 import { pushAsync, useSocketStore } from './socket'
 import type { Project } from './projects'
+import type { User } from './auth'
 import { uploadToPresignedUrl } from '../utils/upload'
 
 export interface Column {
@@ -25,8 +26,19 @@ export interface Task {
   body_doc: TiptapDoc
   rank: string
   creator_id: string | null
+  assignee_id: string | null
+  task_type_id: string | null
+  start_date?: string
+  end_date?: string
   inserted_at?: string
   updated_at?: string
+}
+
+export interface TaskType {
+  id: string
+  project_id: string
+  name: string
+  color: string
 }
 
 export interface Attachment {
@@ -41,10 +53,12 @@ export interface Attachment {
   inserted_at?: string
 }
 
-interface BoardSnapshot {
+export interface BoardSnapshot {
   project: Project
   columns: Column[]
   tasks: Task[]
+  task_types: TaskType[]
+  users: User[]
   attachments: Attachment[]
 }
 
@@ -52,6 +66,8 @@ export const useBoardStore = defineStore('board', () => {
   const project = ref<Project | null>(null)
   const columns = ref<Column[]>([])
   const tasks = ref<Task[]>([])
+  const task_types = ref<TaskType[]>([])
+  const users = ref<User[]>([])
   const attachments = ref<Attachment[]>([])
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
@@ -82,6 +98,8 @@ export const useBoardStore = defineStore('board', () => {
     project.value = reply.project
     columns.value = reply.columns.slice()
     tasks.value = reply.tasks.slice()
+    if (reply.task_types) task_types.value = reply.task_types.slice()
+    if (reply.users) users.value = reply.users.slice()
     attachments.value = (reply.attachments ?? []).slice()
 
     ch.on('column_created', (c: Column) => upsertColumn(c))
@@ -97,6 +115,10 @@ export const useBoardStore = defineStore('board', () => {
     ch.on('task_attachment_added', (a: Attachment) => upsertAttachment(a))
     ch.on('task_attachment_removed', ({ id }: { id: string }) => removeAttachment(id))
 
+    ch.on('task_type_created', (tt: TaskType) => upsertTaskType(tt))
+    ch.on('task_type_updated', (tt: TaskType) => upsertTaskType(tt))
+    ch.on('task_type_deleted', ({ id }: { id: string }) => removeTaskType(id))
+
     channel.value = ch
     topic.value = targetTopic
     return ch
@@ -110,6 +132,8 @@ export const useBoardStore = defineStore('board', () => {
     project.value = null
     columns.value = []
     tasks.value = []
+    task_types.value = []
+    users.value = []
     attachments.value = []
   }
 
@@ -150,6 +174,16 @@ export const useBoardStore = defineStore('board', () => {
     tasks.value = tasks.value.filter((t) => t.id !== id)
   }
 
+  function upsertTaskType(tt: TaskType) {
+    const idx = task_types.value.findIndex((x) => x.id === tt.id)
+    if (idx === -1) task_types.value.push(tt)
+    else task_types.value[idx] = tt
+  }
+
+  function removeTaskType(id: string) {
+    task_types.value = task_types.value.filter((t) => t.id !== id)
+  }
+
   function ch() {
     if (!channel.value) throw new Error('board channel is not joined')
     return channel.value
@@ -177,13 +211,13 @@ export const useBoardStore = defineStore('board', () => {
     })
   }
 
-  function createTask(columnId: string, input: { title: string; description?: string }) {
+  function createTask(columnId: string, input: { title: string; description?: string; start_date?: string; end_date?: string; assignee_id?: string | null; task_type_id?: string | null }) {
     return pushAsync<Task>(ch(), 'create_task', { column_id: columnId, ...input })
   }
 
   function updateTask(
     id: string,
-    input: { title?: string; body_doc?: TiptapDoc },
+    input: { title?: string; body_doc?: TiptapDoc; start_date?: string | null; end_date?: string | null; assignee_id?: string | null; task_type_id?: string | null },
   ) {
     return pushAsync<Task>(ch(), 'update_task', { id, ...input })
   }
@@ -233,10 +267,24 @@ export const useBoardStore = defineStore('board', () => {
     })
   }
 
+  function createTaskType(input: { name: string; color: string }) {
+    return pushAsync<TaskType>(ch(), 'create_task_type', input)
+  }
+
+  function updateTaskType(id: string, input: { name?: string; color?: string }) {
+    return pushAsync<TaskType>(ch(), 'update_task_type', { id, ...input })
+  }
+
+  function deleteTaskType(id: string) {
+    return pushAsync(ch(), 'delete_task_type', { id })
+  }
+
   return {
     project,
     columns,
     tasks,
+    task_types,
+    users,
     attachments,
     orderedColumns,
     tasksFor,
@@ -251,6 +299,9 @@ export const useBoardStore = defineStore('board', () => {
     updateTask,
     deleteTask,
     moveTask,
+    createTaskType,
+    updateTaskType,
+    deleteTaskType,
     uploadTaskAttachment,
     deleteTaskAttachment,
   }
