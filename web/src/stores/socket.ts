@@ -2,15 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { Socket, type Channel } from 'phoenix'
 
-// The browser connects directly to the Phoenix API on port 4000 (published to
-// the host in docker-compose). VITE_API_WS_URL is injected by the Vite dev
-// server from the container environment at request time.
 const SOCKET_URL = import.meta.env.VITE_API_WS_URL ?? 'ws://localhost:4000/socket'
 
-/**
- * Push a single channel event and resolve with the server reply.
- * Reject on `error` reply or timeout.
- */
 export function pushAsync<T = unknown>(
   channel: Channel,
   event: string,
@@ -36,23 +29,10 @@ export const useSocketStore = defineStore('socket', () => {
 
     const params = token ? { token } : {}
     const s = new Socket(SOCKET_URL, { params })
-    const id = Math.random().toString(36).slice(2, 6)
+    s.onOpen(() => { connected.value = true })
+    s.onClose(() => { connected.value = false })
+    s.onError((err) => { console.warn('[socket] error', err) })
 
-    s.onOpen(() => {
-      console.debug(`[socket:${id}] onOpen — isConnected=${s.isConnected()}`)
-      connected.value = true
-    })
-    s.onClose(() => {
-      console.debug(`[socket:${id}] onClose`)
-      connected.value = false
-    })
-    s.onError((err) => {
-      console.warn(`[socket:${id}] onError`, err)
-    })
-
-    // Assign before connect() so that any code running synchronously after
-    // connect() (e.g. ensureConnected() called from a parallel async chain)
-    // sees the socket immediately and does NOT create a second one.
     socket.value = s
     s.connect()
   }
@@ -71,73 +51,33 @@ export const useSocketStore = defineStore('socket', () => {
     if (!socket.value) connect(null)
   }
 
-  /**
-   * Resolve once ANY current or future socket is open.
-   *
-   * Uses Vue's `watch` on `socket` (reactive ref) so it automatically
-   * follows socket replacements — e.g. when Vite HMR reloads the module
-   * and bootstrap() creates a brand-new Socket instance while we are
-   * still waiting for the previous one to open.
-   */
-  function waitForSocketOpen(timeoutMs = 60_000): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // Already open — nothing to wait for.
-      if (socket.value?.isConnected()) {
-        console.debug('[socket] waitForSocketOpen: already connected')
-        return resolve()
-      }
-      console.debug('[socket] waitForSocketOpen: waiting...')
+  function waitForSocketOpen(): Promise<void> {
+    return new Promise((resolve) => {
+      if (socket.value?.isConnected()) return resolve()
 
       let done = false
       let openRef: string | null = null
       let stopWatch: (() => void) | null = null
 
-      const timer = setTimeout(() => {
+      function finish() {
         if (done) return
         done = true
         stopWatch?.()
-        if (openRef !== null) socket.value?.off([openRef])
-        console.debug('[socket] waitForSocketOpen: rejected via timeout')
-        reject({ message: 'socket connect timeout' })
-      }, timeoutMs)
+        resolve()
+      }
 
       function attachToSocket(s: Socket | null) {
-        // Clean up listener on the previous socket instance.
-        if (openRef !== null) {
-          // s here is the *new* socket; the old ref belongs to the previous one —
-          // we can't easily unregister it, but it will be GC'd with the old socket.
-          openRef = null
-        }
+        openRef = null
         if (!s) return
-
-        if (s.isConnected()) {
-          if (done) return
-          done = true
-          clearTimeout(timer)
-          stopWatch?.()
-          console.debug('[socket] waitForSocketOpen: resolved (socket already open on attach)')
-          resolve()
-          return
-        }
+        if (s.isConnected()) { finish(); return }
 
         openRef = s.onOpen(() => {
-          if (done) return
-          done = true
-          clearTimeout(timer)
-          stopWatch?.()
           s.off([openRef!])
-          console.debug('[socket] waitForSocketOpen: resolved via onOpen')
-          resolve()
+          finish()
         })
       }
 
-      // Watch for socket replacements (e.g. HMR reload or token refresh).
-      stopWatch = watch(socket, (newSocket) => {
-        console.debug('[socket] waitForSocketOpen: socket replaced, re-attaching')
-        attachToSocket(newSocket)
-      })
-
-      // Attach to the current socket immediately.
+      stopWatch = watch(socket, (newSocket) => attachToSocket(newSocket))
       attachToSocket(socket.value)
     })
   }
@@ -149,13 +89,9 @@ export const useSocketStore = defineStore('socket', () => {
     ensureConnected()
     const existing = channels.value.get(topic)
     if (existing && (existing.state === 'joined' || existing.state === 'joining')) {
-      // No fresh reply when re-using a channel; surface an empty payload.
       return { channel: existing, reply: {} as T }
     }
 
-    // waitForSocketOpen watches socket (reactive ref) so it will follow any
-    // socket replacement that happens while we are waiting (e.g. HMR reload
-    // or a token-refresh reconnect in bootstrap).
     await waitForSocketOpen()
 
     return new Promise((resolve, reject) => {

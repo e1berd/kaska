@@ -1,0 +1,7 @@
+_build
+deps
+.git
+.elixir_ls
+erl_crash.dump
+*.beam
+priv/static/assets

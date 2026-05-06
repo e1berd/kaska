@@ -19,3 +19,4 @@ Thumbs.db
 erl_crash.dump
 
 **/node_modules
+/docker-compose.override.yml

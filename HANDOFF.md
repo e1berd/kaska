@@ -152,6 +152,15 @@ broadcast'ом всем подписчикам. REST для них нет и н�
 
 ## Style guide
 
+### Комментарии в коде — запрещены
+
+Никаких `//` и `/* */` комментариев в TypeScript, Vue и Elixir файлах.
+Код должен быть самодокументирующимся: хорошие имена функций и переменных,
+маленькие функции с одной ответственностью. Если чувствуешь желание
+написать комментарий — переименуй или вырази намерение через код.
+
+---
+
 ### Material Design 3 — строго
 
 **Дизайн-цель — последняя M3-спецификация.** Vuetify 4 даёт цветовые
@@ -265,10 +274,18 @@ hover/focus/pressed. Хост должен быть `position`-эд и имет�
   параметр `item` это **raw item** типизированный как `unknown` (не
   wrapper с `.raw`/`.title`). Касти через `(item as TaskType).color`,
   не пиши `item.raw.color`.
-* **Socket join после рестарта бэкенда** — `joinChannel` уже ждёт
-  `socket.isConnected()` через `waitForSocketOpen`. Если убрать —
-  получишь спам `{ message: 'join timeout' }` после каждого
-  `docker compose restart`.
+* **Socket join после рестарта бэкенда** — `joinChannel` вызывает
+  `waitForSocketOpen`, которая через `watch(socket, ...)` реактивно
+  следит за заменой сокета. Это покрывает три случая: бэкенд ещё
+  стартует, Vite HMR пересоздаёт модуль, `bootstrap()` делает
+  reconnect с новым токеном. Не добавляй таймаут — Phoenix.js сам
+  переподключается с exponential backoff; таймаут нужен только на
+  `join` (10 с, уже в `ch.join()`).
+* **`check_origin` в dev** — `runtime.exs` выставляет `check_origin:
+  false` для всех окружений кроме `:prod`. Не меняй на
+  `check_origin: [web_base_url]` в dev — браузер идёт на порт 4000,
+  а фронт живёт на 5173, origin не совпадёт и `join` молча
+  отвалится (в логах будет `CONNECTED`, но `JOINED` — никогда).
 * **Vite HMR `WebSocket closed without opened`** — это не баг
   приложения, это HMR-клиент vite пытается переподключиться к
   пересоздающемуся dev-серверу. Игнорируй или подави overlay через
@@ -287,6 +304,7 @@ hover/focus/pressed. Хост должен быть `position`-эд и имет�
 
 ## Минимальный TypeScript-полис
 
+* Комментарии в коде не пишем (см. Style guide выше).
 * `noUnusedLocals` и `noUnusedParameters` включены — не оставляй
   «висячих» функций, удаляй.
 * Для интерфейсов из stores импортируй типы явно: `import type { Task,

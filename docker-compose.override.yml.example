@@ -1,0 +1,53 @@
+name: hardhat
+
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
+      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
+
+  rustfs:
+    environment:
+      RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:-rustfsadmin}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:-rustfsadmin}
+
+  api:
+    build:
+      dockerfile: Dockerfile.dev
+    environment:
+      MIX_ENV: dev
+      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@postgres:5432/${POSTGRES_DB:-hardhat_dev}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_min_64_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
+      GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:-dev_guardian_secret}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:5173}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:-rustfsadmin}
+      S3_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:-rustfsadmin}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    volumes:
+      - ./api:/app
+      - api-deps:/app/deps
+      - api-build:/app/_build
+    depends_on:
+      rustfs:
+        condition: service_started
+
+  web:
+    build:
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
+      CI: "true"
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./web:/app
+
+volumes:
+  api-deps:
+  api-build:

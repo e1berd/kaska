@@ -4,12 +4,11 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: hardhat-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
-      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:-hardhat}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,6 +20,7 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: hardhat-mailpit
+    restart: unless-stopped
     ports:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
       - "${MAILPIT_UI_PORT:-8025}:8025"
@@ -31,12 +31,11 @@ services:
   rustfs:
     image: rustfs/rustfs:latest
     container_name: hardhat-rustfs
-    # The image runs as UID 10001 — see https://github.com/rustfs/rustfs.
-    # The named volume below has its ownership fixed up automatically.
+    restart: unless-stopped
     user: "10001:10001"
     environment:
-      RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:-rustfsadmin}
-      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:-rustfsadmin}
+      RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:?}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:?}
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_VOLUMES: /data
     ports:
@@ -53,64 +52,51 @@ services:
   api:
     build:
       context: ./api
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+    image: hardhat-api:latest
     container_name: hardhat-api
+    restart: unless-stopped
     environment:
-      MIX_ENV: dev
-      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
-      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
-      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
-      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-hardhat_dev}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY}
+      MIX_ENV: prod
+      PHX_SERVER: "true"
+      DATABASE_URL: ecto://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-hardhat}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
+      GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:?}
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
       MAIL_FROM: ${MAIL_FROM:-noreply@hardhat.local}
-      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:5173}
-      PHX_HOST: ${PHX_HOST:-localhost}
+      WEB_BASE_URL: ${WEB_BASE_URL:?}
+      PHX_HOST: ${PHX_HOST:?}
       PORT: 4000
       S3_BUCKET: ${S3_BUCKET:-hardhat}
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://rustfs:9000}
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:-rustfsadmin}
-      S3_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:-rustfsadmin}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?}
+      S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:?}
+      S3_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:?}
     ports:
       - "${API_PORT:-4000}:4000"
-    volumes:
-      - ./api:/app
-      - api-deps:/app/deps
-      - api-build:/app/_build
     depends_on:
       postgres:
         condition: service_healthy
       mailpit:
         condition: service_started
       rustfs:
-        condition: service_started
+        condition: service_healthy
 
   web:
     build:
       context: ./web
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        VITE_API_WS_URL: ${VITE_API_WS_URL:?}
+    image: hardhat-web:latest
     container_name: hardhat-web
-    environment:
-      # Browser-side WebSocket URL. The browser connects directly to the API
-      # port which is published to the host (4000:4000).
-      VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
-      # Tell pnpm we're non-interactive so it doesn't bail on modules-purge prompts.
-      CI: "true"
+    restart: unless-stopped
     ports:
-      - "${WEB_PORT:-5173}:5173"
-    # Bind-mount the host's node_modules so the container reuses packages
-    # already installed on the host. Avoids a network fetch on every start.
-    volumes:
-      - ./web:/app
+      - "${WEB_PORT:-80}:80"
     depends_on:
       - api
 
 volumes:
   postgres-data:
-  api-deps:
-  api-build:
   rustfs-data:
