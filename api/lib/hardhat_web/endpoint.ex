@@ -12,8 +12,10 @@ defmodule HardhatWeb.Endpoint do
   ]
 
   socket "/socket", HardhatWeb.UserSocket,
-    websocket: [connect_info: [:peer_data, :x_headers]],
+    websocket: [connect_info: [:peer_data, :x_headers], check_origin: false],
     longpoll: false
+
+  plug CORSPlug
 
   # Serve at "/" the static files from "priv/static" directory.
   #
