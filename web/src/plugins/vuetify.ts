@@ -87,6 +87,12 @@ const darkColors = {
 export default createVuetify({
   components,
   directives,
+  // Override the default 'lg' threshold (1280px) — on a regular laptop that
+  // would flip useDisplay().mobile to true and collapse the navigation
+  // drawer into a temporary overlay. We treat 'mobile' as actual phones.
+  display: {
+    mobileBreakpoint: 'sm',
+  },
   defaults: {
     // M3 buttons are pill-shaped by default; opt out by passing `rounded`.
     VBtn: { rounded: 'pill', class: 'md-label-large' },

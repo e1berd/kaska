@@ -1,12 +1,55 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, type RouteLocationRaw } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
+const { mobile } = useDisplay()
+
+// The landing page reads like a marketing page; chrome-wrapping it with a
+// nav rail makes it feel like part of the app shell, so hide it there.
+const showSidebar = computed(() => route.name !== 'home')
+
+// On desktop with `permanent`, Vuetify only flips the drawer's internal
+// `isActive` when v-model is null *or* the prop toggles — seed v-model to
+// `true` here, otherwise the drawer mounts hidden and never recovers.
+const drawer = ref(!mobile.value)
+watch(mobile, (m) => {
+  // On viewport flip, sync the open state so we don't strand a temporary
+  // drawer open after a resize back to desktop.
+  drawer.value = !m
+})
 
 const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
+
+interface NavItem {
+  key: string
+  label: string
+  icon: string
+  to: RouteLocationRaw
+}
+
+const navItems = computed<NavItem[]>(() => {
+  const items: NavItem[] = [
+    {
+      key: 'projects',
+      label: 'Проекты',
+      icon: 'mdi-view-grid-outline',
+      to: { name: 'projects' },
+    },
+  ]
+  if (currentSlug.value) {
+    items.push({
+      key: 'types',
+      label: 'Типы задач',
+      icon: 'mdi-tag-multiple-outline',
+      to: { name: 'board_types', params: { slug: currentSlug.value } },
+    })
+  }
+  return items
+})
 
 function logout() {
   auth.logout()
@@ -17,6 +60,11 @@ function logout() {
   <v-app>
     <v-app-bar flat color="surface" class="hh-bar" height="64">
       <template #prepend>
+        <v-app-bar-nav-icon
+          v-if="showSidebar && mobile"
+          aria-label="Открыть меню"
+          @click="drawer = !drawer"
+        />
         <router-link
           :to="{ name: 'home' }"
           class="hh-brand md-state-layer"
@@ -54,14 +102,17 @@ function logout() {
             variant="text"
             class="hh-bar__link ml-1"
             rounded="pill"
+            :icon="mobile"
             @click="logout"
           >
-            Выйти
+            <v-icon v-if="mobile">mdi-logout</v-icon>
+            <template v-else>Выйти</template>
           </v-btn>
         </template>
         <template v-else>
           <v-btn variant="text" :to="{ name: 'login' }" rounded="pill">Войти</v-btn>
           <v-btn
+            v-if="!mobile"
             color="primary"
             variant="flat"
             :to="{ name: 'register' }"
@@ -75,31 +126,29 @@ function logout() {
     </v-app-bar>
 
     <v-navigation-drawer
-      permanent
-      width="240"
+      v-if="showSidebar"
+      v-model="drawer"
+      :permanent="!mobile"
+      :temporary="mobile"
+      rail
+      :rail-width="80"
       color="surface"
       class="hh-nav"
       :border="0"
     >
-      <v-list nav class="hh-nav__list pa-3">
-        <v-list-item
-          :to="{ name: 'projects' }"
-          prepend-icon="mdi-view-grid-outline"
-          title="Проекты"
-          rounded="pill"
-          class="hh-nav__item md-label-large"
-          color="primary"
-        />
-        <v-list-item
-          v-if="currentSlug"
-          :to="{ name: 'board_types', params: { slug: currentSlug } }"
-          prepend-icon="mdi-tag-multiple-outline"
-          title="Типы задач"
-          rounded="pill"
-          class="hh-nav__item md-label-large"
-          color="primary"
-        />
-      </v-list>
+      <nav class="hh-nav__list">
+        <router-link
+          v-for="item in navItems"
+          :key="item.key"
+          :to="item.to"
+          class="hh-nav__item md-state-layer"
+        >
+          <span class="hh-nav__pill">
+            <v-icon size="24">{{ item.icon }}</v-icon>
+          </span>
+          <span class="hh-nav__label md-label-medium">{{ item.label }}</span>
+        </router-link>
+      </nav>
     </v-navigation-drawer>
 
     <v-main>
@@ -188,25 +237,64 @@ function logout() {
   text-overflow: ellipsis;
 }
 
-/* M3 navigation drawer — surface-tinted, no border, items are pill-shaped
- * so the active state reads as a primary container chip. */
+@media (max-width: 600px) {
+  .hh-brand__name {
+    display: none;
+  }
+  .hh-bar__profile-name {
+    display: none;
+  }
+}
+
+/* M3 NavigationRail — narrow, icon stack + label below. The rail mode is
+ * permanent on desktop and a temporary overlay on mobile (toggled by the
+ * burger icon in the app bar). */
 .hh-nav {
   background: rgb(var(--v-theme-surface)) !important;
 }
 .hh-nav__list {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
+  padding: 12px 4px;
 }
-.hh-nav :deep(.hh-nav__item) {
-  min-height: 56px;
-  padding-inline: 16px;
+.hh-nav__item {
+  --md-state-color: rgb(var(--v-theme-on-surface));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 72px;
+  height: 64px;
+  padding: 4px 0 6px;
+  border-radius: var(--md-shape-l);
+  text-decoration: none;
+  color: rgb(var(--v-theme-on-surface));
 }
-.hh-nav :deep(.hh-nav__item.v-list-item--active) {
+.hh-nav__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 32px;
+  border-radius: var(--md-shape-full);
+  transition: background-color var(--md-duration-short4) var(--md-easing-emphasized);
+}
+.hh-nav__item.router-link-active .hh-nav__pill {
   background: rgb(var(--v-theme-secondary-container));
   color: rgb(var(--v-theme-on-secondary-container));
 }
-.hh-nav :deep(.hh-nav__item.v-list-item--active .v-icon) {
+.hh-nav__item.router-link-active :deep(.v-icon) {
   color: rgb(var(--v-theme-on-secondary-container));
+}
+.hh-nav__label {
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  color: inherit;
 }
 </style>

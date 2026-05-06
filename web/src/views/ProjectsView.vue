@@ -257,7 +257,25 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
   flex-wrap: wrap;
 }
 .hh-projects__filter {
-  min-width: 320px;
+  min-width: 280px;
+  flex: 1 1 280px;
+}
+
+@media (max-width: 600px) {
+  .hh-projects {
+    padding: 24px 16px 64px;
+  }
+  .hh-projects__heading h1 {
+    font-size: var(--md-type-headline-medium);
+    line-height: 36px;
+  }
+  .hh-projects__actions {
+    width: 100%;
+  }
+  .hh-projects__filter {
+    min-width: 0;
+    width: 100%;
+  }
 }
 .hh-projects__filter :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container)) !important;

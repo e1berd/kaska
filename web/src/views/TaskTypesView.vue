@@ -298,4 +298,11 @@ async function deleteTaskType(type: TaskType) {
 .gap-3 {
   gap: 12px;
 }
+
+@media (max-width: 600px) {
+  .hh-types-view :deep(.md-headline-small) {
+    font-size: var(--md-type-title-large);
+    line-height: 28px;
+  }
+}
 </style>

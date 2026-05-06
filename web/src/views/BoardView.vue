@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
@@ -21,6 +22,7 @@ import { docToHtml, isDocEmpty } from '../utils/tiptap'
 
 const route = useRoute()
 const router = useRouter()
+const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
@@ -557,7 +559,12 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="taskDialog" max-width="760" scrollable>
+    <v-dialog
+      v-model="taskDialog"
+      max-width="760"
+      scrollable
+      :fullscreen="mobile"
+    >
       <v-card v-if="taskTarget" rounded="xl">
         <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
         <v-card-text class="px-6 pt-2">
@@ -843,6 +850,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
+  flex-wrap: wrap;
 }
 .hh-board__title {
   display: inline-flex;
@@ -874,11 +882,14 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 .hh-board__list {
   flex: 1;
   padding: 8px 16px 20px;
-  overflow-y: auto;
+  overflow: auto;
 }
 .hh-board__table {
   background: rgb(var(--v-theme-surface-container-low));
   overflow: hidden;
+}
+.hh-board__table :deep(.v-table__wrapper) {
+  overflow-x: auto;
 }
 .hh-table :deep(thead th) {
   background: rgb(var(--v-theme-surface-container)) !important;
@@ -923,10 +934,20 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   display: flex;
   gap: 16px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 .hh-task__row > * {
-  flex: 1;
+  flex: 1 1 220px;
   min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .hh-board {
+    height: calc(100dvh - 64px);
+  }
+  .hh-board__cols {
+    padding: 8px 12px 16px;
+  }
 }
 
 /* Description: switch between read-only viewer and the tiptap editor. */

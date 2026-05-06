@@ -62,7 +62,33 @@ export const useSocketStore = defineStore('socket', () => {
     if (!socket.value) connect(null)
   }
 
-  function joinChannel<T = unknown>(
+  /**
+   * Resolve once the underlying ws is open. Without this the very first
+   * `ch.join()` after a backend restart races the reconnect attempt and
+   * times out at the default 10s `Push` timeout, surfacing as
+   * `{ message: "join timeout" }` even though the server is reachable a
+   * few moments later.
+   */
+  function waitForSocketOpen(timeoutMs = 8000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const s = socket.value
+      if (!s) return reject({ message: 'socket not initialized' })
+      if (s.isConnected()) return resolve()
+
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const ref = s.onOpen(() => {
+        if (timer) clearTimeout(timer)
+        s.off([ref])
+        resolve()
+      })
+      timer = setTimeout(() => {
+        s.off([ref])
+        reject({ message: 'socket connect timeout' })
+      }, timeoutMs)
+    })
+  }
+
+  async function joinChannel<T = unknown>(
     topic: string,
     params: object = {},
   ): Promise<{ channel: Channel; reply: T }> {
@@ -70,7 +96,11 @@ export const useSocketStore = defineStore('socket', () => {
     const existing = channels.value.get(topic)
     if (existing && (existing.state === 'joined' || existing.state === 'joining')) {
       // No fresh reply when re-using a channel; surface an empty payload.
-      return Promise.resolve({ channel: existing, reply: {} as T })
+      return { channel: existing, reply: {} as T }
+    }
+
+    if (!socket.value!.isConnected()) {
+      await waitForSocketOpen()
     }
 
     return new Promise((resolve, reject) => {
