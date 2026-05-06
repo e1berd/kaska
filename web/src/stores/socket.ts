@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { Socket, type Channel } from 'phoenix'
 
+// The browser connects directly to the Phoenix API on port 4000 (published to
+// the host in docker-compose). VITE_API_WS_URL is injected by the Vite dev
+// server from the container environment at request time.
 const SOCKET_URL = import.meta.env.VITE_API_WS_URL ?? 'ws://localhost:4000/socket'
 
 /**

@@ -36,8 +36,14 @@ end
 
 web_base_url = System.get_env("WEB_BASE_URL")
 
-if web_base_url do
+# In production restrict WebSocket connections to the known front-end origin.
+# In development (docker-compose or plain mix) the front-end and API run on
+# different ports (5173 vs 4000), so Phoenix's origin check would reject every
+# WebSocket upgrade. We disable it for non-prod environments.
+if web_base_url && config_env() == :prod do
   config :hardhat, HardhatWeb.Endpoint, check_origin: [web_base_url]
+else
+  config :hardhat, HardhatWeb.Endpoint, check_origin: false
 end
 
 guardian_secret =

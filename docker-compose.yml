@@ -95,6 +95,8 @@ services:
       dockerfile: Dockerfile.dev
     container_name: hardhat-web
     environment:
+      # Browser-side WebSocket URL. The browser connects directly to the API
+      # port which is published to the host (4000:4000).
       VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
       # Tell pnpm we're non-interactive so it doesn't bail on modules-purge prompts.
       CI: "true"
