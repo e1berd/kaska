@@ -192,7 +192,7 @@ async function saveTask() {
       assignee_id: payload.assignee_id,
     })
   } catch (err: any) {
-    alert(err.message || 'Ошибка сохранения')
+    alert(err?.message || 'Ошибка сохранения')
   } finally {
     const elapsed = Date.now() - taskSavingStartedAt
     const remaining = Math.max(0, 1600 - elapsed)
@@ -283,6 +283,15 @@ watch(
     syncFormFromTask(task)
   },
   { deep: true },
+)
+
+watch(
+  () => [currentTask.value?.id, currentTask.value?.updated_at] as const,
+  () => {
+    if (!currentTask.value) return
+    if (error.value) error.value = null
+    syncFormFromTask(currentTask.value)
+  },
 )
 
 watch(
@@ -393,7 +402,7 @@ watch(
             Редактировать
           </v-btn>
           <v-btn
-            v-else-if="auth.isAuthed && !editingDescription && activeDescriptionEditor"
+            v-else-if="!editingDescription && activeDescriptionEditor"
             variant="text"
             size="small"
             rounded="pill"

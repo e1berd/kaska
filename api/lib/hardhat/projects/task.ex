@@ -40,8 +40,12 @@ defmodule Hardhat.Projects.Task do
       :assignee_id,
       :task_type_id
     ])
-    |> validate_required([:title, :rank, :project_id, :column_id])
-    |> validate_length(:title, min: 1, max: 200)
+    |> update_change(:title, fn
+      nil -> ""
+      title -> String.trim(title)
+    end)
+    |> validate_required([:rank, :project_id, :column_id])
+    |> validate_length(:title, max: 200)
     |> validate_doc(:body_doc)
     |> assoc_constraint(:project)
     |> assoc_constraint(:column)
@@ -50,8 +54,11 @@ defmodule Hardhat.Projects.Task do
   def update_changeset(task, attrs) do
     task
     |> cast(attrs, [:title, :body_doc, :start_date, :end_date, :assignee_id, :task_type_id])
-    |> validate_required([:title])
-    |> validate_length(:title, min: 1, max: 200)
+    |> update_change(:title, fn
+      nil -> ""
+      title -> String.trim(title)
+    end)
+    |> validate_length(:title, max: 200)
     |> validate_doc(:body_doc)
   end
 

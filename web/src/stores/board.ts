@@ -38,6 +38,7 @@ export interface TaskType {
   id: string
   project_id: string
   name: string
+  description?: string | null
   color: string
 }
 
@@ -330,11 +331,11 @@ export const useBoardStore = defineStore('board', () => {
     })
   }
 
-  function createTaskType(input: { name: string; color: string }) {
+  function createTaskType(input: { name: string; description?: string | null; color: string }) {
     return pushAsync<TaskType>(ch(), 'create_task_type', input)
   }
 
-  function updateTaskType(id: string, input: { name?: string; color?: string }) {
+  function updateTaskType(id: string, input: { name?: string; description?: string | null; color?: string }) {
     return pushAsync<TaskType>(ch(), 'update_task_type', { id, ...input })
   }
 

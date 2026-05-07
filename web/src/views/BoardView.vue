@@ -634,7 +634,7 @@ async function saveTask() {
       assignee_id: payload.assignee_id,
     })
   } catch (err: any) {
-    alert(err.message || 'Ошибка сохранения задачи')
+    alert(err?.message || 'Ошибка сохранения задачи')
   } finally {
     const elapsed = Date.now() - taskSavingStartedAt
     const remaining = Math.max(0, 1600 - elapsed)
@@ -1204,7 +1204,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                   Редактировать
                 </v-btn>
                 <v-btn
-                  v-else-if="auth.isAuthed && !editingDescription && activeDescriptionEditor"
+                  v-else-if="!editingDescription && activeDescriptionEditor"
                   variant="text"
                   size="small"
                   rounded="pill"
