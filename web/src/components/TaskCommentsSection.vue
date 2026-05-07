@@ -187,6 +187,7 @@ watch(
         <v-btn
           color="primary"
           variant="flat"
+          size="small"
           rounded="pill"
           :loading="sending"
           :disabled="!canSend || !body.trim() || cooldownActive"
