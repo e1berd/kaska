@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from './stores/auth'
+import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -42,6 +43,22 @@ const navItems = computed<NavItem[]>(() => {
       to: { name: 'board_types', params: { slug: currentSlug.value } },
     })
   }
+
+  if (auth.isAuthed) {
+    items.push({
+      key: 'members',
+      label: 'Участники',
+      icon: 'mdi-account-multiple-outline',
+      to: { name: 'members' }
+    });
+    items.push({
+      key: 'settings',
+      label: 'Настройки',
+      icon: 'mdi-cog-outline',
+      to: { name: 'settings' }
+    });
+  }
+
   return items
 })
 
@@ -74,35 +91,52 @@ function logout() {
 
         <template #append>
           <template v-if="auth.isAuthed">
-            <router-link
-              :to="{ name: 'me' }"
-              class="hh-bar__profile md-state-layer"
-              :title="auth.user?.email"
-            >
-              <span class="hh-bar__avatar">
-                <img
-                  v-if="auth.user?.avatar_url"
-                  :src="auth.user.avatar_url"
-                  alt=""
-                />
-                <span v-else>{{
-                  (auth.user?.display_name || auth.user?.email || '?').slice(0, 1).toUpperCase()
-                }}</span>
-              </span>
-              <span class="hh-bar__profile-name">
-                {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
-              </span>
-            </router-link>
-            <v-btn
-              variant="text"
-              class="hh-bar__link ml-1"
-              rounded="pill"
-              :icon="mobile"
-              @click="logout"
-            >
-              <v-icon v-if="mobile">mdi-logout</v-icon>
-              <template v-else>Выйти</template>
-            </v-btn>
+            <v-menu v-if="auth.isAuthed">
+              <template #activator="{ props }">
+                <button
+                  v-bind="props"
+                  class="hh-bar__profile md-state-layer"
+                  :title="auth.user?.email"
+                >
+                  <span class="hh-bar__avatar">
+                    <img
+                      v-if="auth.user?.avatar_url"
+                      :src="auth.user.avatar_url"
+                      alt=""
+                    />
+                    <span v-else>{{
+                      (auth.user?.display_name || auth.user?.email || '?').slice(0, 1).toUpperCase()
+                    }}</span>
+                  </span>
+                  <span class="hh-bar__profile-name">
+                    {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
+                  </span>
+                </button>
+              </template>
+              <v-list class="bg-surface elevation-3" :elevation="0" rounded="lg" density="compact">
+                <v-list-item
+                  :to="{ name: 'me' }"
+                  class="md-state-layer"
+                  base-color="on-surface"
+                >
+                  <template #prepend>
+                    <ph-user :size="20" class="mr-3" weight="regular" />
+                  </template>
+                  <v-list-item-title>Мой профиль</v-list-item-title>
+                </v-list-item>
+                <v-divider class="my-1"></v-divider>
+                <v-list-item
+                  @click="logout"
+                  class="md-state-layer text-error"
+                  base-color="error"
+                >
+                  <template #prepend>
+                    <ph-sign-out :size="20" class="mr-3" weight="regular" />
+                  </template>
+                  <v-list-item-title>Выйти</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
           </template>
           <template v-else>
             <v-btn variant="text" :to="{ name: 'login' }" rounded="pill">Войти</v-btn>

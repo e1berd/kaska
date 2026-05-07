@@ -58,9 +58,9 @@ export const useAuthStore = defineStore('auth', () => {
     return channel
   }
 
-  async function register(email: string, password: string) {
+  async function register(email: string, password: string, invite_token?: string) {
     const ch = await authChannel()
-    return pushAsync<{ message: string }>(ch, 'register', { email, password })
+    return pushAsync<{ message: string }>(ch, 'register', { email, password, invite_token })
   }
 
   async function login(email: string, password: string) {
