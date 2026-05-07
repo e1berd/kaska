@@ -14,8 +14,8 @@ defmodule Hardhat.Projects.Task do
     field :body_doc, :map, default: %{"type" => "doc", "content" => []}
     field :rank, :string
 
-    field :start_date, :utc_datetime
-    field :end_date, :utc_datetime
+    field :start_date, :date
+    field :end_date, :date
 
     belongs_to :project, Project
     belongs_to :column, Column

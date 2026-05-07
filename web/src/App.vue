@@ -126,7 +126,7 @@ function logout() {
         :permanent="!mobile"
         :temporary="mobile"
         rail
-        :rail-width="80"
+        :rail-width="96"
         color="surface"
         class="hh-nav"
         :border="0"
