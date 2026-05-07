@@ -325,6 +325,25 @@ defmodule HardhatWeb.BoardChannel do
     end
   end
 
+  def handle_in("set_active_task", payload, socket) do
+    task_id = Map.get(payload, "task_id")
+    editing_description = Map.get(payload, "editing_description", false)
+
+    with true <- is_nil(task_id) or task_belongs_to_project?(task_id, socket),
+         user when not is_nil(user) <- socket.assigns[:current_user],
+         {:ok, _} <-
+           Presence.update(socket, user.id, %{
+             online_at: inspect(System.system_time(:second)),
+             active_task_id: task_id,
+             editing_description: editing_description
+           }) do
+      {:reply, {:ok, %{task_id: task_id}}, socket}
+    else
+      false -> {:reply, {:error, %{message: "task_not_found"}}, socket}
+      _ -> {:reply, {:error, %{message: "unauthorized"}}, socket}
+    end
+  end
+
   ## Helpers ─────────────────────────────────────────────────────────────
 
   defp get_owned_column(id, socket) do
@@ -338,6 +357,13 @@ defmodule HardhatWeb.BoardChannel do
     case Projects.get_task(id) do
       %Task{project_id: pid} = t when pid == socket.assigns.project_id -> t
       _ -> nil
+    end
+  end
+
+  defp task_belongs_to_project?(id, socket) do
+    case Projects.get_task(id) do
+      %Task{project_id: pid} -> pid == socket.assigns.project_id
+      _ -> false
     end
   end
 

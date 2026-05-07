@@ -5,7 +5,7 @@ import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-
+import { PhFloppyDisk } from '@phosphor-icons/vue'
 import { useAuthStore, type User } from '../stores/auth'
 import {
   useBoardStore,
@@ -92,6 +92,9 @@ const taskAssignee = ref<string | null>(null)
 const taskUploading = ref(false)
 const taskUploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
+const taskSaving = ref(false)
+const taskSyncing = ref(false)
+let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const editingDescription = ref(false)
 const descriptionHtml = computed(() => docToHtml(taskBody.value))
@@ -99,6 +102,16 @@ const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
 
 const taskAttachments = computed<Attachment[]>(() => {
   return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
+})
+const taskViewers = computed(() => {
+  if (!taskTarget.value) return []
+  return board.viewersForTask(taskTarget.value.id)
+})
+const taskEditors = computed(() => {
+  if (!taskTarget.value) return []
+  return board
+    .editorsForTask(taskTarget.value.id)
+    .filter((user) => user.id !== auth.user?.id)
 })
 
 const newColumnDialog = ref(false)
@@ -307,6 +320,10 @@ onBeforeUnmount(() => {
   monitorCleanup?.()
   columnsMonitorCleanup?.()
   scrollCleanup?.()
+  if (auth.isAuthed) {
+    void board.setActiveTask(null, false).catch(() => {})
+  }
+  if (taskSaveTimer) clearTimeout(taskSaveTimer)
   board.leave()
 })
 
@@ -397,6 +414,69 @@ watch(
   },
 )
 
+watch(
+  () => editingDescription.value,
+  (editing) => {
+    if (!taskTarget.value || !auth.isAuthed || !taskDialog.value) return
+    void board.setActiveTask(taskTarget.value.id, editing).catch(() => {})
+  },
+)
+
+watch(
+  () => taskDialog.value,
+  (open) => {
+    if (open || !auth.isAuthed) return
+    void board.setActiveTask(null, false).catch(() => {})
+  },
+)
+
+watch(
+  () => taskTarget.value,
+  (task) => {
+    if (!task || !taskDialog.value) return
+    taskSyncing.value = true
+    taskTitle.value = task.title
+    taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
+    taskStartDate.value = task.start_date ?? null
+    taskEndDate.value = task.end_date ?? null
+    taskType.value = task.task_type_id ?? null
+    taskAssignee.value = task.assignee_id ?? null
+    taskSyncing.value = false
+  },
+  { deep: true },
+)
+
+watch(
+  () => [
+    taskDialog.value,
+    taskTarget.value?.id,
+    taskTitle.value,
+    JSON.stringify(taskBody.value),
+    taskStartDate.value,
+    taskEndDate.value,
+    taskType.value,
+    taskAssignee.value,
+  ],
+  () => {
+    if (!taskDialog.value || !taskTarget.value || !auth.isAuthed) return
+    if (taskSyncing.value) return
+    if (taskSaveTimer) clearTimeout(taskSaveTimer)
+    taskSaveTimer = setTimeout(() => {
+      void saveTask()
+    }, 450)
+  },
+)
+
+watch(
+  () => taskDialog.value,
+  (open) => {
+    if (open) return
+    if (auth.isAuthed) {
+      void board.setActiveTask(null, false).catch(() => {})
+    }
+  },
+)
+
 function onRename(column: Column) {
   renameTarget.value = column
   renameValue.value = column.name
@@ -430,6 +510,7 @@ async function commitDelete() {
 
 function openTask(task: Task) {
   taskTarget.value = task
+  taskSyncing.value = true
   taskTitle.value = task.title
   taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
   taskStartDate.value = task.start_date ?? null
@@ -437,11 +518,16 @@ function openTask(task: Task) {
   taskType.value = task.task_type_id ?? null
   taskAssignee.value = task.assignee_id ?? null
   editingDescription.value = auth.isAuthed && isDocEmpty(taskBody.value)
+  taskSyncing.value = false
   taskDialog.value = true
+  if (auth.isAuthed) {
+    void board.setActiveTask(task.id, editingDescription.value).catch(() => {})
+  }
 }
 
 async function saveTask() {
   if (!taskTarget.value) return
+  taskSaving.value = true
   try {
     await board.updateTask(taskTarget.value.id, {
       title: taskTitle.value.trim(),
@@ -451,9 +537,10 @@ async function saveTask() {
       task_type_id: taskType.value,
       assignee_id: taskAssignee.value,
     })
-    taskDialog.value = false
   } catch (err: any) {
     alert(err.message || 'Ошибка сохранения задачи')
+  } finally {
+    taskSaving.value = false
   }
 }
 
@@ -461,7 +548,7 @@ async function deleteCurrentTask() {
   if (!taskTarget.value) return
   try {
     await board.deleteTask(taskTarget.value.id)
-    taskDialog.value = false
+    closeTaskDialog()
   } catch (e) {
     console.warn('[board] delete task failed', e)
   }
@@ -527,6 +614,30 @@ async function commitNewColumn() {
 
 function backToProjects() {
   router.push({ name: 'projects' })
+}
+
+function closeTaskDialog() {
+  if (taskSaveTimer) {
+    clearTimeout(taskSaveTimer)
+    taskSaveTimer = null
+  }
+  taskDialog.value = false
+  if (auth.isAuthed) {
+    void board.setActiveTask(null, false).catch(() => {})
+  }
+}
+
+function openTaskPage() {
+  if (!taskTarget.value) return
+  void router.push({ name: 'task', params: { slug: slug.value, taskId: taskTarget.value.id } })
+}
+
+async function copyTaskLink() {
+  if (!taskTarget.value) return
+  const href = `${window.location.origin}/p/${slug.value}/tasks/${taskTarget.value.id}`
+  if (navigator && navigator.clipboard) {
+    await navigator.clipboard.writeText(href)
+  }
 }
 
 function clearFilters() {
@@ -913,7 +1024,56 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       :fullscreen="mobile"
     >
       <v-card v-if="taskTarget" rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
+        <v-card-title class="px-6 pt-6 d-flex align-center ga-2">
+          <span class="md-headline-small">Карточка</span>
+          <div v-if="taskViewers.length" class="hh-task-viewers ml-2">
+            <span class="hh-task-viewers__label md-label-small">Сейчас в задаче</span>
+            <v-tooltip
+              v-for="user in taskViewers"
+              :key="user.id"
+              :text="user.display_name || user.email"
+              location="bottom"
+            >
+              <template #activator="{ props }">
+                <span v-bind="props" class="hh-task-viewers__item">
+                  <v-avatar size="24" color="primary" class="hh-task-viewers__avatar">
+                    <img
+                      v-if="user.avatar_url"
+                      :src="user.avatar_url"
+                      alt=""
+                    />
+                    <span v-else>{{
+                      (user.display_name || user.email || '?').slice(0, 1).toUpperCase()
+                    }}</span>
+                  </v-avatar>
+                </span>
+              </template>
+            </v-tooltip>
+          </div>
+          <v-spacer />
+          <v-tooltip text="Открыть на странице" location="bottom">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                icon="mdi-arrow-expand"
+                variant="text"
+                size="small"
+                @click="openTaskPage"
+              />
+            </template>
+          </v-tooltip>
+          <v-tooltip text="Поделиться ссылкой" location="bottom">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                icon="mdi-link-variant"
+                variant="text"
+                size="small"
+                @click="copyTaskLink"
+              />
+            </template>
+          </v-tooltip>
+        </v-card-title>
         <v-card-text class="px-6 pt-2">
           <div class="hh-task-layout">
             <section class="hh-task-main">
@@ -947,6 +1107,12 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                 >
                   Просмотр
                 </v-btn>
+              </div>
+              <div
+                v-if="!editingDescription && taskEditors.length"
+                class="hh-desc__editing-note md-body-small mb-2"
+              >
+                {{ (taskEditors[0].display_name || taskEditors[0].email) }} редактирует...
               </div>
 
               <RichEditor
@@ -1171,16 +1337,16 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
             Удалить карточку
           </v-btn>
           <v-spacer />
-          <v-btn variant="text" rounded="pill" @click="taskDialog = false">Закрыть</v-btn>
-          <v-btn
-            v-if="auth.isAuthed"
-            color="primary"
-            variant="flat"
-            rounded="pill"
-            @click="saveTask"
+          <div
+            key="save"
+            class="save-icon flex items-center justify-center text-primary"
+            v-if="auth.isAuthed && taskSaving"
+            style="height: 24px"
           >
-            Сохранить
-          </v-btn>
+            <PhFloppyDisk size="24" />
+          </div>
+          <v-btn variant="text" rounded="pill" @click="closeTaskDialog">Закрыть</v-btn>
+
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1188,6 +1354,23 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 </template>
 
 <style scoped>
+
+.save-icon {
+  animation: opacityTransition .8s ease-in-out infinite reverse;
+}
+
+@keyframes opacityTransition {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .hh-board {
   display: flex;
   flex-direction: column;
@@ -1340,6 +1523,25 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 .hh-task-meta-grid :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
+.hh-task-viewers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hh-task-viewers__label {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  white-space: nowrap;
+}
+.hh-task-viewers__item {
+  display: inline-flex;
+}
+.hh-task-viewers__avatar {
+  margin-left: -6px;
+  border: 2px solid rgb(var(--v-theme-surface));
+}
+.hh-task-viewers__item:first-child .hh-task-viewers__avatar {
+  margin-left: 0;
+}
 
 .hh-task__row {
   display: flex;
@@ -1443,6 +1645,9 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   padding: 18px;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.hh-desc__editing-note {
+  color: rgba(var(--v-theme-on-surface), 0.65);
 }
 
 .hh-attach__head {

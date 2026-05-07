@@ -40,6 +40,8 @@ watch(
 )
 
 const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
+const currentTaskId = computed(() => (route.params.taskId as string | undefined) ?? null)
+
 const activeProjectUsers = computed(() => {
   if (!currentSlug.value || !board.project) return []
   return board.activeViewerIds
@@ -47,6 +49,22 @@ const activeProjectUsers = computed(() => {
     .map((id) => board.users.find((u) => u.id === id))
     .filter((u): u is NonNullable<typeof u> => !!u)
 })
+
+const activeTaskUsers = computed(() => {
+  if (!currentTaskId.value) return []
+  return board
+    .viewersForTask(currentTaskId.value)
+    .filter((user) => user.id !== auth.user?.id)
+})
+
+const headerPresenceUsers = computed(() => {
+  if (currentTaskId.value) return activeTaskUsers.value
+  return activeProjectUsers.value
+})
+
+const headerPresenceLabel = computed(() =>
+  currentTaskId.value ? 'Сейчас в задаче' : 'Сейчас в проекте',
+)
 
 function userTitle(displayName: string | null, email: string): string {
   return displayName || email
@@ -125,9 +143,10 @@ function logout() {
 
         <template #append>
           <template v-if="auth.isAuthed">
-            <div v-if="activeProjectUsers.length" class="hh-bar__presence mr-2">
+            <div v-if="headerPresenceUsers.length" class="hh-bar__presence mr-2">
+              <span class="hh-bar__presence-label md-label-small">{{ headerPresenceLabel }}</span>
               <v-tooltip
-                v-for="user in activeProjectUsers"
+                v-for="user in headerPresenceUsers"
                 :key="user.id"
                 :text="userTitle(user.display_name, user.email)"
                 location="bottom"
@@ -300,6 +319,11 @@ function logout() {
 .hh-bar__presence {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+}
+.hh-bar__presence-label {
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  white-space: nowrap;
 }
 .hh-bar__presence-item {
   display: inline-flex;
