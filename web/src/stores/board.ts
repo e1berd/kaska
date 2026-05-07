@@ -72,7 +72,6 @@ export const useBoardStore = defineStore('board', () => {
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
 
-  // Sorted views — `rank` is lexicographic.
   const orderedColumns = computed(() =>
     [...columns.value].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0)),
   )
@@ -83,8 +82,15 @@ export const useBoardStore = defineStore('board', () => {
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
   }
 
+  async function joinBySlug(slug: string) {
+    return joinTopic(`board_slug:${slug}`)
+  }
+
   async function join(projectId: string) {
-    const targetTopic = `board:${projectId}`
+    return joinTopic(`board:${projectId}`)
+  }
+
+  async function joinTopic(targetTopic: string) {
     if (topic.value === targetTopic && channel.value?.state === 'joined') return channel.value
 
     if (channel.value) {
@@ -189,8 +195,6 @@ export const useBoardStore = defineStore('board', () => {
     return channel.value
   }
 
-  // Mutations ─────────────────────────────────────────────────────────
-
   function createColumn(name: string) {
     return pushAsync<Column>(ch(), 'create_column', { name })
   }
@@ -290,6 +294,7 @@ export const useBoardStore = defineStore('board', () => {
     tasksFor,
     attachmentsFor,
     join,
+    joinBySlug,
     leave,
     createColumn,
     renameColumn,

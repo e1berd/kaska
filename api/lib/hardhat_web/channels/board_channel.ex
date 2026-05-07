@@ -16,34 +16,40 @@ defmodule HardhatWeb.BoardChannel do
   alias Hardhat.Projects.{Column, Project, Task}
 
   @impl true
-  def join("board:" <> project_id, _payload, socket) do
-    case Projects.board_snapshot(project_id) do
-      nil ->
-        {:error, %{reason: "not_found"}}
+  def join("board:" <> project_id, payload, socket) do
+    join_with_snapshot(Projects.board_snapshot(project_id), payload, socket)
+  end
 
-      {project, columns, tasks} ->
-        socket = assign(socket, :project_id, project.id)
-        task_ids = Enum.map(tasks, & &1.id)
-        
-        task_types = Projects.list_task_types(project.id)
-        users = Hardhat.Accounts.list_users()
-
-        attachments =
-          for t_id <- task_ids,
-              a <- Attachments.list_for("task", t_id) do
-            attachment_view(a)
-          end
-
-        {:ok,
-         %{
-           project: project_view(project),
-           columns: Enum.map(columns, &column_view/1),
-           tasks: Enum.map(tasks, &task_view/1),
-           task_types: Enum.map(task_types, &task_type_view/1),
-           users: Enum.map(users, &user_view/1),
-           attachments: attachments
-         }, socket}
+  def join("board_slug:" <> slug, payload, socket) do
+    case Projects.get_project_by_slug(slug) do
+      nil -> {:error, %{reason: "not_found"}}
+      project -> join_with_snapshot(Projects.board_snapshot(project.id), payload, socket)
     end
+  end
+
+  defp join_with_snapshot(nil, _payload, _socket), do: {:error, %{reason: "not_found"}}
+
+  defp join_with_snapshot({project, columns, tasks}, _payload, socket) do
+    socket = assign(socket, :project_id, project.id)
+    task_ids = Enum.map(tasks, & &1.id)
+    task_types = Projects.list_task_types(project.id)
+    users = Hardhat.Accounts.list_users()
+
+    attachments =
+      for t_id <- task_ids,
+          a <- Attachments.list_for("task", t_id) do
+        attachment_view(a)
+      end
+
+    {:ok,
+     %{
+       project: project_view(project),
+       columns: Enum.map(columns, &column_view/1),
+       tasks: Enum.map(tasks, &task_view/1),
+       task_types: Enum.map(task_types, &task_type_view/1),
+       users: Enum.map(users, &user_view/1),
+       attachments: attachments
+     }, socket}
   end
 
   ## Authorization gate ──────────────────────────────────────────────────

@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { Socket, type Channel } from 'phoenix'
 
 const SOCKET_URL = import.meta.env.VITE_API_WS_URL ?? 'ws://localhost:4000/socket'
+
+const reconnectAfterMs = (tries: number) => [200, 500, 1000, 2000, 5000][Math.min(tries - 1, 4)]
 
 export function pushAsync<T = unknown>(
   channel: Channel,
@@ -24,13 +26,38 @@ export const useSocketStore = defineStore('socket', () => {
   const channels = ref<Map<string, Channel>>(new Map())
   const connected = ref(false)
 
+  let openPromise: Promise<void> | null = null
+  let openResolve: (() => void) | null = null
+
   function connect(token?: string | null) {
     disconnect()
 
-    const params = token ? { token } : {}
-    const s = new Socket(SOCKET_URL, { params })
-    s.onOpen(() => { connected.value = true })
-    s.onClose(() => { connected.value = false })
+    openPromise = new Promise<void>((resolve) => {
+      openResolve = resolve
+    })
+
+    const s = new Socket(SOCKET_URL, {
+      params: token ? { token } : {},
+      reconnectAfterMs,
+    })
+
+    s.onOpen(() => {
+      connected.value = true
+      const resolve = openResolve
+      openResolve = null
+      openPromise = null
+      resolve?.()
+    })
+
+    s.onClose(() => {
+      connected.value = false
+      if (!openResolve) {
+        openPromise = new Promise<void>((resolve) => {
+          openResolve = resolve
+        })
+      }
+    })
+
     s.onError((err) => { console.warn('[socket] error', err) })
 
     socket.value = s
@@ -45,6 +72,8 @@ export const useSocketStore = defineStore('socket', () => {
       socket.value = null
     }
     connected.value = false
+    openResolve = null
+    openPromise = null
   }
 
   function ensureConnected() {
@@ -52,33 +81,15 @@ export const useSocketStore = defineStore('socket', () => {
   }
 
   function waitForSocketOpen(): Promise<void> {
-    return new Promise((resolve) => {
-      if (socket.value?.isConnected()) return resolve()
-
-      let done = false
-      let openRef: string | null = null
-      let stopWatch: (() => void) | null = null
-
-      function finish() {
-        if (done) return
-        done = true
-        stopWatch?.()
-        resolve()
-      }
-
-      function attachToSocket(s: Socket | null) {
-        openRef = null
-        if (!s) return
-        if (s.isConnected()) { finish(); return }
-
-        openRef = s.onOpen(() => {
-          s.off([openRef!])
-          finish()
-        })
-      }
-
-      stopWatch = watch(socket, (newSocket) => attachToSocket(newSocket))
-      attachToSocket(socket.value)
+    if (socket.value?.isConnected()) return Promise.resolve()
+    if (openPromise) return openPromise
+    return new Promise<void>((resolve) => {
+      const id = setInterval(() => {
+        if (socket.value?.isConnected()) {
+          clearInterval(id)
+          resolve()
+        }
+      }, 50)
     })
   }
 

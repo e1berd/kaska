@@ -109,11 +109,11 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    // ensure we know the project id; lobby snapshot is the cheapest source
-    if (!projects.list.length) await projects.joinLobby()
-    const project = projects.findBySlug(slug.value)
-    if (!project) throw new Error('проект не найден')
-    await board.join(project.id)
+    await Promise.all([
+      board.joinBySlug(slug.value),
+      projects.list.length ? Promise.resolve() : projects.joinLobby(),
+    ])
+    if (!board.project) throw new Error('проект не найден')
   } catch (e) {
     error.value = (e as { message?: string }).message ?? 'не удалось открыть доску'
   } finally {

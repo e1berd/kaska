@@ -13,6 +13,7 @@ const description = ref('')
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const filter = ref('')
+const loading = ref(true)
 
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase()
@@ -26,9 +27,9 @@ const filtered = computed(() => {
 })
 
 onMounted(() => {
-  projects.joinLobby().catch((e) => {
-    console.warn('[projects] join failed', e)
-  })
+  projects.joinLobby()
+    .catch((e) => { console.warn('[projects] join failed', e) })
+    .finally(() => { loading.value = false })
 })
 
 function openDialog() {
@@ -63,8 +64,6 @@ async function submit() {
   }
 }
 
-// Stable accent per project for the leading initial — keeps the grid lively
-// without random colours that flicker on re-render.
 function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
   const sum = [...id].reduce((s, c) => s + c.charCodeAt(0), 0)
   return (['primary', 'secondary', 'tertiary'] as const)[sum % 3]
@@ -107,7 +106,21 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
       </div>
     </header>
 
-    <div v-if="projects.list.length === 0" class="hh-projects__empty">
+    <div v-if="loading" class="hh-projects__grid">
+      <div v-for="i in 6" :key="i" class="hh-project-skeleton">
+        <div class="hh-project-skeleton__head">
+          <div class="hh-skeleton hh-project-skeleton__avatar" />
+          <div class="hh-project-skeleton__title">
+            <div class="hh-skeleton hh-project-skeleton__name" />
+            <div class="hh-skeleton hh-project-skeleton__slug" />
+          </div>
+        </div>
+        <div class="hh-skeleton hh-project-skeleton__desc" />
+        <div class="hh-skeleton hh-project-skeleton__desc hh-project-skeleton__desc--short" />
+      </div>
+    </div>
+
+    <div v-else-if="projects.list.length === 0" class="hh-projects__empty">
       <div class="hh-projects__empty-icon">
         <v-icon size="40">mdi-folder-open-outline</v-icon>
       </div>
@@ -385,5 +398,73 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 .hh-project:focus-visible .hh-project__cta {
   opacity: 1;
   transform: translateX(0);
+}
+
+@keyframes hh-shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position:  400px 0; }
+}
+
+.hh-skeleton {
+  border-radius: var(--md-shape-s);
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--v-theme-surface-container)) 25%,
+      rgb(var(--v-theme-surface-container-high)) 50%,
+      rgb(var(--v-theme-surface-container)) 75%
+    );
+  background-size: 800px 100%;
+  animation: hh-shimmer 1.4s ease-in-out infinite;
+}
+
+.hh-project-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: rgb(var(--v-theme-surface-container-low));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
+  border-radius: var(--md-shape-l);
+}
+
+.hh-project-skeleton__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hh-project-skeleton__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--md-shape-s);
+  flex-shrink: 0;
+}
+
+.hh-project-skeleton__title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hh-project-skeleton__name {
+  height: 16px;
+  width: 60%;
+}
+
+.hh-project-skeleton__slug {
+  height: 11px;
+  width: 40%;
+}
+
+.hh-project-skeleton__desc {
+  height: 14px;
+  width: 100%;
+}
+
+.hh-project-skeleton__desc--short {
+  width: 70%;
 }
 </style>
