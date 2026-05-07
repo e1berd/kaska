@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { Channel } from 'phoenix'
+import { Presence, type Channel } from 'phoenix'
 import { pushAsync, useSocketStore } from './socket'
 import type { Project } from './projects'
 import type { User } from './auth'
@@ -62,6 +62,16 @@ export interface BoardSnapshot {
   attachments: Attachment[]
 }
 
+type PresenceMeta = {
+  online_at?: string
+}
+
+type PresenceEntry = {
+  metas: PresenceMeta[]
+}
+
+type PresenceState = Record<string, PresenceEntry>
+
 export const useBoardStore = defineStore('board', () => {
   const project = ref<Project | null>(null)
   const columns = ref<Column[]>([])
@@ -69,11 +79,18 @@ export const useBoardStore = defineStore('board', () => {
   const task_types = ref<TaskType[]>([])
   const users = ref<User[]>([])
   const attachments = ref<Attachment[]>([])
+  const presences = ref<PresenceState>({})
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
 
   const orderedColumns = computed(() =>
     [...columns.value].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0)),
+  )
+
+  const activeViewerIds = computed(() =>
+    Object.entries(presences.value)
+      .filter(([, entry]) => !!entry && entry.metas.length > 0)
+      .map(([id]) => id),
   )
 
   function tasksFor(columnId: string): Task[] {
@@ -124,6 +141,12 @@ export const useBoardStore = defineStore('board', () => {
     ch.on('task_type_created', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_updated', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_deleted', ({ id }: { id: string }) => removeTaskType(id))
+    ch.on('presence_state', (state: PresenceState) => {
+      presences.value = Presence.syncState(presences.value, state)
+    })
+    ch.on('presence_diff', (diff: { joins: PresenceState; leaves: PresenceState }) => {
+      presences.value = Presence.syncDiff(presences.value, diff)
+    })
 
     channel.value = ch
     topic.value = targetTopic
@@ -141,6 +164,7 @@ export const useBoardStore = defineStore('board', () => {
     task_types.value = []
     users.value = []
     attachments.value = []
+    presences.value = {}
   }
 
   function attachmentsFor(taskId: string): Attachment[] {
@@ -291,6 +315,7 @@ export const useBoardStore = defineStore('board', () => {
     users,
     attachments,
     orderedColumns,
+    activeViewerIds,
     tasksFor,
     attachmentsFor,
     join,

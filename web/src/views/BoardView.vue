@@ -908,189 +908,76 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 
     <v-dialog
       v-model="taskDialog"
-      max-width="760"
+      max-width="1080"
       scrollable
       :fullscreen="mobile"
     >
       <v-card v-if="taskTarget" rounded="xl">
         <v-card-title class="md-headline-small px-6 pt-6">Карточка</v-card-title>
         <v-card-text class="px-6 pt-2">
-          <v-text-field
-            v-model="taskTitle"
-            label="название"
-            variant="filled"
-            density="comfortable"
-            :readonly="!auth.isAuthed"
-          />
+          <div class="hh-task-layout">
+            <section class="hh-task-main">
+              <v-text-field
+                v-model="taskTitle"
+                label="Название"
+                variant="filled"
+                density="comfortable"
+                :readonly="!auth.isAuthed"
+              />
 
-          <div class="hh-task__row">
-            <v-date-input
-              v-model="taskStartDateModel"
-              label="Дата начала"
-              density="comfortable"
-              clearable
-              :readonly="!auth.isAuthed"
-              prepend-icon=""
-              prepend-inner-icon="mdi-calendar"
-            />
-            <v-date-input
-              v-model="taskEndDateModel"
-              label="Дата окончания"
-              density="comfortable"
-              clearable
-              :readonly="!auth.isAuthed"
-              prepend-icon=""
-              prepend-inner-icon="mdi-calendar"
-            />
-          </div>
-
-          <div class="hh-task__row">
-            <v-select
-              v-model="taskType"
-              :items="board.task_types"
-              item-title="name"
-              item-value="id"
-              label="Тип задачи"
-              variant="filled"
-              density="comfortable"
-              clearable
-              :readonly="!auth.isAuthed"
-            >
-              <template #item="{ props: itemProps, item }">
-                <v-list-item v-bind="itemProps">
-                  <template #prepend>
-                    <v-icon :color="(item as TaskType).color">mdi-circle</v-icon>
-                  </template>
-                </v-list-item>
-              </template>
-              <template #selection="{ item }">
-                <v-chip
-                  :color="(item as TaskType).color"
+              <div class="hh-desc__head mt-2 mb-2">
+                <div class="md-label-large">Описание</div>
+                <v-btn
+                  v-if="auth.isAuthed && !editingDescription && !descriptionEmpty"
+                  variant="text"
                   size="small"
-                  text-color="white"
-                  class="mr-2"
+                  rounded="pill"
+                  prepend-icon="mdi-pencil-outline"
+                  @click="editingDescription = true"
                 >
-                  {{ (item as TaskType).name }}
-                </v-chip>
-              </template>
-            </v-select>
-
-            <v-select
-              v-model="taskAssignee"
-              :items="board.users"
-              item-title="display_name"
-              item-value="id"
-              label="Исполнитель"
-              variant="filled"
-              density="comfortable"
-              clearable
-              :readonly="!auth.isAuthed"
-            >
-              <template #item="{ props: itemProps, item }">
-                <v-list-item
-                  v-bind="itemProps"
-                  :title="(item as User).display_name || (item as User).email"
+                  Редактировать
+                </v-btn>
+                <v-btn
+                  v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
+                  variant="text"
+                  size="small"
+                  rounded="pill"
+                  prepend-icon="mdi-eye-outline"
+                  @click="editingDescription = false"
                 >
-                  <template #prepend>
-                    <v-avatar
-                      :image="(item as User).avatar_url || ''"
-                      size="24"
-                      class="mr-2"
-                      color="primary"
-                    >
-                      <span
-                        v-if="!(item as User).avatar_url"
-                        class="text-white text-caption"
-                      >
-                        {{
-                          ((item as User).display_name || (item as User).email)
-                            .slice(0, 1)
-                            .toUpperCase()
-                        }}
-                      </span>
-                    </v-avatar>
-                  </template>
-                </v-list-item>
-              </template>
-              <template #selection="{ item }">
-                <div class="d-flex align-center">
-                  <v-avatar
-                    :image="(item as User).avatar_url || ''"
-                    size="20"
-                    class="mr-2"
-                    color="primary"
-                  >
-                    <span
-                      v-if="!(item as User).avatar_url"
-                      class="text-white"
-                      style="font-size: 10px"
-                    >
-                      {{
-                        ((item as User).display_name || (item as User).email)
-                          .slice(0, 1)
-                          .toUpperCase()
-                      }}
-                    </span>
-                  </v-avatar>
-                  {{ (item as User).display_name || (item as User).email }}
-                </div>
-              </template>
-            </v-select>
-          </div>
+                  Просмотр
+                </v-btn>
+              </div>
 
-          <div class="hh-desc__head mt-4 mb-2">
-            <div class="md-label-large">Описание</div>
-            <v-btn
-              v-if="auth.isAuthed && !editingDescription && !descriptionEmpty"
-              variant="text"
-              size="small"
-              rounded="pill"
-              prepend-icon="mdi-pencil-outline"
-              @click="editingDescription = true"
-            >
-              Редактировать
-            </v-btn>
-            <v-btn
-              v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
-              variant="text"
-              size="small"
-              rounded="pill"
-              prepend-icon="mdi-eye-outline"
-              @click="editingDescription = false"
-            >
-              Просмотр
-            </v-btn>
-          </div>
+              <RichEditor
+                v-if="editingDescription"
+                v-model="taskBody"
+                :readonly="!auth.isAuthed"
+                placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
+              />
+              <div
+                v-else-if="!descriptionEmpty"
+                class="hh-desc__view"
+                v-html="descriptionHtml"
+              />
+              <div v-else class="hh-desc__empty md-body-medium">
+                Описание не заполнено.
+              </div>
 
-          <RichEditor
-            v-if="editingDescription"
-            v-model="taskBody"
-            :readonly="!auth.isAuthed"
-            placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
-          />
-          <div
-            v-else-if="!descriptionEmpty"
-            class="hh-desc__view"
-            v-html="descriptionHtml"
-          />
-          <div v-else class="hh-desc__empty md-body-medium">
-            Описание не заполнено.
-          </div>
-
-          <div class="hh-attach__head mt-5 mb-2">
-            <div class="md-label-large">Вложения</div>
-            <v-btn
-              v-if="auth.isAuthed"
-              variant="tonal"
-              rounded="pill"
-              size="small"
-              prepend-icon="mdi-paperclip"
-              :loading="taskUploading"
-              @click="pickAttachment"
-            >
-              Прикрепить файл
-            </v-btn>
-          </div>
+              <div class="hh-attach__head mt-5 mb-2">
+                <div class="md-label-large">Вложения</div>
+                <v-btn
+                  v-if="auth.isAuthed"
+                  variant="tonal"
+                  rounded="pill"
+                  size="small"
+                  prepend-icon="mdi-paperclip"
+                  :loading="taskUploading"
+                  @click="pickAttachment"
+                >
+                  Прикрепить файл
+                </v-btn>
+              </div>
           <v-progress-linear
             v-if="taskUploading"
             :model-value="taskUploadProgress * 100"
@@ -1154,6 +1041,123 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                 @click="removeAttachmentClick(a)"
               />
             </div>
+          </div>
+            </section>
+
+            <aside class="hh-task-side">
+              <v-card variant="flat" color="surface-container-high" rounded="lg" class="hh-task-meta-card">
+                <div class="hh-task-meta-grid">
+                  <v-date-input
+                    v-model="taskStartDateModel"
+                    label="Дата начала"
+                    density="comfortable"
+                    clearable
+                    :readonly="!auth.isAuthed"
+                    prepend-icon=""
+                    prepend-inner-icon="mdi-calendar"
+                  />
+                  <v-date-input
+                    v-model="taskEndDateModel"
+                    label="Дата окончания"
+                    density="comfortable"
+                    clearable
+                    :readonly="!auth.isAuthed"
+                    prepend-icon=""
+                    prepend-inner-icon="mdi-calendar"
+                  />
+                  <v-select
+                    v-model="taskType"
+                    :items="board.task_types"
+                    item-title="name"
+                    item-value="id"
+                    label="Тип задачи"
+                    variant="filled"
+                    density="comfortable"
+                    clearable
+                    :readonly="!auth.isAuthed"
+                  >
+                    <template #item="{ props: itemProps, item }">
+                      <v-list-item v-bind="itemProps">
+                        <template #prepend>
+                          <v-icon :color="(item as TaskType).color">mdi-circle</v-icon>
+                        </template>
+                      </v-list-item>
+                    </template>
+                    <template #selection="{ item }">
+                      <v-chip
+                        :color="(item as TaskType).color"
+                        size="small"
+                        text-color="white"
+                        class="mr-2"
+                      >
+                        {{ (item as TaskType).name }}
+                      </v-chip>
+                    </template>
+                  </v-select>
+                  <v-select
+                    v-model="taskAssignee"
+                    :items="board.users"
+                    item-title="display_name"
+                    item-value="id"
+                    label="Исполнитель"
+                    variant="filled"
+                    density="comfortable"
+                    clearable
+                    :readonly="!auth.isAuthed"
+                  >
+                    <template #item="{ props: itemProps, item }">
+                      <v-list-item
+                        v-bind="itemProps"
+                        :title="(item as User).display_name || (item as User).email"
+                      >
+                        <template #prepend>
+                          <v-avatar
+                            :image="(item as User).avatar_url || ''"
+                            size="24"
+                            class="mr-2"
+                            color="primary"
+                          >
+                            <span
+                              v-if="!(item as User).avatar_url"
+                              class="text-white text-caption"
+                            >
+                              {{
+                                ((item as User).display_name || (item as User).email)
+                                  .slice(0, 1)
+                                  .toUpperCase()
+                              }}
+                            </span>
+                          </v-avatar>
+                        </template>
+                      </v-list-item>
+                    </template>
+                    <template #selection="{ item }">
+                      <div class="d-flex align-center">
+                        <v-avatar
+                          :image="(item as User).avatar_url || ''"
+                          size="20"
+                          class="mr-2"
+                          color="primary"
+                        >
+                          <span
+                            v-if="!(item as User).avatar_url"
+                            class="text-white"
+                            style="font-size: 10px"
+                          >
+                            {{
+                              ((item as User).display_name || (item as User).email)
+                                .slice(0, 1)
+                                .toUpperCase()
+                            }}
+                          </span>
+                        </v-avatar>
+                        {{ (item as User).display_name || (item as User).email }}
+                      </div>
+                    </template>
+                  </v-select>
+                </div>
+              </v-card>
+            </aside>
           </div>
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
@@ -1309,6 +1313,34 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
 
+.hh-task-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+.hh-task-main {
+  min-width: 0;
+}
+.hh-task-side {
+  min-width: 0;
+  position: sticky;
+  top: 0;
+}
+.hh-task-meta-card {
+  padding: 12px;
+  border: 1px solid rgba(var(--v-theme-outline), 0.45);
+  box-shadow: var(--md-elev-1);
+}
+.hh-task-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.hh-task-meta-grid :deep(.v-field) {
+  background: rgb(var(--v-theme-surface-container-highest));
+}
+
 .hh-task__row {
   display: flex;
   gap: 16px;
@@ -1329,6 +1361,12 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 @media (max-width: 600px) {
   .hh-board__filters {
     grid-template-columns: 1fr;
+  }
+  .hh-task-layout {
+    grid-template-columns: 1fr;
+  }
+  .hh-task-side {
+    position: static;
   }
   .hh-board__cols {
     padding: 8px 12px 16px;

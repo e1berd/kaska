@@ -12,6 +12,7 @@ defmodule HardhatWeb.BoardChannel do
   use Phoenix.Channel
 
   alias Hardhat.{Attachments, Projects}
+  alias HardhatWeb.Presence
   alias Hardhat.Attachments.Attachment
   alias Hardhat.Projects.{Column, Project, Task}
 
@@ -31,6 +32,7 @@ defmodule HardhatWeb.BoardChannel do
 
   defp join_with_snapshot({project, columns, tasks}, _payload, socket) do
     socket = assign(socket, :project_id, project.id)
+    send(self(), :after_join_presence)
     task_ids = Enum.map(tasks, & &1.id)
     task_types = Projects.list_task_types(project.id)
     users = Hardhat.Accounts.list_users()
@@ -50,6 +52,19 @@ defmodule HardhatWeb.BoardChannel do
        users: Enum.map(users, &user_view/1),
        attachments: attachments
      }, socket}
+  end
+
+  @impl true
+  def handle_info(:after_join_presence, socket) do
+    if user = socket.assigns[:current_user] do
+      {:ok, _} =
+        Presence.track(socket, user.id, %{
+          online_at: inspect(System.system_time(:second))
+        })
+    end
+
+    push(socket, "presence_state", Presence.list(socket))
+    {:noreply, socket}
   end
 
   ## Authorization gate ──────────────────────────────────────────────────
