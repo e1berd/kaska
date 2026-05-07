@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import {
+  draggable,
+  dropTargetForElements,
+} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
+import {
+  attachClosestEdge,
+  extractClosestEdge,
+  type Edge,
+} from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { useBoardStore, type Column, type Task } from '../../stores/board'
 import { useAuthStore } from '../../stores/auth'
 import BoardCard from './BoardCard.vue'
@@ -58,24 +67,89 @@ watch(sentinel, (el) => {
 })
 
 const root = ref<HTMLElement | null>(null)
+const handle = ref<HTMLElement | null>(null)
 const cardsScroll = ref<HTMLElement | null>(null)
 const isOver = ref(false)
+const dragging = ref(false)
+const closestEdge = ref<Edge | null>(null)
 let dndCleanup: (() => void) | null = null
+let ghost: HTMLElement | null = null
+let grabOffsetX = 0
+let grabOffsetY = 0
 
 const adding = ref(false)
 const newTitle = ref('')
 const submitting = ref(false)
 
 onMounted(() => {
-  if (!root.value || !cardsScroll.value) return
+  if (!root.value || !cardsScroll.value || !handle.value) return
+  const rootEl = root.value
+  const handleEl = handle.value
+
   dndCleanup = combine(
+    draggable({
+      element: handleEl,
+      getInitialData: () => ({ type: 'column', column: props.column }),
+      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+        disableNativeDragPreview({ nativeSetDragImage })
+      },
+      onDragStart: ({ location }) => {
+        const rect = rootEl.getBoundingClientRect()
+        dragging.value = true
+        document.body.classList.add('hh-dragging-column')
+        grabOffsetX = location.current.input.clientX - rect.left
+        grabOffsetY = location.current.input.clientY - rect.top
+        const clone = rootEl.cloneNode(true) as HTMLElement
+        clone.classList.add('hh-col--ghost')
+        clone.style.width = `${rect.width}px`
+        clone.style.height = `${rect.height}px`
+        clone.querySelectorAll('.hh-col__edge').forEach((node) => node.remove())
+        document.body.appendChild(clone)
+        ghost = clone
+        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0)`
+      },
+      onDrag: ({ location }) => {
+        if (!ghost) return
+        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0)`
+      },
+      onDrop: () => {
+        dragging.value = false
+        document.body.classList.remove('hh-dragging-column')
+        ghost?.remove()
+        ghost = null
+      },
+    }),
     dropTargetForElements({
-      element: root.value,
-      canDrop: ({ source }) => source.data.type === 'task',
-      getData: () => ({ type: 'column', columnId: props.column.id }),
+      element: rootEl,
+      canDrop: ({ source }) => source.data.type === 'task' || source.data.type === 'column',
+      getData: ({ source, input, element }) => {
+        if (source.data.type === 'column') {
+          return attachClosestEdge(
+            { type: 'column', column: props.column },
+            { input, element, allowedEdges: ['left', 'right'] },
+          )
+        }
+        return { type: 'column', columnId: props.column.id }
+      },
+      getIsSticky: () => true,
       onDragEnter: () => (isOver.value = true),
       onDragLeave: () => (isOver.value = false),
-      onDrop: () => (isOver.value = false),
+      onDrag: ({ self, source }) => {
+        if (source.data.type !== 'column') {
+          closestEdge.value = null
+          return
+        }
+        const sourceColumn = source.data.column as Column | undefined
+        if (sourceColumn?.id === props.column.id) {
+          closestEdge.value = null
+          return
+        }
+        closestEdge.value = extractClosestEdge(self.data)
+      },
+      onDrop: () => {
+        isOver.value = false
+        closestEdge.value = null
+      },
     }),
     autoScrollForElements({
       element: cardsScroll.value,
@@ -122,11 +196,14 @@ function cancelAdd() {
   <section
     ref="root"
     class="hh-col"
-    :class="{ 'hh-col--over': isOver }"
+    :class="{ 'hh-col--over': isOver, 'hh-col--dragging': dragging }"
     :data-accent="accent"
   >
     <header class="hh-col__head">
       <div class="hh-col__title">
+        <button ref="handle" class="hh-col__drag-handle md-state-layer" type="button" aria-label="Перетащить колонку">
+          <v-icon size="18">mdi-drag</v-icon>
+        </button>
         <span class="hh-col__dot" />
         <span class="md-title-medium">{{ column.name }}</span>
         <span class="hh-col__count md-label-medium">{{ tasksInColumn.length }}</span>
@@ -215,6 +292,8 @@ function cancelAdd() {
         </div>
       </template>
     </div>
+    <div class="hh-col__edge hh-col__edge--left" :class="{ 'is-on': closestEdge === 'left' }" />
+    <div class="hh-col__edge hh-col__edge--right" :class="{ 'is-on': closestEdge === 'right' }" />
   </section>
 </template>
 
@@ -235,7 +314,8 @@ function cancelAdd() {
   padding: 12px;
   transition:
     background-color var(--md-duration-short4) var(--md-easing-standard),
-    box-shadow var(--md-duration-short4) var(--md-easing-standard);
+    box-shadow var(--md-duration-short4) var(--md-easing-standard),
+    opacity var(--md-duration-short3) var(--md-easing-standard);
 }
 .hh-col[data-accent='secondary'] {
   --col-accent: var(--v-theme-secondary);
@@ -251,6 +331,9 @@ function cancelAdd() {
   background: rgb(var(--v-theme-surface-container-high));
   box-shadow: inset 0 0 0 1.5px rgba(var(--col-accent), 0.55);
 }
+.hh-col--dragging {
+  opacity: 0.52;
+}
 
 .hh-col__head {
   display: flex;
@@ -265,6 +348,30 @@ function cancelAdd() {
   align-items: center;
   gap: 8px;
   color: rgb(var(--v-theme-on-surface));
+}
+.hh-col__drag-handle {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--md-shape-full);
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  flex: 0 0 auto;
+  --md-state-color: rgb(var(--v-theme-on-surface));
+  transition:
+    background-color var(--md-duration-short3) var(--md-easing-standard),
+    color var(--md-duration-short3) var(--md-easing-standard);
+}
+.hh-col__drag-handle:hover {
+  background: rgba(var(--v-theme-on-surface), 0.12);
+  color: rgb(var(--v-theme-on-surface));
+}
+.hh-col__drag-handle:active {
+  cursor: grabbing;
 }
 .hh-col__dot {
   width: 10px;
@@ -342,5 +449,43 @@ function cancelAdd() {
 }
 .hh-col__addbtn:hover {
   background: rgba(var(--v-theme-on-surface), 0.04);
+}
+.hh-col__edge {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: var(--md-shape-full);
+  background: rgba(var(--v-theme-primary), 0.92);
+  opacity: 0;
+  transform: scaleY(0.6);
+  transition:
+    opacity var(--md-duration-short2) var(--md-easing-standard),
+    transform var(--md-duration-short3) var(--md-easing-standard);
+  pointer-events: none;
+}
+.hh-col__edge--left {
+  left: -8px;
+}
+.hh-col__edge--right {
+  right: -8px;
+}
+.hh-col__edge.is-on {
+  opacity: 1;
+  transform: scaleY(1);
+}
+:global(.hh-col.hh-col--ghost) {
+  position: fixed !important;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: var(--md-elev-5);
+  opacity: 0.96;
+  transition: none !important;
+  will-change: transform;
+}
+:global(body.hh-dragging-column) {
+  cursor: grabbing;
 }
 </style>

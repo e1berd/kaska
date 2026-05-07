@@ -32,6 +32,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const colsScroll = ref<HTMLElement | null>(null)
 let monitorCleanup: (() => void) | null = null
+let columnsMonitorCleanup: (() => void) | null = null
 let scrollCleanup: (() => void) | null = null
 
 const viewMode = ref<'columns' | 'list'>('columns')
@@ -165,10 +166,43 @@ onMounted(async () => {
         })
     },
   })
+
+  columnsMonitorCleanup = monitorForElements({
+    canMonitor: ({ source }) => source.data.type === 'column',
+    onDrop: ({ source, location }) => {
+      const target = location.current.dropTargets[0]
+      if (!target || target.data.type !== 'column') return
+
+      const sourceColumn = source.data.column as Column
+      const overColumn = target.data.column as Column
+      if (sourceColumn.id === overColumn.id) return
+
+      const edge = extractClosestEdge(target.data)
+      const ordered = board.orderedColumns.filter((c) => c.id !== sourceColumn.id)
+      const idx = ordered.findIndex((c) => c.id === overColumn.id)
+      if (idx < 0) return
+
+      let beforeId: string | null = null
+      let afterId: string | null = null
+
+      if (edge === 'left') {
+        beforeId = idx > 0 ? ordered[idx - 1].id : null
+        afterId = overColumn.id
+      } else {
+        beforeId = overColumn.id
+        afterId = idx + 1 < ordered.length ? ordered[idx + 1].id : null
+      }
+
+      board.moveColumn(sourceColumn.id, beforeId, afterId).catch((e) => {
+        console.warn('[board] move column failed', e)
+      })
+    },
+  })
 })
 
 onBeforeUnmount(() => {
   monitorCleanup?.()
+  columnsMonitorCleanup?.()
   scrollCleanup?.()
   board.leave()
 })

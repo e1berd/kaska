@@ -1,9 +1,9 @@
-name: hardhat
+name: hardhat-dev
 
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: hardhat-postgres
+    container_name: hardhat-dev-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hardhat}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
@@ -20,7 +20,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: hardhat-mailpit
+    container_name: hardhat-dev-mailpit
     ports:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
       - "${MAILPIT_UI_PORT:-8025}:8025"
@@ -30,7 +30,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: hardhat-rustfs
+    container_name: hardhat-dev-rustfs
     user: "10001:10001"
     environment:
       RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:-rustfsadmin}
@@ -52,7 +52,7 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile.dev
-    container_name: hardhat-api
+    container_name: hardhat-dev-api
     environment:
       MIX_ENV: dev
       DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-hardhat_dev}
@@ -92,7 +92,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile.dev
-    container_name: hardhat-web
+    container_name: hardhat-dev-web
     environment:
       VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
       CI: "true"
