@@ -11,7 +11,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const users = ref<User[]>([])
 const search = ref('')
-const canManageMembers = computed(() => auth.user?.role === 'admin')
+const canManageMembers = computed(() => auth.user?.role === 'admin' || auth.user?.role === 'superadmin')
 
 const isInviteModalOpen = ref(false)
 const inviteTab = ref('email')
@@ -86,6 +86,7 @@ const copyInviteLink = () => {
 }
 
 const changeRole = async (user: User) => {
+  if (user.role === 'superadmin') return
   const newRole = user.role === 'admin' ? 'user' : 'admin'
   try {
     await sys.changeUserRole(user.id, newRole)
@@ -171,8 +172,8 @@ const userLastOnlineAt = (user: User) => sys.userLastOnlineAt(user.id)
             </div>
           </template>
           <template #item.role="{ item }">
-            <v-chip size="small" :color="item.role === 'admin' ? 'secondary' : 'default'">
-               {{ item.role === 'admin' ? 'Администратор' : 'Пользователь' }}
+            <v-chip size="small" :color="item.role === 'superadmin' ? 'primary' : item.role === 'admin' ? 'secondary' : 'default'">
+               {{ item.role === 'superadmin' ? 'Суперадмин' : item.role === 'admin' ? 'Администратор' : 'Пользователь' }}
             </v-chip>
           </template>
           <template #item.status="{ item }">
@@ -197,7 +198,7 @@ const userLastOnlineAt = (user: User) => sys.userLastOnlineAt(user.id)
             </div>
           </template>
           <template #item.actions="{ item }">
-            <v-menu v-if="auth.user?.role === 'admin' && item.id !== auth.user?.id">
+            <v-menu v-if="canManageMembers && item.id !== auth.user?.id && item.role !== 'superadmin'">
               <template #activator="{ props }">
                 <v-btn v-bind="props" variant="text" size="small" :icon="true">
                   <ph-dots-three-vertical :size="20" weight="bold" />

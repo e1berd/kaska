@@ -26,13 +26,12 @@ defmodule HardhatWeb.SysChannel do
 
   @impl true
   def handle_in("get_settings", _payload, socket) do
-
     settings = %{
-      allow_registration: Accounts.get_setting("allow_registration", "true") == "true"
+      allow_registration: Accounts.get_setting("allow_registration", "true") == "true",
+      first_user_bootstrap: Accounts.users_count() == 0
     }
 
     {:reply, {:ok, settings}, socket}
-
   end
 
   def handle_in("set_settings", payload, socket) do
@@ -148,7 +147,7 @@ defmodule HardhatWeb.SysChannel do
   end
 
   defp is_admin(nil), do: false
-  defp is_admin(%{role: role}), do: role == :admin
+  defp is_admin(%{role: role}), do: role in [:admin, :superadmin]
   defp is_admin(_), do: false
 
   defp user_view(user, presences) do

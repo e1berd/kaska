@@ -11,9 +11,13 @@ defmodule HardhatWeb.AuthChannel do
 
   @impl true
   def handle_in("settings", _payload, socket) do
-    # Only return public settings, like allow_registration
     allow_reg = Accounts.get_setting("allow_registration", "true")
-    {:reply, {:ok, %{allow_registration: allow_reg == "true"}}, socket}
+    {:reply,
+     {:ok,
+      %{
+        allow_registration: allow_reg == "true",
+        first_user_bootstrap: Accounts.users_count() == 0
+      }}, socket}
   end
 
   def handle_in("register", payload, socket) do
@@ -46,18 +50,25 @@ defmodule HardhatWeb.AuthChannel do
     if !allow_registration && is_nil(invite) do
       {:reply, {:error, %{message: "registration is currently disabled"}}, socket}
     else
-      case Accounts.register_user(%{email: email, password: password}) do
-        {:ok, user} ->
+      case Accounts.register_user_with_bootstrap(%{email: email, password: password}) do
+        {:ok, user, first_user_bootstrap} ->
           if invite do
             Accounts.delete_invite(invite)
           end
 
-          Accounts.deliver_verify_email_instructions(user)
+          if !first_user_bootstrap do
+            Accounts.deliver_verify_email_instructions(user)
+          end
 
           {:reply,
            {:ok,
             %{
-              message: "registered. check your inbox to confirm.",
+              message:
+                if(first_user_bootstrap,
+                  do: "registered as bootstrap superadmin.",
+                  else: "registered. check your inbox to confirm."
+                ),
+              first_user_bootstrap: first_user_bootstrap,
               user: user_view(user)
             }}, socket}
 

@@ -6,7 +6,7 @@ import { uploadToPresignedUrl } from '../utils/upload'
 export interface User {
   id: string
   email: string
-  role: 'user' | 'admin'
+  role: 'user' | 'admin' | 'superadmin'
   confirmed_at: string | null
   display_name: string | null
   avatar_url: string | null
@@ -18,6 +18,12 @@ interface TokensReply {
   access: string
   refresh: string
   user: User
+}
+
+interface RegisterReply {
+  message: string
+  user: User
+  first_user_bootstrap?: boolean
 }
 
 const ACCESS_KEY = 'hardhat.access'
@@ -62,7 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(email: string, password: string, invite_token?: string) {
     const ch = await authChannel()
-    return pushAsync<{ message: string }>(ch, 'register', { email, password, invite_token })
+    return pushAsync<RegisterReply>(ch, 'register', { email, password, invite_token })
   }
 
   async function login(email: string, password: string) {

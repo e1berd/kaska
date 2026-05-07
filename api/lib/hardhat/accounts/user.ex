@@ -11,7 +11,7 @@ defmodule Hardhat.Accounts.User do
     field :hashed_password, :string, redact: true
     field :password, :string, virtual: true, redact: true
     field :confirmed_at, :utc_datetime
-    field :role, Ecto.Enum, values: [:user, :admin], default: :user
+    field :role, Ecto.Enum, values: [:user, :admin, :superadmin], default: :user
     field :display_name, :string
     field :avatar_key, :string
 
@@ -55,7 +55,7 @@ defmodule Hardhat.Accounts.User do
   def changeset_role(user, attrs) do
     user
     |> cast(attrs, [:role])
-    |> validate_inclusion(:role, [:user, :admin])
+    |> validate_inclusion(:role, [:user, :admin, :superadmin])
   end
 
   def valid_password?(%__MODULE__{hashed_password: hashed}, password)

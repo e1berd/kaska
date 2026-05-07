@@ -14,6 +14,8 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const success = ref(false)
 const inviteToken = ref<string | undefined>(undefined)
+const firstUserBootstrap = ref(false)
+const bootstrapResult = ref(false)
 
 const checkLoading = ref(true)
 const registrationAllowed = ref(true)
@@ -30,6 +32,7 @@ async function checkRegistration() {
   try {
     const s = await sys.getSettings()
     registrationAllowed.value = s.allow_registration
+    firstUserBootstrap.value = s.first_user_bootstrap
   } catch (e: any) {
     error.value = e?.message || 'Не удалось проверить настройки регистрации'
     registrationAllowed.value = false
@@ -49,7 +52,8 @@ async function submit() {
   error.value = null
   loading.value = true
   try {
-    await auth.register(email.value, password.value, inviteToken.value)
+    const res = await auth.register(email.value, password.value, inviteToken.value)
+    bootstrapResult.value = !!res.first_user_bootstrap
     success.value = true
   } catch (e: any) {
     const errs = e?.errors
@@ -73,9 +77,14 @@ async function submit() {
       </div>
 
       <template v-else>
-        <h1 class="md-headline-medium mb-1">Создать аккаунт</h1>
+        <h1 class="md-headline-medium mb-1">{{ firstUserBootstrap ? 'Инициализация владельца' : 'Создать аккаунт' }}</h1>
         <p class="md-body-medium text-medium-emphasis mb-6">
-          После регистрации придёт письмо с подтверждением.
+          <template v-if="firstUserBootstrap">
+            Это первая регистрация в системе. Аккаунт будет сразу подтвержден и получит роль суперадмина.
+          </template>
+          <template v-else>
+            После регистрации придёт письмо с подтверждением.
+          </template>
         </p>
 
         <template v-if="!success">
@@ -131,7 +140,7 @@ async function submit() {
               :disabled="!registrationAllowed && !inviteToken"
               class="mt-6"
             >
-              Зарегистрироваться
+              {{ firstUserBootstrap ? 'Создать владельца' : 'Зарегистрироваться' }}
             </v-btn>
           </v-form>
 
@@ -143,11 +152,20 @@ async function submit() {
         </template>
 
         <v-alert v-else type="success" variant="tonal" rounded="lg">
-          <p class="font-weight-medium mb-1">Почти готово!</p>
-          <p class="mb-0">
-            На <strong>{{ email }}</strong> отправлена ссылка для подтверждения почты.
-            Откройте её, чтобы активировать аккаунт.
-          </p>
+          <template v-if="bootstrapResult">
+            <p class="font-weight-medium mb-1">Владелец создан</p>
+            <p class="mb-0">
+              Аккаунт <strong>{{ email }}</strong> сразу подтвержден и назначен суперадмином.
+              Теперь можно войти и продолжить настройку системы.
+            </p>
+          </template>
+          <template v-else>
+            <p class="font-weight-medium mb-1">Почти готово!</p>
+            <p class="mb-0">
+              На <strong>{{ email }}</strong> отправлена ссылка для подтверждения почты.
+              Откройте её, чтобы активировать аккаунт.
+            </p>
+          </template>
         </v-alert>
       </template>
     </v-card>

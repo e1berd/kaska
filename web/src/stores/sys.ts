@@ -51,7 +51,11 @@ export const useSysStore = defineStore('sys', () => {
   async function getSettings() {
     const sock = useSocketStore()
     const { channel } = await sock.joinChannel('sys:lobby')
-    return pushAsync<{ allow_registration: boolean }>(channel, 'get_settings', {})
+    return pushAsync<{ allow_registration: boolean; first_user_bootstrap: boolean }>(
+      channel,
+      'get_settings',
+      {},
+    )
   }
 
   async function setSettings(input: { allow_registration: boolean }) {

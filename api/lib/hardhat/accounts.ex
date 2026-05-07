@@ -64,6 +64,10 @@ defmodule Hardhat.Accounts do
     Repo.all(User)
   end
 
+  def users_count do
+    Repo.aggregate(User, :count, :id)
+  end
+
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user = get_user_by_email(email)
@@ -74,6 +78,41 @@ defmodule Hardhat.Accounts do
     %User{}
     |> User.registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  def register_user_with_bootstrap(attrs) do
+    Repo.transaction(fn ->
+      Repo.query!("LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE")
+      first_user = users_count() == 0
+
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      changeset =
+        %User{}
+        |> User.registration_changeset(attrs)
+        |> maybe_apply_bootstrap(first_user, now)
+
+      case Repo.insert(changeset) do
+        {:ok, user} -> {:ok, user, first_user}
+        {:error, changeset} -> Repo.rollback({:error, changeset})
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, {:error, changeset}} -> {:error, changeset}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def promote_user_by_email(email, role) when is_binary(email) do
+    with %User{} = user <- get_user_by_email(email),
+         {:ok, updated} <- user |> User.changeset_role(%{role: role}) |> Repo.update() do
+      {:ok, updated}
+    else
+      nil -> {:error, :user_not_found}
+      {:error, %Ecto.Changeset{} = cs} -> {:error, cs}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def deliver_verify_email_instructions(%User{confirmed_at: nil} = user) do
@@ -132,5 +171,13 @@ defmodule Hardhat.Accounts do
   defp build_url(path, token) do
     base = System.get_env("WEB_BASE_URL", "http://localhost:5173")
     base <> path <> token
+  end
+
+  defp maybe_apply_bootstrap(changeset, false, _now), do: changeset
+
+  defp maybe_apply_bootstrap(changeset, true, now) do
+    changeset
+    |> Ecto.Changeset.put_change(:role, :superadmin)
+    |> Ecto.Changeset.put_change(:confirmed_at, now)
   end
 end
