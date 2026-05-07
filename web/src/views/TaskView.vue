@@ -37,6 +37,13 @@ const taskViewers = computed(() =>
 const taskEditors = computed(() =>
   board.editorsForTask(taskId.value).filter((user) => user.id !== auth.user?.id),
 )
+const activeDescriptionEditor = computed(() => taskEditors.value[0] ?? null)
+const activeDescriptionEditorName = computed(
+  () =>
+    activeDescriptionEditor.value?.display_name ||
+    activeDescriptionEditor.value?.email?.split('@')[0] ||
+    'Пользователь',
+)
 
 const taskStartDateModel = computed<Date | null>({
   get: () => parseIsoDate(taskStartDate.value),
@@ -231,7 +238,7 @@ watch(
         <div class="d-flex align-center justify-space-between mb-2 mt-2">
           <div class="md-label-large">Описание</div>
           <v-btn
-            v-if="auth.isAuthed && !editingDescription && !descriptionEmpty"
+            v-if="auth.isAuthed && !editingDescription && !descriptionEmpty && !activeDescriptionEditor"
             variant="text"
             size="small"
             rounded="pill"
@@ -239,6 +246,16 @@ watch(
             @click="editingDescription = true"
           >
             Редактировать
+          </v-btn>
+          <v-btn
+            v-else-if="auth.isAuthed && !editingDescription && activeDescriptionEditor"
+            variant="text"
+            size="small"
+            rounded="pill"
+            disabled
+            class="hh-edit-lock-btn"
+          >
+            {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
           </v-btn>
           <v-btn
             v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
@@ -251,11 +268,8 @@ watch(
             Просмотр
           </v-btn>
         </div>
-        <div
-          v-if="!editingDescription && taskEditors.length"
-          class="hh-task-page__editing-note md-body-small mb-2"
-        >
-          {{ (taskEditors[0].display_name || taskEditors[0].email) }} редактирует...
+        <div v-if="taskEditors.length" class="hh-task-page__editing-note md-body-small mb-2">
+          {{ taskEditors[0].display_name || taskEditors[0].email?.split('@')[0] || 'Пользователь' }} редактирует...
         </div>
         <RichEditor
           v-if="editingDescription"
@@ -374,6 +388,21 @@ watch(
 }
 .hh-task-page__editing-note {
   color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.hh-edit-lock-btn {
+  opacity: 0.9;
+}
+.hh-dots::after {
+  content: '...';
+  display: inline-block;
+  width: 1.2em;
+  margin-left: 2px;
+  vertical-align: bottom;
+  animation: hh-dots-fade 1.1s ease-in-out infinite;
+}
+@keyframes hh-dots-fade {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }
 .hh-task-page__meta {
   padding: 12px;

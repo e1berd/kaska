@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
 import { Editor, EditorContent, type FocusPosition } from '@tiptap/vue-3'
+import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
@@ -25,22 +26,24 @@ const emit = defineEmits<{
   (e: 'update:modelValue', doc: TiptapDoc): void
 }>()
 
+const extensions: AnyExtension[] = [
+  StarterKit.configure({
+    link: false,
+    heading: { levels: [2, 3] },
+  }),
+  Placeholder.configure({ placeholder: props.placeholder }),
+  Link.configure({
+    openOnClick: false,
+    autolink: true,
+    HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
+  }),
+]
+
 const editor = new Editor({
   editable: !props.readonly,
   autofocus: props.autofocus,
   content: props.modelValue ?? { type: 'doc', content: [] },
-  extensions: [
-    StarterKit.configure({
-      link: false,
-      heading: { levels: [2, 3] },
-    }),
-    Placeholder.configure({ placeholder: props.placeholder }),
-    Link.configure({
-      openOnClick: false,
-      autolink: true,
-      HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
-    }),
-  ],
+  extensions,
   onUpdate: ({ editor: ed }) => {
     emit('update:modelValue', ed.getJSON() as TiptapDoc)
   },

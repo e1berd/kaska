@@ -83,6 +83,7 @@ const deleteTarget = ref<Column | null>(null)
 
 const taskDialog = ref(false)
 const taskTarget = ref<Task | null>(null)
+const taskTargetId = ref<string | null>(null)
 const taskTitle = ref('')
 const taskBody = ref<TiptapDoc>({ type: 'doc', content: [] })
 const taskStartDate = ref<string | null>(null)
@@ -95,6 +96,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const taskSaving = ref(false)
 const taskSyncing = ref(false)
 let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
+let taskSavingStartedAt = 0
+let taskSaveQueued = false
 
 const editingDescription = ref(false)
 const descriptionHtml = computed(() => docToHtml(taskBody.value))
@@ -113,6 +116,61 @@ const taskEditors = computed(() => {
     .editorsForTask(taskTarget.value.id)
     .filter((user) => user.id !== auth.user?.id)
 })
+const activeDescriptionEditor = computed(() => taskEditors.value[0] ?? null)
+const activeDescriptionEditorName = computed(
+  () =>
+    activeDescriptionEditor.value?.display_name ||
+    activeDescriptionEditor.value?.email?.split('@')[0] ||
+    'Пользователь',
+)
+const currentTask = computed<Task | null>(() => {
+  if (!taskTargetId.value) return null
+  return board.tasks.find((t) => t.id === taskTargetId.value) ?? null
+})
+
+type TaskFormState = {
+  title: string
+  body_doc: TiptapDoc
+  start_date: string | null
+  end_date: string | null
+  task_type_id: string | null
+  assignee_id: string | null
+}
+
+function getTaskFormState(): TaskFormState {
+  return {
+    title: taskTitle.value.trim(),
+    body_doc: taskBody.value,
+    start_date: taskStartDate.value,
+    end_date: taskEndDate.value,
+    task_type_id: taskType.value,
+    assignee_id: taskAssignee.value,
+  }
+}
+
+function getTaskServerState(task: Task): TaskFormState {
+  return {
+    title: task.title,
+    body_doc: task.body_doc ?? { type: 'doc', content: [] },
+    start_date: task.start_date ?? null,
+    end_date: task.end_date ?? null,
+    task_type_id: task.task_type_id ?? null,
+    assignee_id: task.assignee_id ?? null,
+  }
+}
+
+function isFormSyncedWithTask(task: Task): boolean {
+  const form = getTaskFormState()
+  const server = getTaskServerState(task)
+  return (
+    form.title === server.title &&
+    form.start_date === server.start_date &&
+    form.end_date === server.end_date &&
+    form.task_type_id === server.task_type_id &&
+    form.assignee_id === server.assignee_id &&
+    JSON.stringify(form.body_doc) === JSON.stringify(server.body_doc)
+  )
+}
 
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
@@ -417,8 +475,8 @@ watch(
 watch(
   () => editingDescription.value,
   (editing) => {
-    if (!taskTarget.value || !auth.isAuthed || !taskDialog.value) return
-    void board.setActiveTask(taskTarget.value.id, editing).catch(() => {})
+    if (!currentTask.value || !auth.isAuthed || !taskDialog.value) return
+    void board.setActiveTask(currentTask.value.id, editing).catch(() => {})
   },
 )
 
@@ -431,17 +489,20 @@ watch(
 )
 
 watch(
-  () => taskTarget.value,
+  () => currentTask.value,
   (task) => {
     if (!task || !taskDialog.value) return
     taskSyncing.value = true
+    taskTarget.value = task
     taskTitle.value = task.title
     taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
     taskStartDate.value = task.start_date ?? null
     taskEndDate.value = task.end_date ?? null
     taskType.value = task.task_type_id ?? null
     taskAssignee.value = task.assignee_id ?? null
-    taskSyncing.value = false
+    setTimeout(() => {
+      taskSyncing.value = false
+    }, 0)
   },
   { deep: true },
 )
@@ -449,7 +510,7 @@ watch(
 watch(
   () => [
     taskDialog.value,
-    taskTarget.value?.id,
+    taskTargetId.value,
     taskTitle.value,
     JSON.stringify(taskBody.value),
     taskStartDate.value,
@@ -458,8 +519,9 @@ watch(
     taskAssignee.value,
   ],
   () => {
-    if (!taskDialog.value || !taskTarget.value || !auth.isAuthed) return
+    if (!taskDialog.value || !currentTask.value || !auth.isAuthed) return
     if (taskSyncing.value) return
+    if (isFormSyncedWithTask(currentTask.value)) return
     if (taskSaveTimer) clearTimeout(taskSaveTimer)
     taskSaveTimer = setTimeout(() => {
       void saveTask()
@@ -509,38 +571,57 @@ async function commitDelete() {
 }
 
 function openTask(task: Task) {
-  taskTarget.value = task
+  taskTargetId.value = task.id
+  const actualTask = board.tasks.find((t) => t.id === task.id) ?? task
+  taskTarget.value = actualTask
   taskSyncing.value = true
-  taskTitle.value = task.title
-  taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
-  taskStartDate.value = task.start_date ?? null
-  taskEndDate.value = task.end_date ?? null
-  taskType.value = task.task_type_id ?? null
-  taskAssignee.value = task.assignee_id ?? null
+  taskTitle.value = actualTask.title
+  taskBody.value = actualTask.body_doc ?? { type: 'doc', content: [] }
+  taskStartDate.value = actualTask.start_date ?? null
+  taskEndDate.value = actualTask.end_date ?? null
+  taskType.value = actualTask.task_type_id ?? null
+  taskAssignee.value = actualTask.assignee_id ?? null
   editingDescription.value = auth.isAuthed && isDocEmpty(taskBody.value)
   taskSyncing.value = false
   taskDialog.value = true
   if (auth.isAuthed) {
-    void board.setActiveTask(task.id, editingDescription.value).catch(() => {})
+    void board.setActiveTask(actualTask.id, editingDescription.value).catch(() => {})
   }
 }
 
 async function saveTask() {
-  if (!taskTarget.value) return
+  if (!currentTask.value) return
+  if (taskSaving.value) {
+    taskSaveQueued = true
+    return
+  }
+  if (isFormSyncedWithTask(currentTask.value)) return
+
+  const payload = getTaskFormState()
   taskSaving.value = true
+  taskSavingStartedAt = Date.now()
   try {
-    await board.updateTask(taskTarget.value.id, {
-      title: taskTitle.value.trim(),
-      body_doc: taskBody.value,
-      start_date: taskStartDate.value,
-      end_date: taskEndDate.value,
-      task_type_id: taskType.value,
-      assignee_id: taskAssignee.value,
+    await board.updateTask(currentTask.value.id, {
+      title: payload.title,
+      body_doc: payload.body_doc,
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      task_type_id: payload.task_type_id,
+      assignee_id: payload.assignee_id,
     })
   } catch (err: any) {
     alert(err.message || 'Ошибка сохранения задачи')
   } finally {
+    const elapsed = Date.now() - taskSavingStartedAt
+    const remaining = Math.max(0, 1600 - elapsed)
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
     taskSaving.value = false
+    if (taskSaveQueued) {
+      taskSaveQueued = false
+      if (taskDialog.value && currentTask.value && auth.isAuthed) {
+        void saveTask()
+      }
+    }
   }
 }
 
@@ -622,6 +703,7 @@ function closeTaskDialog() {
     taskSaveTimer = null
   }
   taskDialog.value = false
+  taskTargetId.value = null
   if (auth.isAuthed) {
     void board.setActiveTask(null, false).catch(() => {})
   }
@@ -1088,7 +1170,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
               <div class="hh-desc__head mt-2 mb-2">
                 <div class="md-label-large">Описание</div>
                 <v-btn
-                  v-if="auth.isAuthed && !editingDescription && !descriptionEmpty"
+                  v-if="auth.isAuthed && !editingDescription && !descriptionEmpty && !activeDescriptionEditor"
                   variant="text"
                   size="small"
                   rounded="pill"
@@ -1096,6 +1178,16 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                   @click="editingDescription = true"
                 >
                   Редактировать
+                </v-btn>
+                <v-btn
+                  v-else-if="auth.isAuthed && !editingDescription && activeDescriptionEditor"
+                  variant="text"
+                  size="small"
+                  rounded="pill"
+                  disabled
+                  class="hh-edit-lock-btn"
+                >
+                  {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
                 </v-btn>
                 <v-btn
                   v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
@@ -1108,26 +1200,20 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                   Просмотр
                 </v-btn>
               </div>
-              <div
-                v-if="!editingDescription && taskEditors.length"
-                class="hh-desc__editing-note md-body-small mb-2"
-              >
-                {{ (taskEditors[0].display_name || taskEditors[0].email) }} редактирует...
-              </div>
 
               <RichEditor
                 v-if="editingDescription"
                 v-model="taskBody"
-                :readonly="!auth.isAuthed"
-                autofocus="end"
+                :readonly="!auth.isAuthed || !editingDescription"
                 placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
+                autofocus="end"
               />
               <div
-                v-else-if="!descriptionEmpty"
+                v-if="!editingDescription && !descriptionEmpty"
                 class="hh-desc__view"
                 v-html="descriptionHtml"
               />
-              <div v-else class="hh-desc__empty md-body-medium">
+              <div v-if="!editingDescription && descriptionEmpty" class="hh-desc__empty md-body-medium">
                 Описание не заполнено.
               </div>
 
@@ -1649,6 +1735,21 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 }
 .hh-desc__editing-note {
   color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.hh-edit-lock-btn {
+  opacity: 0.9;
+}
+.hh-dots::after {
+  content: '...';
+  display: inline-block;
+  width: 1.2em;
+  margin-left: 2px;
+  vertical-align: bottom;
+  animation: hh-dots-fade 1.1s ease-in-out infinite;
+}
+@keyframes hh-dots-fade {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }
 
 .hh-attach__head {
