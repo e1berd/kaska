@@ -36,6 +36,7 @@ let columnsMonitorCleanup: (() => void) | null = null
 let scrollCleanup: (() => void) | null = null
 
 const viewMode = ref<'columns' | 'list'>('columns')
+const VIEW_MODE_KEY_PREFIX = 'hardhat.board.view_mode'
 
 const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
@@ -211,6 +212,27 @@ watch(slug, () => {
   load()
 })
 
+watch(
+  () => [auth.user?.id ?? 'guest', slug.value] as const,
+  ([userId, currentSlug]) => {
+    const saved = localStorage.getItem(`${VIEW_MODE_KEY_PREFIX}:${userId}:${currentSlug}`)
+    if (saved === 'columns' || saved === 'list') {
+      viewMode.value = saved
+      return
+    }
+    viewMode.value = 'columns'
+  },
+  { immediate: true },
+)
+
+watch(
+  () => viewMode.value,
+  (mode) => {
+    const userId = auth.user?.id ?? 'guest'
+    localStorage.setItem(`${VIEW_MODE_KEY_PREFIX}:${userId}:${slug.value}`, mode)
+  },
+)
+
 function onRename(column: Column) {
   renameTarget.value = column
   renameValue.value = column.name
@@ -375,17 +397,36 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         <code v-if="board.project" class="hh-board__slug">/{{ board.project.slug }}</code>
       </div>
       <v-spacer />
-      <v-btn-toggle
-        v-model="viewMode"
-        mandatory
-        rounded="pill"
-        color="primary"
-        class="mr-4"
-        density="compact"
-      >
-        <v-btn value="columns" prepend-icon="mdi-view-column-outline">Колонки</v-btn>
-        <v-btn value="list" prepend-icon="mdi-format-list-bulleted">Список</v-btn>
-      </v-btn-toggle>
+      <div class="hh-board__view-group mr-4" role="group" aria-label="Режим отображения доски">
+        <v-tooltip text="Колонки" location="bottom">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              :active="viewMode === 'columns'"
+              :color="viewMode === 'columns' ? 'primary' : undefined"
+              :variant="viewMode === 'columns' ? 'flat' : 'text'"
+              icon="mdi-view-column-outline"
+              size="small"
+              rounded="pill"
+              @click="viewMode = 'columns'"
+            />
+          </template>
+        </v-tooltip>
+        <v-tooltip text="Список" location="bottom">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              :active="viewMode === 'list'"
+              :color="viewMode === 'list' ? 'primary' : undefined"
+              :variant="viewMode === 'list' ? 'flat' : 'text'"
+              icon="mdi-format-list-bulleted"
+              size="small"
+              rounded="pill"
+              @click="viewMode = 'list'"
+            />
+          </template>
+        </v-tooltip>
+      </div>
       <v-btn
         v-if="auth.isAuthed"
         prepend-icon="mdi-plus"
@@ -887,6 +928,15 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 13px;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.hh-board__view-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline), 0.24);
 }
 .hh-board__state {
   display: flex;
