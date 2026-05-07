@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
-import { Editor, EditorContent } from '@tiptap/vue-3'
+import { Editor, EditorContent, type FocusPosition } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
@@ -12,9 +12,11 @@ const props = withDefaults(
     modelValue: TiptapDoc | null | undefined
     placeholder?: string
     readonly?: boolean
+    autofocus?: FocusPosition
   }>(),
   {
     placeholder: 'Начните писать…',
+    autofocus: false,
     readonly: false,
   },
 )
@@ -25,9 +27,11 @@ const emit = defineEmits<{
 
 const editor = new Editor({
   editable: !props.readonly,
+  autofocus: props.autofocus,
   content: props.modelValue ?? { type: 'doc', content: [] },
   extensions: [
     StarterKit.configure({
+      link: false,
       heading: { levels: [2, 3] },
     }),
     Placeholder.configure({ placeholder: props.placeholder }),
@@ -42,7 +46,6 @@ const editor = new Editor({
   },
 })
 
-// Keep external prop changes in sync without triggering an emit loop.
 watch(
   () => props.modelValue,
   (next) => {
@@ -245,7 +248,7 @@ function toggleLink() {
 
 .hh-rich__content {
   padding: 12px 16px;
-  min-height: 140px;
+  min-height: 170px;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
 }
 

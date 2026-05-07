@@ -1119,6 +1119,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                 v-if="editingDescription"
                 v-model="taskBody"
                 :readonly="!auth.isAuthed"
+                autofocus="end"
                 placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
               />
               <div
@@ -1587,7 +1588,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   padding: 12px 16px;
   background: rgb(var(--v-theme-surface-container-lowest));
   color: rgb(var(--v-theme-on-surface));
-  min-height: 60px;
+  min-height: 170px;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
 }
 .hh-desc__view :deep(p) {
