@@ -292,9 +292,8 @@ watch(
   border-radius: var(--md-shape-m);
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.45);
   overflow-y: auto;
-  flex-grow: 1;
   overscroll-behavior: contain;
-  max-height: 200px;
+  max-height: 31dvh;
 }
 .hh-comments__item {
   display: grid;
