@@ -44,13 +44,14 @@ const navItems = computed<NavItem[]>(() => {
     })
   }
 
+  items.push({
+    key: 'members',
+    label: 'Участники',
+    icon: 'mdi-account-multiple-outline',
+    to: { name: 'members' }
+  });
+
   if (auth.isAuthed) {
-    items.push({
-      key: 'members',
-      label: 'Участники',
-      icon: 'mdi-account-multiple-outline',
-      to: { name: 'members' }
-    });
     items.push({
       key: 'settings',
       label: 'Настройки',

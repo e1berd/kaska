@@ -28,10 +28,31 @@ export const useSysStore = defineStore('sys', () => {
     return pushAsync<{ token: string, expires_at: string, email: string }>(channel, 'create_invite', input)
   }
 
+  async function changeUserRole(userId: string, role: string) {
+    const sock = useSocketStore()
+    const { channel } = await sock.joinChannel('sys:lobby')
+    return pushAsync<{ user: User }>(channel, 'change_user_role', { id: userId, role })
+  }
+
+  async function confirmUser(userId: string) {
+    const sock = useSocketStore()
+    const { channel } = await sock.joinChannel('sys:lobby')
+    return pushAsync<{ user: User }>(channel, 'confirm_user', { id: userId })
+  }
+
+  async function deleteUser(userId: string) {
+    const sock = useSocketStore()
+    const { channel } = await sock.joinChannel('sys:lobby')
+    return pushAsync<{ id: string }>(channel, 'delete_user', { id: userId })
+  }
+
   return {
     getSettings,
     setSettings,
     getUsers,
-    createInvite
+    createInvite,
+    changeUserRole,
+    confirmUser,
+    deleteUser
   }
 })

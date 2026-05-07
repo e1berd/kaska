@@ -4,17 +4,14 @@ defmodule HardhatWeb.SysChannel do
   alias Hardhat.Accounts
 
   @impl true
-  def join("sys:lobby", _payload, %{assigns: %{current_user: %{id: _id}}} = socket) do
+  def join("sys:lobby", _payload, socket) do
+    # Anyone can join sys:lobby to get users
     {:ok, %{}, socket}
-  end
-
-  def join("sys:lobby", _payload, _socket) do
-    {:error, %{reason: "unauthenticated"}}
   end
 
   @impl true
   def handle_in("get_settings", _payload, socket) do
-    if is_admin(socket.assigns.current_user) do
+    if is_admin(socket.assigns[:current_user]) do
       settings = %{
         allow_registration: Accounts.get_setting("allow_registration", "true") == "true"
       }
@@ -25,7 +22,7 @@ defmodule HardhatWeb.SysChannel do
   end
 
   def handle_in("set_settings", payload, socket) do
-    if is_admin(socket.assigns.current_user) do
+    if is_admin(socket.assigns[:current_user]) do
       if Map.has_key?(payload, "allow_registration") do
         Accounts.set_setting("allow_registration", payload["allow_registration"])
       end
@@ -36,13 +33,67 @@ defmodule HardhatWeb.SysChannel do
   end
 
   def handle_in("get_users", _payload, socket) do
-    # Anyone authenticated can see users (you might want to restrict this)
+    # Anyone can see users
     users = Accounts.list_users() |> Enum.map(&user_view/1)
     {:reply, {:ok, users}, socket}
   end
 
+  def handle_in("confirm_user", %{"id" => id}, socket) do
+    if is_admin(socket.assigns[:current_user]) do
+      case Accounts.get_user(id) do
+        nil ->
+          {:reply, {:error, %{reason: "user not found"}}, socket}
+        user ->
+          case Hardhat.Repo.update(Hardhat.Accounts.User.confirm_changeset(user)) do
+            {:ok, updated_user} ->
+              {:reply, {:ok, user_view(updated_user)}, socket}
+            {:error, _} ->
+              {:reply, {:error, %{reason: "failed to confirm user"}}, socket}
+          end
+      end
+    else
+      {:reply, {:error, %{reason: "forbidden"}}, socket}
+    end
+  end
+
+  def handle_in("delete_user", %{"id" => id}, socket) do
+    if is_admin(socket.assigns[:current_user]) do
+      case Accounts.get_user(id) do
+        nil ->
+          {:reply, {:error, %{reason: "user not found"}}, socket}
+        user ->
+          case Hardhat.Repo.delete(user) do
+            {:ok, _} ->
+              {:reply, {:ok, %{id: id}}, socket}
+            {:error, _} ->
+              {:reply, {:error, %{reason: "failed to delete user"}}, socket}
+          end
+      end
+    else
+      {:reply, {:error, %{reason: "forbidden"}}, socket}
+    end
+  end
+
+  def handle_in("change_user_role", %{"id" => id, "role" => role}, socket) do
+    if is_admin(socket.assigns[:current_user]) do
+      case Accounts.get_user(id) do
+        nil ->
+          {:reply, {:error, %{reason: "user not found"}}, socket}
+        user ->
+          case Hardhat.Repo.update(Hardhat.Accounts.User.changeset_role(user, %{role: role})) do
+            {:ok, updated_user} ->
+              {:reply, {:ok, user_view(updated_user)}, socket}
+            {:error, _} ->
+              {:reply, {:error, %{reason: "failed to update role"}}, socket}
+          end
+      end
+    else
+      {:reply, {:error, %{reason: "forbidden"}}, socket}
+    end
+  end
+
   def handle_in("create_invite", payload, socket) do
-    if is_admin(socket.assigns.current_user) do
+    if is_admin(socket.assigns[:current_user]) do
       expires_in_minutes = Map.get(payload, "expires_in_minutes")
       email = Map.get(payload, "email")
       token = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
@@ -69,6 +120,7 @@ defmodule HardhatWeb.SysChannel do
     end
   end
 
+  defp is_admin(nil), do: false
   defp is_admin(%{role: role}), do: role == :admin
   defp is_admin(_), do: false
 

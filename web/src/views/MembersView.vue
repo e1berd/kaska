@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
-import { PhPlus, PhMagnifyingGlass, PhDotsThreeVertical, PhCopy } from '@phosphor-icons/vue'
+import { PhPlus, PhMagnifyingGlass, PhDotsThreeVertical, PhCopy, PhCheckCircle, PhProhibit } from '@phosphor-icons/vue'
 
 const sys = useSysStore()
 const auth = useAuthStore()
@@ -83,6 +83,35 @@ const copyInviteLink = () => {
     navigator.clipboard.writeText(inviteLink.value)
   }
 }
+
+const changeRole = async (user: User) => {
+  const newRole = user.role === 'admin' ? 'user' : 'admin'
+  try {
+    await sys.changeUserRole(user.id, newRole)
+    await loadUsers()
+  } catch (e) {
+    console.error("Failed to change user role", e)
+  }
+}
+
+const confirmUser = async (user: User) => {
+  try {
+    await sys.confirmUser(user.id)
+    await loadUsers()
+  } catch (e) {
+    console.error("Failed to confirm user", e)
+  }
+}
+
+const deleteUser = async (user: User) => {
+  if (!confirm('Вы уверены, что хотите удалить пользователя?')) return
+  try {
+    await sys.deleteUser(user.id)
+    await loadUsers()
+  } catch (e) {
+    console.error("Failed to delete user", e)
+  }
+}
 </script>
 
 <template>
@@ -113,6 +142,7 @@ const copyInviteLink = () => {
           :headers="[
             { title: 'Имя / Email', value: 'name', sortable: false },
             { title: 'Роль', value: 'role', sortable: false },
+            { title: 'Статус', value: 'status', sortable: false },
             { title: 'Действия', value: 'actions', sortable: false, align: 'end' }
           ]"
           :items="users"
@@ -136,10 +166,66 @@ const copyInviteLink = () => {
                {{ item.role === 'admin' ? 'Администратор' : 'Пользователь' }}
             </v-chip>
           </template>
-          <template #item.actions>
-            <v-btn variant="text" size="small" :icon="true">
-              <ph-dots-three-vertical :size="20" weight="bold" />
-            </v-btn>
+          <template #item.status="{ item }">
+            <div class="d-flex align-center">
+              <v-badge
+                dot
+                :color="(item as any).last_seen && (new Date().getTime() - new Date((item as any).last_seen).getTime()) < 300000 ? 'success' : 'grey'"
+                class="mr-2"
+                inline
+              ></v-badge>
+              <span class="text-caption text-medium-emphasis">
+                <template v-if="(item as any).last_seen && (new Date().getTime() - new Date((item as any).last_seen).getTime()) < 300000">
+                  Онлайн
+                </template>
+                <template v-else-if="(item as any).last_seen">
+                  Был(а) в сети: {{ new Date((item as any).last_seen).toLocaleString() }}
+                </template>
+                <template v-else>
+                  Оффлайн
+                </template>
+              </span>
+            </div>
+          </template>
+          <template #item.actions="{ item }">
+            <v-menu v-if="auth.user?.role === 'admin' && item.id !== auth.user?.id">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" variant="text" size="small" :icon="true">
+                  <ph-dots-three-vertical :size="20" weight="bold" />
+                </v-btn>
+              </template>
+              <v-list class="bg-surface elevation-3" :elevation="0" rounded="lg" density="compact">
+                <v-list-item
+                  @click="changeRole(item)"
+                  class="md-state-layer"
+                  base-color="on-surface"
+                >
+                  <v-list-item-title>Сделать {{ item.role === 'admin' ? 'пользователем' : 'администратором' }}</v-list-item-title>
+                </v-list-item>
+                <v-list-item
+                  v-if="!item.confirmed_at"
+                  @click="confirmUser(item)"
+                  class="md-state-layer text-success"
+                  base-color="success"
+                >
+                  <template #prepend>
+                    <ph-check-circle :size="20" class="mr-3" weight="regular" />
+                  </template>
+                  <v-list-item-title>Подтвердить почту</v-list-item-title>
+                </v-list-item>
+                <v-divider class="my-1"></v-divider>
+                <v-list-item
+                  @click="deleteUser(item)"
+                  class="md-state-layer text-error"
+                  base-color="error"
+                >
+                  <template #prepend>
+                    <ph-prohibit :size="20" class="mr-3" weight="regular" />
+                  </template>
+                  <v-list-item-title>Забанить</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
           </template>
         </v-data-table>
       </v-card-text>

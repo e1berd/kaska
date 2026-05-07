@@ -10,6 +10,7 @@ export interface User {
   confirmed_at: string | null
   display_name: string | null
   avatar_url: string | null
+  last_seen?: string | null
 }
 
 interface TokensReply {

@@ -52,6 +52,12 @@ defmodule Hardhat.Accounts.User do
     change(user, confirmed_at: now)
   end
 
+  def changeset_role(user, attrs) do
+    user
+    |> cast(attrs, [:role])
+    |> validate_inclusion(:role, [:user, :admin])
+  end
+
   def valid_password?(%__MODULE__{hashed_password: hashed}, password)
       when is_binary(hashed) and byte_size(password) > 0 do
     Bcrypt.verify_pass(password, hashed)
