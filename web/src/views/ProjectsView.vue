@@ -72,14 +72,24 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 
 <template>
   <div class="hh-projects">
-    <header class="hh-projects__head">
-      <div class="hh-projects__heading">
+    <header class="hh-projects__hero">
+      <div class="hh-projects__intro">
+        <span class="hh-projects__eyebrow md-label-large">Workspace</span>
         <h1 class="md-display-small">Проекты</h1>
-        <p v-if="!auth.isAuthed" class="md-body-medium text-medium-emphasis mt-2 mb-0">
-          Войдите, чтобы создать проект. Просматривать можно без аккаунта.
+        <p class="md-body-large text-medium-emphasis mt-2 mb-0">
+          Выберите проект, чтобы перейти к доске задач, или создайте новый.
+        </p>
+        <p v-if="!auth.isAuthed" class="md-body-medium text-medium-emphasis mt-3 mb-0">
+          Войдите, чтобы создавать проекты. Просматривать можно без аккаунта.
         </p>
       </div>
-      <div class="hh-projects__actions">
+      <div class="hh-projects__panel">
+        <div class="hh-projects__meta">
+          <div class="hh-projects__meta-item">
+            <span class="md-label-medium text-medium-emphasis">Всего проектов</span>
+            <strong class="md-headline-small">{{ projects.list.length }}</strong>
+          </div>
+        </div>
         <v-text-field
           v-model="filter"
           variant="solo-filled"
@@ -248,20 +258,59 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 
 <style scoped>
 .hh-projects {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 48px 24px 80px;
+  padding: 36px 24px 80px;
 }
-.hh-projects__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
+.hh-projects__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  align-items: stretch;
+  gap: 20px;
   margin-bottom: 32px;
 }
-.hh-projects__heading h1 {
+.hh-projects__intro {
+  padding: 28px 32px;
+  border-radius: var(--md-shape-xl);
+  background:
+    radial-gradient(circle at 20% 15%, rgba(var(--v-theme-primary), 0.14), transparent 58%),
+    rgb(var(--v-theme-surface-container-low));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.55);
+}
+.hh-projects__intro h1 {
   letter-spacing: -0.02em;
+  margin-bottom: 0;
+}
+.hh-projects__eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-primary));
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+.hh-projects__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--md-shape-xl);
+  background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
+}
+.hh-projects__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.hh-projects__meta-item {
+  border-radius: var(--md-shape-l);
+  background: rgba(var(--v-theme-primary), 0.08);
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  padding: 12px;
+}
+.hh-projects__meta-item strong {
+  display: block;
+  margin-top: 4px;
 }
 .hh-projects__actions {
   display: flex;
@@ -270,17 +319,32 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
   flex-wrap: wrap;
 }
 .hh-projects__filter {
-  min-width: 280px;
-  flex: 1 1 280px;
+  min-width: 0;
+  width: 100%;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1024px) {
+  .hh-projects__hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
   .hh-projects {
     padding: 24px 16px 64px;
   }
-  .hh-projects__heading h1 {
+  .hh-projects__intro {
+    padding: 20px;
+  }
+  .hh-projects__intro h1 {
     font-size: var(--md-type-headline-medium);
     line-height: 36px;
+  }
+  .hh-projects__panel {
+    padding: 14px;
+  }
+  .hh-projects__meta {
+    grid-template-columns: 1fr 1fr;
   }
   .hh-projects__actions {
     width: 100%;
@@ -317,8 +381,8 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 
 .hh-projects__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
 }
 
 /* M3 filled card with primary state-layer overlay on hover/focus. */
