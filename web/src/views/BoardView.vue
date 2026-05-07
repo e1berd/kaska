@@ -605,7 +605,7 @@ function openTask(task: Task) {
   taskEndDate.value = actualTask.end_date ?? null
   taskType.value = actualTask.task_type_id ?? null
   taskAssignee.value = actualTask.assignee_id ?? null
-  editingDescription.value = auth.isAuthed && isDocEmpty(taskBody.value)
+  editingDescription.value = false
   taskSyncing.value = false
   taskDialog.value = true
   if (auth.isAuthed) {
@@ -1194,7 +1194,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
               <div class="hh-desc__head mt-2 mb-2">
                 <div class="md-label-large">Описание</div>
                 <v-btn
-                  v-if="auth.isAuthed && !editingDescription && !descriptionEmpty && !activeDescriptionEditor"
+                  v-if="auth.isAuthed && !editingDescription && !activeDescriptionEditor"
                   variant="text"
                   size="small"
                   rounded="pill"
@@ -1214,7 +1214,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                   {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
                 </v-btn>
                 <v-btn
-                  v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
+                  v-else-if="auth.isAuthed && editingDescription"
                   variant="text"
                   size="small"
                   rounded="pill"
