@@ -4,6 +4,7 @@ import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
 import { useSocketStore } from '../stores/socket'
+import type { Channel } from 'phoenix'
 import { PhPlus, PhMagnifyingGlass, PhDotsThreeVertical, PhCopy, PhCheckCircle, PhProhibit } from '@phosphor-icons/vue'
 
 const sys = useSysStore()
@@ -22,7 +23,7 @@ const inviteLink = ref('')
 const inviteExpiration = ref<number | null>(60)
 const inviteLoading = ref(false)
 const inviteError = ref<string | null>(null)
-const usersChannel = ref<any>(null)
+const usersChannel = ref<Channel | null>(null)
 const userCreatedRef = ref<number | null>(null)
 
 const expirationOptions = [
