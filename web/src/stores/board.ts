@@ -53,6 +53,14 @@ export interface Attachment {
   inserted_at?: string
 }
 
+export interface TaskDeletedEvent {
+  id: string
+  title?: string
+  deleted_by_id?: string
+  deleted_by_display_name?: string | null
+  deleted_by_email?: string | null
+}
+
 export interface BoardSnapshot {
   project: Project
   columns: Column[]
@@ -82,6 +90,7 @@ export const useBoardStore = defineStore('board', () => {
   const users = ref<User[]>([])
   const attachments = ref<Attachment[]>([])
   const presences = ref<PresenceState>({})
+  const lastTaskDeleted = ref<TaskDeletedEvent | null>(null)
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
 
@@ -155,7 +164,10 @@ export const useBoardStore = defineStore('board', () => {
     ch.on('task_created', (t: Task) => upsertTask(t))
     ch.on('task_updated', (t: Task) => upsertTask(t))
     ch.on('task_moved', (t: Task) => upsertTask(t))
-    ch.on('task_deleted', ({ id }: { id: string }) => removeTask(id))
+    ch.on('task_deleted', (payload: TaskDeletedEvent) => {
+      removeTask(payload.id)
+      lastTaskDeleted.value = payload
+    })
 
     ch.on('task_attachment_added', (a: Attachment) => upsertAttachment(a))
     ch.on('task_attachment_removed', ({ id }: { id: string }) => removeAttachment(id))
@@ -187,6 +199,7 @@ export const useBoardStore = defineStore('board', () => {
     users.value = []
     attachments.value = []
     presences.value = {}
+    lastTaskDeleted.value = null
   }
 
   function attachmentsFor(taskId: string): Attachment[] {
@@ -343,6 +356,7 @@ export const useBoardStore = defineStore('board', () => {
     task_types,
     users,
     attachments,
+    lastTaskDeleted,
     orderedColumns,
     activeViewerIds,
     viewersForTask,

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore, type User } from '../stores/auth'
-import { useBoardStore, type Task, type TiptapDoc } from '../stores/board'
+import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '../stores/board'
 import { docToHtml, isDocEmpty } from '../utils/tiptap'
 import RichEditor from '../components/RichEditor.vue'
 
@@ -26,11 +26,20 @@ const taskAssignee = ref<string | null>(null)
 const editingDescription = ref(false)
 const taskSaving = ref(false)
 const taskSyncing = ref(false)
+const taskUploading = ref(false)
+const taskUploadProgress = ref(0)
+const fileInput = ref<HTMLInputElement | null>(null)
 let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
+let taskSavingStartedAt = 0
+let taskSaveQueued = false
 
 const currentTask = computed<Task | null>(() => board.tasks.find((t) => t.id === taskId.value) ?? null)
 const descriptionHtml = computed(() => docToHtml(taskBody.value))
 const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
+const taskAttachments = computed<Attachment[]>(() => {
+  if (!currentTask.value) return []
+  return board.attachmentsFor(currentTask.value.id)
+})
 const taskViewers = computed(() =>
   board.viewersForTask(taskId.value).filter((user) => user.id !== auth.user?.id),
 )
@@ -44,6 +53,50 @@ const activeDescriptionEditorName = computed(
     activeDescriptionEditor.value?.email?.split('@')[0] ||
     'Пользователь',
 )
+
+type TaskFormState = {
+  title: string
+  body_doc: TiptapDoc
+  start_date: string | null
+  end_date: string | null
+  task_type_id: string | null
+  assignee_id: string | null
+}
+
+function getTaskFormState(): TaskFormState {
+  return {
+    title: taskTitle.value.trim(),
+    body_doc: taskBody.value,
+    start_date: taskStartDate.value,
+    end_date: taskEndDate.value,
+    task_type_id: taskType.value,
+    assignee_id: taskAssignee.value,
+  }
+}
+
+function getTaskServerState(task: Task): TaskFormState {
+  return {
+    title: task.title,
+    body_doc: task.body_doc ?? { type: 'doc', content: [] },
+    start_date: task.start_date ?? null,
+    end_date: task.end_date ?? null,
+    task_type_id: task.task_type_id ?? null,
+    assignee_id: task.assignee_id ?? null,
+  }
+}
+
+function isFormSyncedWithTask(task: Task): boolean {
+  const form = getTaskFormState()
+  const server = getTaskServerState(task)
+  return (
+    form.title === server.title &&
+    form.start_date === server.start_date &&
+    form.end_date === server.end_date &&
+    form.task_type_id === server.task_type_id &&
+    form.assignee_id === server.assignee_id &&
+    JSON.stringify(form.body_doc) === JSON.stringify(server.body_doc)
+  )
+}
 
 const taskStartDateModel = computed<Date | null>({
   get: () => parseIsoDate(taskStartDate.value),
@@ -81,7 +134,9 @@ function syncFormFromTask(task: Task) {
   taskEndDate.value = task.end_date ?? null
   taskType.value = task.task_type_id ?? null
   taskAssignee.value = task.assignee_id ?? null
-  taskSyncing.value = false
+  setTimeout(() => {
+    taskSyncing.value = false
+  }, 0)
 }
 
 async function load() {
@@ -89,14 +144,11 @@ async function load() {
   error.value = null
   try {
     await board.joinBySlug(slug.value)
-    const task = currentTask.value
-    if (!task) {
-      error.value = 'Задача не найдена'
-      return
-    }
-    syncFormFromTask(task)
-    if (auth.isAuthed) {
-      await board.setActiveTask(task.id, editingDescription.value)
+    if (currentTask.value) {
+      syncFormFromTask(currentTask.value)
+      if (auth.isAuthed) {
+        await board.setActiveTask(currentTask.value.id, editingDescription.value)
+      }
     }
   } catch (e: any) {
     error.value = e?.message || 'Не удалось открыть задачу'
@@ -114,7 +166,6 @@ onBeforeUnmount(() => {
     void board.setActiveTask(null, false).catch(() => {})
   }
   if (taskSaveTimer) clearTimeout(taskSaveTimer)
-  board.leave()
 })
 
 function backToBoard() {
@@ -123,20 +174,86 @@ function backToBoard() {
 
 async function saveTask() {
   if (!currentTask.value) return
+  if (taskSaving.value) {
+    taskSaveQueued = true
+    return
+  }
+  if (isFormSyncedWithTask(currentTask.value)) return
+  const payload = getTaskFormState()
   taskSaving.value = true
+  taskSavingStartedAt = Date.now()
   try {
     await board.updateTask(currentTask.value.id, {
-      title: taskTitle.value.trim(),
-      body_doc: taskBody.value,
-      start_date: taskStartDate.value,
-      end_date: taskEndDate.value,
-      task_type_id: taskType.value,
-      assignee_id: taskAssignee.value,
+      title: payload.title,
+      body_doc: payload.body_doc,
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      task_type_id: payload.task_type_id,
+      assignee_id: payload.assignee_id,
     })
   } catch (err: any) {
     alert(err.message || 'Ошибка сохранения')
   } finally {
+    const elapsed = Date.now() - taskSavingStartedAt
+    const remaining = Math.max(0, 1600 - elapsed)
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
     taskSaving.value = false
+    if (taskSaveQueued) {
+      taskSaveQueued = false
+      if (currentTask.value && auth.isAuthed) void saveTask()
+    }
+  }
+}
+
+async function deleteCurrentTask() {
+  if (!currentTask.value) return
+  try {
+    await board.deleteTask(currentTask.value.id)
+    void router.push({ name: 'board', params: { slug: slug.value } })
+  } catch (e) {
+    console.warn('[task] delete failed', e)
+  }
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
+function pickAttachment() {
+  fileInput.value?.click()
+}
+
+async function onAttachmentPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!currentTask.value) return
+
+  for (const file of files) {
+    taskUploading.value = true
+    taskUploadProgress.value = 0
+    try {
+      await board.uploadTaskAttachment(currentTask.value.id, file, (f) => {
+        taskUploadProgress.value = f
+      })
+    } catch (err) {
+      console.warn('[task] upload failed', err)
+    } finally {
+      taskUploading.value = false
+      taskUploadProgress.value = 0
+    }
+  }
+}
+
+async function removeAttachmentClick(att: Attachment) {
+  if (!confirm(`Удалить «${att.filename}»?`)) return
+  try {
+    await board.deleteTaskAttachment(att.id)
+  } catch (e) {
+    console.warn('[task] delete attachment failed', e)
   }
 }
 
@@ -158,8 +275,35 @@ watch(
 watch(
   () => currentTask.value,
   (task) => {
-    if (!task) return
+    if (!task) {
+      if (!loading.value) error.value = 'Задача не найдена'
+      return
+    }
+    if (error.value) error.value = null
     syncFormFromTask(task)
+  },
+  { deep: true },
+)
+
+watch(
+  () => [slug.value, taskId.value] as const,
+  () => {
+    void load()
+  },
+)
+
+watch(
+  () => board.lastTaskDeleted,
+  (evt) => {
+    if (!evt) return
+    if (evt.id !== taskId.value) return
+
+    const actor = evt.deleted_by_display_name || evt.deleted_by_email?.split('@')[0] || 'Пользователь'
+    const title = evt.title || 'без названия'
+    if (evt.deleted_by_id !== auth.user?.id) {
+      sessionStorage.setItem('hardhat.flash.task_deleted', `${actor} удалил задачу ${title}`)
+    }
+    void router.push({ name: 'board', params: { slug: slug.value } })
   },
   { deep: true },
 )
@@ -177,6 +321,7 @@ watch(
   () => {
     if (!auth.isAuthed || !currentTask.value) return
     if (taskSyncing.value) return
+    if (isFormSyncedWithTask(currentTask.value)) return
     if (taskSaveTimer) clearTimeout(taskSaveTimer)
     taskSaveTimer = setTimeout(() => {
       void saveTask()
@@ -238,7 +383,7 @@ watch(
         <div class="d-flex align-center justify-space-between mb-2 mt-2">
           <div class="md-label-large">Описание</div>
           <v-btn
-            v-if="auth.isAuthed && !editingDescription && !descriptionEmpty && !activeDescriptionEditor"
+            v-if="auth.isAuthed && !editingDescription && !activeDescriptionEditor"
             variant="text"
             size="small"
             rounded="pill"
@@ -258,7 +403,7 @@ watch(
             {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
           </v-btn>
           <v-btn
-            v-else-if="auth.isAuthed && editingDescription && !descriptionEmpty"
+            v-else-if="auth.isAuthed && editingDescription"
             variant="text"
             size="small"
             rounded="pill"
@@ -267,9 +412,6 @@ watch(
           >
             Просмотр
           </v-btn>
-        </div>
-        <div v-if="taskEditors.length" class="hh-task-page__editing-note md-body-small mb-2">
-          {{ taskEditors[0].display_name || taskEditors[0].email?.split('@')[0] || 'Пользователь' }} редактирует...
         </div>
         <RichEditor
           v-if="editingDescription"
@@ -284,6 +426,82 @@ watch(
         />
         <div v-else class="hh-task-page__description-empty md-body-medium">
           Описание не заполнено.
+        </div>
+        <div class="d-flex align-center justify-space-between mt-5 mb-2">
+          <div class="md-label-large">Вложения</div>
+          <v-btn
+            v-if="auth.isAuthed"
+            variant="tonal"
+            rounded="pill"
+            size="small"
+            prepend-icon="mdi-paperclip"
+            :loading="taskUploading"
+            @click="pickAttachment"
+          >
+            Прикрепить файл
+          </v-btn>
+        </div>
+        <v-progress-linear
+          v-if="taskUploading"
+          :model-value="taskUploadProgress * 100"
+          color="primary"
+          rounded
+          height="6"
+          class="mb-3"
+        />
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          accept="image/*,video/*,.pdf,.zip,.txt,.md"
+          class="hh-attach__input"
+          @change="onAttachmentPicked"
+        />
+        <div v-if="taskAttachments.length === 0" class="hh-attach__empty md-body-small">
+          Пока вложений нет.
+        </div>
+        <div v-else class="hh-attach__grid">
+          <div
+            v-for="a in taskAttachments"
+            :key="a.id"
+            class="hh-attach"
+            :class="`hh-attach--${a.kind}`"
+          >
+            <div class="hh-attach__media">
+              <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
+              <video
+                v-else-if="a.kind === 'video' && a.url"
+                :src="a.url"
+                controls
+                preload="metadata"
+              />
+              <div v-else class="hh-attach__file">
+                <v-icon size="32">mdi-file-outline</v-icon>
+              </div>
+            </div>
+            <div class="hh-attach__meta">
+              <a
+                v-if="a.url"
+                class="hh-attach__name md-body-medium"
+                :href="a.url"
+                target="_blank"
+                rel="noopener"
+              >
+                {{ a.filename }}
+              </a>
+              <span v-else class="hh-attach__name md-body-medium">{{ a.filename }}</span>
+              <span class="hh-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
+            </div>
+            <v-btn
+              v-if="auth.isAuthed"
+              icon="mdi-close"
+              variant="text"
+              density="comfortable"
+              size="small"
+              class="hh-attach__remove"
+              @click="removeAttachmentClick(a)"
+            />
+          </div>
         </div>
       </div>
       <aside class="hh-task-page__side">
@@ -326,6 +544,15 @@ watch(
             clearable
             :readonly="!auth.isAuthed"
           />
+          <v-btn
+            v-if="auth.isAuthed"
+            color="error"
+            variant="text"
+            rounded="pill"
+            @click="deleteCurrentTask"
+          >
+            Удалить карточку
+          </v-btn>
         </v-card>
       </aside>
     </div>
@@ -385,6 +612,66 @@ watch(
   border-radius: var(--md-shape-m);
   padding: 18px;
   color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.hh-attach__input {
+  display: none;
+}
+.hh-attach__empty {
+  padding: 16px;
+  text-align: center;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.7);
+  border-radius: var(--md-shape-m);
+}
+.hh-attach__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.hh-attach {
+  position: relative;
+  background: rgb(var(--v-theme-surface-container-low));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
+  border-radius: var(--md-shape-m);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.hh-attach__media {
+  aspect-ratio: 16 / 10;
+  background: rgb(var(--v-theme-surface-container));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.hh-attach__media img,
+.hh-attach__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hh-attach__file {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.hh-attach__meta {
+  padding: 8px 10px;
+  display: grid;
+}
+.hh-attach__name {
+  color: rgb(var(--v-theme-on-surface));
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hh-attach__size {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.hh-attach__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(var(--v-theme-surface), 0.7);
 }
 .hh-task-page__editing-note {
   color: rgba(var(--v-theme-on-surface), 0.65);

@@ -39,6 +39,16 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => route.name,
+  (name) => {
+    const inProjectScope = name === 'board' || name === 'task' || name === 'board_types'
+    if (!inProjectScope && board.project) {
+      board.leave()
+    }
+  },
+)
+
 const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
 const currentTaskId = computed(() => (route.params.taskId as string | undefined) ?? null)
 
@@ -257,11 +267,7 @@ function logout() {
       </v-navigation-drawer>
 
       <v-main>
-        <router-view v-slot="{ Component }">
-          <transition name="page" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <router-view />
       </v-main>
     </template>
   </v-app>

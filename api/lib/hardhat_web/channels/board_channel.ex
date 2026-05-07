@@ -238,8 +238,18 @@ defmodule HardhatWeb.BoardChannel do
   def handle_in("delete_task", %{"id" => id}, socket) do
     with %Task{} = task <- get_owned_task(id, socket),
          {:ok, _} <- Projects.delete_task(task) do
-      broadcast!(socket, "task_deleted", %{id: id})
-      {:reply, {:ok, %{id: id}}, socket}
+      actor = socket.assigns.current_user
+
+      payload = %{
+        id: id,
+        title: task.title,
+        deleted_by_id: actor.id,
+        deleted_by_display_name: actor.display_name,
+        deleted_by_email: actor.email
+      }
+
+      broadcast!(socket, "task_deleted", payload)
+      {:reply, {:ok, payload}, socket}
     else
       _ -> {:reply, {:error, %{message: "task_not_found"}}, socket}
     end

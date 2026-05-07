@@ -102,6 +102,8 @@ let taskSaveQueued = false
 const editingDescription = ref(false)
 const descriptionHtml = computed(() => docToHtml(taskBody.value))
 const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
+const deleteSnackOpen = ref(false)
+const deleteSnackText = ref('')
 
 const taskAttachments = computed<Attachment[]>(() => {
   return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
@@ -292,6 +294,12 @@ async function load() {
 
 onMounted(async () => {
   await load()
+  const flash = sessionStorage.getItem('hardhat.flash.task_deleted')
+  if (flash) {
+    deleteSnackText.value = flash
+    deleteSnackOpen.value = true
+    sessionStorage.removeItem('hardhat.flash.task_deleted')
+  }
 
   if (colsScroll.value) {
     scrollCleanup = autoScrollForElements({
@@ -382,12 +390,28 @@ onBeforeUnmount(() => {
     void board.setActiveTask(null, false).catch(() => {})
   }
   if (taskSaveTimer) clearTimeout(taskSaveTimer)
-  board.leave()
 })
 
 watch(slug, () => {
   load()
 })
+
+watch(
+  () => board.lastTaskDeleted,
+  (evt) => {
+    if (!evt) return
+    if (evt.deleted_by_id === auth.user?.id) return
+    if (!taskDialog.value || !taskTargetId.value) return
+    if (evt.id !== taskTargetId.value) return
+
+    const actor = evt.deleted_by_display_name || evt.deleted_by_email?.split('@')[0] || 'Пользователь'
+    const title = evt.title || 'без названия'
+    deleteSnackText.value = `${actor} удалил задачу ${title}`
+    deleteSnackOpen.value = true
+    closeTaskDialog()
+  },
+  { deep: true },
+)
 
 watch(
   () => [auth.user?.id ?? 'guest', slug.value] as const,
@@ -1438,6 +1462,14 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       </v-card>
     </v-dialog>
   </div>
+  <v-snackbar
+    v-model="deleteSnackOpen"
+    timeout="5000"
+    location="bottom right"
+    color="surface-container-high"
+  >
+    {{ deleteSnackText }}
+  </v-snackbar>
 </template>
 
 <style scoped>
