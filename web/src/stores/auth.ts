@@ -164,7 +164,6 @@ export const useAuthStore = defineStore('auth', () => {
         access.value = null
         refresh.value = null
         user.value = null
-        sock.connect(null)
       })
     }
   }
