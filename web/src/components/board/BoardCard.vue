@@ -208,8 +208,6 @@ onBeforeUnmount(() => {
   cursor: grabbing;
 }
 
-/* The card the user is currently carrying — leave a quiet placeholder
- * (dashed outline, hidden content, no shadow) instead of a ghost copy. */
 .hh-card--dragging {
   background: transparent !important;
   border: 1.5px dashed rgba(var(--v-theme-primary), 0.5) !important;
@@ -219,8 +217,6 @@ onBeforeUnmount(() => {
   visibility: hidden;
 }
 
-/* Live DOM follower that tracks the cursor. Lives directly on <body>
- * (`:global` is required because we move it out of the component tree). */
 :global(.hh-card.hh-card--ghost) {
   position: fixed !important;
   left: 0;
@@ -237,12 +233,10 @@ onBeforeUnmount(() => {
   transform-origin: 16px 16px;
   will-change: transform;
 }
-/* No edge bars or overlays on the floating copy. */
 :global(.hh-card--ghost .md-state-layer::after) {
   display: none;
 }
 
-/* During an active drag, freeze the cursor across the whole app. */
 :global(body.hh-dragging),
 :global(body.hh-dragging *) {
   cursor: grabbing !important;
@@ -261,8 +255,6 @@ onBeforeUnmount(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-/* Drop indicator: a 3px primary line + a small terminal dot on the leading
- * edge. The line is hidden until the closest-edge resolver flips `is-on`. */
 .hh-card__edge {
   position: absolute;
   left: 4px;
