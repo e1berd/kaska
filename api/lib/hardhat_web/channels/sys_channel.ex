@@ -28,6 +28,7 @@ defmodule HardhatWeb.SysChannel do
   def handle_in("get_settings", _payload, socket) do
     settings = %{
       allow_registration: Accounts.get_setting("allow_registration", "true") == "true",
+      allow_guest_comments: Accounts.get_setting("allow_guest_comments", "false") == "true",
       first_user_bootstrap: Accounts.users_count() == 0
     }
 
@@ -40,7 +41,17 @@ defmodule HardhatWeb.SysChannel do
         Accounts.set_setting("allow_registration", payload["allow_registration"])
       end
 
-      {:reply, {:ok, %{"allow_registration" => Accounts.get_setting("allow_registration", "true") == "true"}}, socket}
+      if Map.has_key?(payload, "allow_guest_comments") do
+        Accounts.set_setting("allow_guest_comments", payload["allow_guest_comments"])
+      end
+
+      {:reply,
+       {:ok,
+        %{
+          "allow_registration" => Accounts.get_setting("allow_registration", "true") == "true",
+          "allow_guest_comments" =>
+            Accounts.get_setting("allow_guest_comments", "false") == "true"
+        }}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
     end

@@ -19,6 +19,7 @@ import { useProjectsStore } from '../stores/projects'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import RichEditor from '../components/RichEditor.vue'
 import PresenceGroup from '../components/PresenceGroup.vue'
+import TaskCommentsSection from '../components/TaskCommentsSection.vue'
 import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
 
 defineProps<{ slug?: string }>()
@@ -1420,6 +1421,11 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
                   </v-select>
                 </div>
               </v-card>
+              <TaskCommentsSection
+                v-if="taskTarget"
+                :task-id="taskTarget.id"
+                class="hh-task-comments-side mt-3"
+              />
             </aside>
           </div>
         </v-card-text>
@@ -1614,6 +1620,9 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   min-width: 0;
   position: sticky;
   top: 0;
+}
+.hh-task-comments-side {
+  border-radius: var(--md-shape-l);
 }
 .hh-task-meta-card {
   padding: 12px;

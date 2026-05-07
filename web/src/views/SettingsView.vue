@@ -7,6 +7,7 @@ const sys = useSysStore()
 const loading = ref(false)
 const saving = ref(false)
 const allowRegistration = ref(false)
+const allowGuestComments = ref(false)
 const error = ref<string | null>(null)
 const success = ref(false)
 
@@ -16,6 +17,7 @@ async function loadSettings() {
   try {
     const s = await sys.getSettings()
     allowRegistration.value = s.allow_registration
+    allowGuestComments.value = s.allow_guest_comments
   } catch (e: any) {
     error.value = e?.message || 'Ошибка загрузки настроек'
   } finally {
@@ -28,8 +30,12 @@ async function saveSettings() {
   error.value = null
   success.value = false
   try {
-    const s = await sys.setSettings({ allow_registration: allowRegistration.value })
+    const s = await sys.setSettings({
+      allow_registration: allowRegistration.value,
+      allow_guest_comments: allowGuestComments.value,
+    })
     allowRegistration.value = s.allow_registration
+    allowGuestComments.value = s.allow_guest_comments
     success.value = true
     setTimeout(() => { success.value = false }, 3000)
   } catch (e: any) {
@@ -62,6 +68,20 @@ onMounted(() => {
 
             <v-switch
               v-model="allowRegistration"
+              color="primary"
+              hide-details
+              inset
+            ></v-switch>
+          </div>
+
+          <div class="d-flex align-center justify-space-between mb-4">
+            <div>
+              <h2 class="text-h6 font-weight-regular">Комментарии гостей</h2>
+              <div class="text-body-2 text-medium-emphasis">Разрешить неавторизованным пользователям оставлять комментарии к задачам</div>
+            </div>
+
+            <v-switch
+              v-model="allowGuestComments"
               color="primary"
               hide-details
               inset

@@ -11,10 +11,13 @@ defmodule HardhatWeb.BoardChannel do
 
   use Phoenix.Channel
 
-  alias Hardhat.{Attachments, Projects}
+  alias Hardhat.{Accounts, Attachments, Projects}
   alias HardhatWeb.Presence
   alias Hardhat.Attachments.Attachment
-  alias Hardhat.Projects.{Column, Project, Task}
+  alias Hardhat.Projects.{Column, Project, Task, TaskComment}
+  @guest_comment_max_length 255
+  @guest_comment_min_interval_ms 4000
+  @guest_comment_rate_table :hardhat_guest_comment_rate
 
   @impl true
   def join("board:" <> project_id, payload, socket) do
@@ -35,7 +38,9 @@ defmodule HardhatWeb.BoardChannel do
     send(self(), :after_join_presence)
     task_ids = Enum.map(tasks, & &1.id)
     task_types = Projects.list_task_types(project.id)
+    task_comments = Projects.list_task_comments(project.id)
     users = Hardhat.Accounts.list_users()
+    allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
 
     attachments =
       for t_id <- task_ids,
@@ -49,6 +54,8 @@ defmodule HardhatWeb.BoardChannel do
        columns: Enum.map(columns, &column_view/1),
        tasks: Enum.map(tasks, &task_view/1),
        task_types: Enum.map(task_types, &task_type_view/1),
+       task_comments: Enum.map(task_comments, &task_comment_view/1),
+       settings: %{allow_guest_comments: allow_guest_comments},
        users: Enum.map(users, &user_view/1),
        attachments: attachments
      }, socket}
@@ -70,8 +77,66 @@ defmodule HardhatWeb.BoardChannel do
   ## Authorization gate ──────────────────────────────────────────────────
 
   @impl true
-  def handle_in(_event, _payload, %{assigns: %{current_user: nil}} = socket) do
+  def handle_in(event, _payload, %{assigns: %{current_user: nil}} = socket)
+      when event != "create_task_comment" do
     {:reply, {:error, %{message: "unauthorized", code: "unauthorized"}}, socket}
+  end
+
+  def handle_in("create_task_comment", %{"task_id" => task_id} = payload, socket) do
+    body =
+      payload
+      |> Map.get("body", "")
+      |> to_string()
+      |> String.trim()
+
+    guest_name = Map.get(payload, "guest_name")
+    allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
+    actor = socket.assigns[:current_user]
+
+    cond do
+      is_nil(actor) and !allow_guest_comments ->
+        {:reply, {:error, %{message: "guest_comments_disabled"}}, socket}
+
+      is_nil(actor) and String.length(body) > @guest_comment_max_length ->
+        {:reply, {:error, %{message: "guest_comment_too_long"}}, socket}
+
+      is_nil(actor) and match?({:error, :rate_limited}, check_guest_comment_rate(socket, task_id)) ->
+        {:reply, {:error, %{message: "guest_comment_rate_limited"}}, socket}
+
+      true ->
+        attrs = %{body: body, guest_name: guest_name}
+        author_id = if actor, do: actor.id, else: nil
+
+        case Projects.create_task_comment(socket.assigns.project_id, task_id, attrs, author_id) do
+          {:ok, comment} ->
+            view = task_comment_view(comment)
+            broadcast!(socket, "task_comment_created", view)
+            {:reply, {:ok, view}, socket}
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+
+          {:error, reason} ->
+            {:reply, {:error, %{message: to_string(reason)}}, socket}
+        end
+    end
+  end
+
+  def handle_in("delete_task_comment", %{"id" => id}, socket) do
+    actor = socket.assigns[:current_user]
+
+    with %TaskComment{} = comment <- get_owned_task_comment(id, socket),
+         true <- can_delete_comment?(comment, actor),
+         {:ok, _} <- Projects.delete_task_comment(comment) do
+      payload = %{id: id, task_id: comment.task_id}
+      broadcast!(socket, "task_comment_deleted", payload)
+      {:reply, {:ok, payload}, socket}
+    else
+      nil -> {:reply, {:error, %{message: "task_comment_not_found"}}, socket}
+      false -> {:reply, {:error, %{message: "forbidden"}}, socket}
+      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+      _ -> {:reply, {:error, %{message: "task_comment_not_found"}}, socket}
+    end
   end
 
   ## Columns ─────────────────────────────────────────────────────────────
@@ -385,6 +450,13 @@ defmodule HardhatWeb.BoardChannel do
     end
   end
 
+  defp get_owned_task_comment(id, socket) do
+    case Projects.get_task_comment(id) do
+      %TaskComment{project_id: pid} = c when pid == socket.assigns.project_id -> c
+      _ -> nil
+    end
+  end
+
   defp project_view(%Project{} = p) do
     %{
       id: p.id,
@@ -461,6 +533,76 @@ defmodule HardhatWeb.BoardChannel do
       creator_id: a.creator_id,
       inserted_at: a.inserted_at
     }
+  end
+
+  defp task_comment_view(%TaskComment{} = c) do
+    %{
+      id: c.id,
+      task_id: c.task_id,
+      project_id: c.project_id,
+      body: c.body,
+      author_id: c.author_id,
+      guest_name: c.guest_name,
+      author_display_name: c.author && c.author.display_name,
+      author_email: c.author && c.author.email,
+      author_avatar_url: c.author && avatar_url(c.author),
+      author_role: c.author && c.author.role,
+      inserted_at: c.inserted_at,
+      updated_at: c.updated_at
+    }
+  end
+
+  defp can_delete_comment?(_comment, nil), do: false
+
+  defp can_delete_comment?(%TaskComment{author_id: nil}, _actor), do: true
+
+  defp can_delete_comment?(%TaskComment{author_id: author_id}, %{id: actor_id})
+       when author_id == actor_id,
+       do: true
+
+  defp can_delete_comment?(%TaskComment{} = comment, actor) do
+    case Accounts.get_user(comment.author_id) do
+      nil -> true
+      author -> role_rank(actor.role) > role_rank(author.role)
+    end
+  end
+
+  defp role_rank(:user), do: 1
+  defp role_rank(:admin), do: 2
+  defp role_rank(:superadmin), do: 3
+  defp role_rank(_), do: 0
+
+  defp check_guest_comment_rate(socket, task_id) do
+    ensure_guest_comment_rate_table!()
+    key = {task_id, socket.transport_pid}
+    now = System.monotonic_time(:millisecond)
+
+    case :ets.lookup(@guest_comment_rate_table, key) do
+      [{^key, prev}] when now - prev < @guest_comment_min_interval_ms ->
+        {:error, :rate_limited}
+
+      _ ->
+        true = :ets.insert(@guest_comment_rate_table, {key, now})
+        :ok
+    end
+  end
+
+  defp ensure_guest_comment_rate_table! do
+    case :ets.whereis(@guest_comment_rate_table) do
+      :undefined ->
+        :ets.new(@guest_comment_rate_table, [
+          :named_table,
+          :public,
+          :set,
+          read_concurrency: true,
+          write_concurrency: true
+        ])
+
+      _ ->
+        :ok
+    end
+  rescue
+    ArgumentError -> :ok
   end
 
   defp take_present(map, keys) do

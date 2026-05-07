@@ -6,6 +6,7 @@ import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '../st
 import { docToHtml, isDocEmpty } from '../utils/tiptap'
 import RichEditor from '../components/RichEditor.vue'
 import PresenceGroup from '../components/PresenceGroup.vue'
+import TaskCommentsSection from '../components/TaskCommentsSection.vue'
 
 defineProps<{ slug?: string; taskId?: string }>()
 
@@ -555,6 +556,11 @@ watch(
             Удалить карточку
           </v-btn>
         </v-card>
+        <TaskCommentsSection
+          v-if="currentTask"
+          :task-id="currentTask.id"
+          class="hh-task-page__comments mt-3"
+        />
       </aside>
     </div>
   </div>
@@ -682,6 +688,9 @@ watch(
 }
 .hh-task-page__meta :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
+}
+.hh-task-page__comments {
+  border-radius: var(--md-shape-l);
 }
 @media (max-width: 900px) {
   .hh-task-page__content {

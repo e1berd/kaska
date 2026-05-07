@@ -13,7 +13,7 @@ defmodule Hardhat.Projects do
   alias Ecto.Multi
   alias Hardhat.Repo
   alias Hardhat.Rank
-  alias Hardhat.Projects.{Column, Project, Task, TaskType}
+  alias Hardhat.Projects.{Column, Project, Task, TaskComment, TaskType}
 
   @default_columns [
     {"Todo", "F"},
@@ -249,6 +249,47 @@ defmodule Hardhat.Projects do
 
   def delete_task(%Task{} = task), do: Repo.delete(task)
 
+  def list_task_comments(project_id) do
+    Repo.all(
+      from c in TaskComment,
+        where: c.project_id == ^project_id,
+        order_by: [asc: c.inserted_at],
+        preload: [:author]
+    )
+  end
+
+  def get_task_comment(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _} -> Repo.get(TaskComment, id) |> Repo.preload(:author)
+      :error -> nil
+    end
+  end
+
+  def get_task_comment(_), do: nil
+
+  def create_task_comment(project_id, task_id, attrs, author_id) do
+    with %Task{project_id: ^project_id} <- get_task(task_id) do
+      payload =
+        attrs
+        |> Map.new()
+        |> Map.put(:project_id, project_id)
+        |> Map.put(:task_id, task_id)
+        |> maybe_put_comment_author(author_id)
+
+      %TaskComment{}
+      |> TaskComment.create_changeset(payload)
+      |> Repo.insert()
+      |> case do
+        {:ok, comment} -> {:ok, Repo.preload(comment, :author)}
+        other -> other
+      end
+    else
+      _ -> {:error, :task_not_found}
+    end
+  end
+
+  def delete_task_comment(%TaskComment{} = comment), do: Repo.delete(comment)
+
   @doc """
   Moves `task` to `target_column_id` between `before_id` and `after_id`
   (both task ids inside the target column; either can be nil).
@@ -296,5 +337,11 @@ defmodule Hardhat.Projects do
     {:ok, Rank.between(prev, next)}
   rescue
     ArgumentError -> {:error, :invalid_neighbours}
+  end
+
+  defp maybe_put_comment_author(attrs, nil), do: attrs
+
+  defp maybe_put_comment_author(attrs, author_id) when is_binary(author_id) do
+    Map.put(attrs, :author_id, author_id)
   end
 end

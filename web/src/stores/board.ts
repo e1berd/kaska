@@ -62,11 +62,32 @@ export interface TaskDeletedEvent {
   deleted_by_email?: string | null
 }
 
+export interface TaskComment {
+  id: string
+  task_id: string
+  project_id: string
+  body: string
+  author_id: string | null
+  guest_name: string | null
+  author_display_name: string | null
+  author_email: string | null
+  author_avatar_url: string | null
+  author_role: User['role'] | null
+  inserted_at?: string
+  updated_at?: string
+}
+
+export interface BoardSettings {
+  allow_guest_comments: boolean
+}
+
 export interface BoardSnapshot {
   project: Project
   columns: Column[]
   tasks: Task[]
   task_types: TaskType[]
+  task_comments: TaskComment[]
+  settings?: BoardSettings
   users: User[]
   attachments: Attachment[]
 }
@@ -90,6 +111,8 @@ export const useBoardStore = defineStore('board', () => {
   const task_types = ref<TaskType[]>([])
   const users = ref<User[]>([])
   const attachments = ref<Attachment[]>([])
+  const taskComments = ref<TaskComment[]>([])
+  const settings = ref<BoardSettings>({ allow_guest_comments: false })
   const presences = ref<PresenceState>({})
   const lastTaskDeleted = ref<TaskDeletedEvent | null>(null)
   const channel = ref<Channel | null>(null)
@@ -154,6 +177,8 @@ export const useBoardStore = defineStore('board', () => {
     columns.value = reply.columns.slice()
     tasks.value = reply.tasks.slice()
     if (reply.task_types) task_types.value = reply.task_types.slice()
+    taskComments.value = (reply.task_comments ?? []).slice()
+    settings.value = reply.settings ?? { allow_guest_comments: false }
     if (reply.users) users.value = reply.users.slice()
     attachments.value = (reply.attachments ?? []).slice()
 
@@ -172,6 +197,8 @@ export const useBoardStore = defineStore('board', () => {
 
     ch.on('task_attachment_added', (a: Attachment) => upsertAttachment(a))
     ch.on('task_attachment_removed', ({ id }: { id: string }) => removeAttachment(id))
+    ch.on('task_comment_created', (c: TaskComment) => upsertTaskComment(c))
+    ch.on('task_comment_deleted', ({ id }: { id: string }) => removeTaskComment(id))
 
     ch.on('task_type_created', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_updated', (tt: TaskType) => upsertTaskType(tt))
@@ -199,6 +226,8 @@ export const useBoardStore = defineStore('board', () => {
     task_types.value = []
     users.value = []
     attachments.value = []
+    taskComments.value = []
+    settings.value = { allow_guest_comments: false }
     presences.value = {}
     lastTaskDeleted.value = null
   }
@@ -211,6 +240,25 @@ export const useBoardStore = defineStore('board', () => {
     const idx = attachments.value.findIndex((x) => x.id === a.id)
     if (idx === -1) attachments.value.push(a)
     else attachments.value[idx] = a
+  }
+
+  function commentsFor(taskId: string): TaskComment[] {
+    return taskComments.value.filter((c) => c.task_id === taskId)
+  }
+
+  function upsertTaskComment(comment: TaskComment) {
+    const idx = taskComments.value.findIndex((x) => x.id === comment.id)
+    if (idx === -1) taskComments.value.push(comment)
+    else taskComments.value[idx] = comment
+    taskComments.value.sort((a, b) => {
+      const ai = a.inserted_at ? Date.parse(a.inserted_at) : 0
+      const bi = b.inserted_at ? Date.parse(b.inserted_at) : 0
+      return ai - bi
+    })
+  }
+
+  function removeTaskComment(id: string) {
+    taskComments.value = taskComments.value.filter((c) => c.id !== id)
   }
 
   function removeAttachment(id: string) {
@@ -317,6 +365,18 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task', { id })
   }
 
+  function createTaskComment(taskId: string, body: string, guestName?: string | null) {
+    return pushAsync<TaskComment>(ch(), 'create_task_comment', {
+      task_id: taskId,
+      body,
+      guest_name: guestName ?? null,
+    })
+  }
+
+  function deleteTaskComment(id: string) {
+    return pushAsync(ch(), 'delete_task_comment', { id })
+  }
+
   function moveTask(
     id: string,
     columnId: string,
@@ -360,6 +420,8 @@ export const useBoardStore = defineStore('board', () => {
     task_types,
     users,
     attachments,
+    taskComments,
+    settings,
     lastTaskDeleted,
     orderedColumns,
     activeViewerIds,
@@ -367,6 +429,7 @@ export const useBoardStore = defineStore('board', () => {
     editorsForTask,
     tasksFor,
     attachmentsFor,
+    commentsFor,
     join,
     joinBySlug,
     leave,
@@ -377,6 +440,8 @@ export const useBoardStore = defineStore('board', () => {
     createTask,
     updateTask,
     deleteTask,
+    createTaskComment,
+    deleteTaskComment,
     moveTask,
     createTaskType,
     updateTaskType,
