@@ -15,6 +15,7 @@ import {
 import { useBoardStore, type Column, type Task } from '../../stores/board'
 import { useAuthStore } from '../../stores/auth'
 import BoardCard from './BoardCard.vue'
+import { PhDotsSix } from '@phosphor-icons/vue'
 
 const PAGE_SIZE = 20
 
@@ -133,7 +134,10 @@ onMounted(() => {
       },
       getIsSticky: () => true,
       onDragEnter: () => (isOver.value = true),
-      onDragLeave: () => (isOver.value = false),
+      onDragLeave: () => {
+        isOver.value = false
+        closestEdge.value = null
+      },
       onDrag: ({ self, source }) => {
         if (source.data.type !== 'column') {
           closestEdge.value = null
@@ -161,6 +165,12 @@ onMounted(() => {
 onBeforeUnmount(() => {
   dndCleanup?.()
   sentinelObserver?.disconnect()
+  closestEdge.value = null
+  isOver.value = false
+  dragging.value = false
+  document.body.classList.remove('hh-dragging-column')
+  ghost?.remove()
+  ghost = null
 })
 
 function startAdd() {
@@ -202,7 +212,7 @@ function cancelAdd() {
     <header class="hh-col__head">
       <div class="hh-col__title">
         <button ref="handle" class="hh-col__drag-handle md-state-layer" type="button" aria-label="Перетащить колонку">
-          <v-icon size="18">mdi-drag</v-icon>
+          <PhDotsSix />
         </button>
         <span class="hh-col__dot" />
         <span class="md-title-medium">{{ column.name }}</span>
