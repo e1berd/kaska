@@ -188,7 +188,8 @@ function cancelAdd() {
   background: rgb(var(--v-theme-surface-container));
   border-radius: var(--md-shape-l);
   padding: 12px;
-  max-height: 100%;
+  max-height: calc(100vh - 152px);
+  overflow-y: auto;
   transition:
     background-color var(--md-duration-short4) var(--md-easing-standard),
     box-shadow var(--md-duration-short4) var(--md-easing-standard);

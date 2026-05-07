@@ -22,12 +22,18 @@ defmodule HardhatWeb.AuthChannel do
     invite_token = Map.get(payload, "invite_token")
 
     allow_registration = Accounts.get_setting("allow_registration", "true") == "true"
+
     valid_invite = fn token ->
       case token do
-        nil -> nil
+        nil ->
+          nil
+
         t ->
           invite = Accounts.get_invite(t)
-          if invite && (is_nil(invite.expires_at) || DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt) do
+
+          if invite &&
+               (is_nil(invite.expires_at) ||
+                  DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt) do
             invite
           else
             nil
@@ -45,6 +51,7 @@ defmodule HardhatWeb.AuthChannel do
           if invite do
             Accounts.delete_invite(invite)
           end
+
           Accounts.deliver_verify_email_instructions(user)
 
           {:reply,

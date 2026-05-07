@@ -121,7 +121,7 @@ defmodule HardhatWeb.BoardChannel do
 
   def handle_in("create_task_type", payload, socket) do
     project_id = socket.assigns.project_id
-    
+
     attrs = %{
       name: Map.get(payload, "name"),
       color: Map.get(payload, "color") || "gray",
@@ -141,7 +141,7 @@ defmodule HardhatWeb.BoardChannel do
 
   def handle_in("update_task_type", %{"id" => id} = payload, socket) do
     attrs = take_present(payload, ["name", "color"])
-    
+
     with %Hardhat.Projects.TaskType{} = task_type <- get_owned_task_type(id, socket),
          {:ok, task_type} <- Projects.update_task_type(task_type, attrs) do
       view = task_type_view(task_type)
@@ -196,7 +196,15 @@ defmodule HardhatWeb.BoardChannel do
   end
 
   def handle_in("update_task", %{"id" => id} = payload, socket) do
-    attrs = take_present(payload, ["title", "body_doc", "start_date", "end_date", "assignee_id", "task_type_id"])
+    attrs =
+      take_present(payload, [
+        "title",
+        "body_doc",
+        "start_date",
+        "end_date",
+        "assignee_id",
+        "task_type_id"
+      ])
 
     with %Task{} = task <- get_owned_task(id, socket),
          {:ok, task} <- Projects.update_task(task, attrs) do
@@ -385,6 +393,7 @@ defmodule HardhatWeb.BoardChannel do
       _ -> nil
     end
   end
+
   defp avatar_url(_), do: nil
 
   defp attachment_view(%Attachment{} = a) do

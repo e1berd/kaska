@@ -1,8 +1,22 @@
 import { defineStore } from 'pinia'
 import { pushAsync, useSocketStore } from './socket'
+import { ref } from 'vue'
 import type { User } from './auth'
+import { Presence } from 'phoenix'
 
 export const useSysStore = defineStore('sys', () => {
+  const presences = ref<any>({})
+
+  async function initPresence() {
+    const sock = useSocketStore()
+    const { channel } = await sock.joinChannel('sys:lobby')
+    channel.on('presence_state', (state: any) => {
+      presences.value = Presence.syncState(presences.value, state)
+    })
+    channel.on('presence_diff', (diff: any) => {
+      presences.value = Presence.syncDiff(presences.value, diff)
+    })
+  }
 
   async function getSettings() {
     const sock = useSocketStore()
@@ -47,6 +61,8 @@ export const useSysStore = defineStore('sys', () => {
   }
 
   return {
+    presences,
+    initPresence,
     getSettings,
     setSettings,
     getUsers,

@@ -364,8 +364,9 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         <v-btn value="list" prepend-icon="mdi-format-list-bulleted">Список</v-btn>
       </v-btn-toggle>
       <v-btn
-        v-if="auth.isAuthed && viewMode === 'columns'"
+        v-if="auth.isAuthed"
         prepend-icon="mdi-plus"
+        key="auth.isAuthed"
         variant="tonal"
         rounded="pill"
         @click="openNewColumn"

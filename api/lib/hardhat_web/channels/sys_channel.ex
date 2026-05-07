@@ -2,11 +2,26 @@ defmodule HardhatWeb.SysChannel do
   use Phoenix.Channel
 
   alias Hardhat.Accounts
+  alias HardhatWeb.Presence
+  alias Hardhat.Accounts.UserNotifier
 
   @impl true
   def join("sys:lobby", _payload, socket) do
-    # Anyone can join sys:lobby to get users
+    send(self(), :after_join)
     {:ok, %{}, socket}
+  end
+
+  @impl true
+  def handle_info(:after_join, socket) do
+    if user = socket.assigns[:current_user] do
+      {:ok, _} =
+        Presence.track(socket, user.id, %{
+          online_at: inspect(System.system_time(:second))
+        })
+    end
+
+    push(socket, "presence_state", Presence.list(socket))
+    {:noreply, socket}
   end
 
   @impl true
@@ -15,6 +30,7 @@ defmodule HardhatWeb.SysChannel do
       settings = %{
         allow_registration: Accounts.get_setting("allow_registration", "true") == "true"
       }
+
       {:reply, {:ok, settings}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
@@ -26,6 +42,7 @@ defmodule HardhatWeb.SysChannel do
       if Map.has_key?(payload, "allow_registration") do
         Accounts.set_setting("allow_registration", payload["allow_registration"])
       end
+
       {:reply, {:ok, %{}}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
@@ -34,7 +51,8 @@ defmodule HardhatWeb.SysChannel do
 
   def handle_in("get_users", _payload, socket) do
     # Anyone can see users
-    users = Accounts.list_users() |> Enum.map(&user_view/1)
+    presences = Presence.list(socket)
+    users = Accounts.list_users() |> Enum.map(&user_view(&1, presences))
     {:reply, {:ok, users}, socket}
   end
 
@@ -43,10 +61,12 @@ defmodule HardhatWeb.SysChannel do
       case Accounts.get_user(id) do
         nil ->
           {:reply, {:error, %{reason: "user not found"}}, socket}
+
         user ->
           case Hardhat.Repo.update(Hardhat.Accounts.User.confirm_changeset(user)) do
             {:ok, updated_user} ->
-              {:reply, {:ok, user_view(updated_user)}, socket}
+              {:reply, {:ok, user_view(updated_user, Presence.list(socket))}, socket}
+
             {:error, _} ->
               {:reply, {:error, %{reason: "failed to confirm user"}}, socket}
           end
@@ -61,10 +81,12 @@ defmodule HardhatWeb.SysChannel do
       case Accounts.get_user(id) do
         nil ->
           {:reply, {:error, %{reason: "user not found"}}, socket}
+
         user ->
           case Hardhat.Repo.delete(user) do
             {:ok, _} ->
               {:reply, {:ok, %{id: id}}, socket}
+
             {:error, _} ->
               {:reply, {:error, %{reason: "failed to delete user"}}, socket}
           end
@@ -79,10 +101,12 @@ defmodule HardhatWeb.SysChannel do
       case Accounts.get_user(id) do
         nil ->
           {:reply, {:error, %{reason: "user not found"}}, socket}
+
         user ->
           case Hardhat.Repo.update(Hardhat.Accounts.User.changeset_role(user, %{role: role})) do
             {:ok, updated_user} ->
-              {:reply, {:ok, user_view(updated_user)}, socket}
+              {:reply, {:ok, user_view(updated_user, Presence.list(socket))}, socket}
+
             {:error, _} ->
               {:reply, {:error, %{reason: "failed to update role"}}, socket}
           end
@@ -98,20 +122,25 @@ defmodule HardhatWeb.SysChannel do
       email = Map.get(payload, "email")
       token = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
 
-      expires_at = if expires_in_minutes do
-        DateTime.utc_now() |> DateTime.add(expires_in_minutes, :minute)
-      else
-        nil
-      end
+      expires_at =
+        if expires_in_minutes do
+          DateTime.utc_now() |> DateTime.add(expires_in_minutes, :minute)
+        else
+          nil
+        end
 
       case Accounts.create_invite(%{token: token, email: email, expires_at: expires_at}) do
         {:ok, invite} ->
           if email do
-            # Send email here in a real app
-            # For now, let's just return the token
-            nil
+            frontend_url = System.get_env("FRONTEND_URL", "http://localhost:5173")
+            url = "#{frontend_url}/register?invite=#{invite.token}"
+            UserNotifier.deliver_invite_link(email, url)
           end
-          {:reply, {:ok, %{token: invite.token, expires_at: invite.expires_at, email: invite.email}}, socket}
+
+          {:reply,
+           {:ok, %{token: invite.token, expires_at: invite.expires_at, email: invite.email}},
+           socket}
+
         {:error, _} ->
           {:reply, {:error, %{reason: "could not create invite"}}, socket}
       end
@@ -124,7 +153,9 @@ defmodule HardhatWeb.SysChannel do
   defp is_admin(%{role: role}), do: role == :admin
   defp is_admin(_), do: false
 
-  defp user_view(user) do
+  defp user_view(user, presences) do
+    is_online = Map.has_key?(presences, user.id)
+
     %{
       id: user.id,
       email: user.email,
@@ -132,8 +163,7 @@ defmodule HardhatWeb.SysChannel do
       confirmed_at: user.confirmed_at,
       display_name: user.display_name,
       avatar_url: avatar_url(user),
-      # TODO: Handle online status/last seen using presence or database timestamps.
-      last_seen: user.updated_at
+      is_online: is_online
     }
   end
 
@@ -145,5 +175,6 @@ defmodule HardhatWeb.SysChannel do
       _ -> nil
     end
   end
+
   defp avatar_url(_), do: nil
 end

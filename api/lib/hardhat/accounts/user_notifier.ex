@@ -27,6 +27,18 @@ defmodule Hardhat.Accounts.UserNotifier do
     """)
   end
 
+  def deliver_invite_link(email, url) do
+    deliver(email, "Приглашение в HardHat", """
+    Привет!
+
+    Тебя пригласили в HardHat. Чтобы зарегистрироваться, перейди по ссылке:
+
+    #{url}
+
+    Если ты не знаешь, о чем речь — просто проигнорируй это письмо.
+    """)
+  end
+
   defp deliver(to, subject, body) do
     email =
       new()

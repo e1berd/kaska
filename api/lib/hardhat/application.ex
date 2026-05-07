@@ -8,6 +8,7 @@ defmodule Hardhat.Application do
       Hardhat.Repo,
       {DNSCluster, query: Application.get_env(:hardhat, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Hardhat.PubSub},
+      HardhatWeb.Presence,
       HardhatWeb.Endpoint,
       Hardhat.Storage.Bootstrap
     ]

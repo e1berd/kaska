@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
@@ -12,12 +12,11 @@ const loading = ref(false)
 const users = ref<User[]>([])
 const search = ref('')
 
-// Invite Modal
 const isInviteModalOpen = ref(false)
 const inviteTab = ref('email')
 const inviteEmail = ref('')
 const inviteLink = ref('')
-const inviteExpiration = ref<number | null>(60) 
+const inviteExpiration = ref<number | null>(60)
 const inviteLoading = ref(false)
 const inviteError = ref<string | null>(null)
 
@@ -48,12 +47,10 @@ async function sendInvite() {
   try {
     if (inviteTab.value === 'email') {
       await sys.createInvite({ email: inviteEmail.value })
-      // For email, maybe show success state
       isInviteModalOpen.value = false
       inviteEmail.value = ''
     } else {
       const res = await sys.createInvite({ expire_in_minutes: inviteExpiration.value })
-      // For now, let's construct the link based on the token
       inviteLink.value = `${window.location.origin}/register?token=${res.token}`
     }
   } catch (e: any) {
@@ -71,8 +68,17 @@ function openInviteModal() {
 }
 
 onMounted(() => {
+  sys.initPresence()
   loadUsers()
 })
+
+// React to presence updates
+watch(() => sys.presences, () => {
+  if (!loading.value) {
+    // Only re-fetch users when presences change if we are not already fetching
+    loadUsers()
+  }
+}, { deep: true })
 
 const onSearchInput = () => {
   loadUsers()
@@ -152,7 +158,12 @@ const deleteUser = async (user: User) => {
           <template #item.name="{ item }">
              <div class="d-flex align-center">
               <v-avatar size="32" class="mr-3" color="primary">
-                 <img v-if="item.avatar_url" :src="item.avatar_url" />
+                 <img
+                  v-if="item.avatar_url"
+                  width="32"
+                  height="32"
+                  :src="item.avatar_url"
+                 />
                  <span v-else class="text-white">{{ (item.display_name || item.email || '?').slice(0, 1).toUpperCase() }}</span>
               </v-avatar>
               <div>
@@ -234,7 +245,7 @@ const deleteUser = async (user: User) => {
     <v-dialog v-model="isInviteModalOpen" max-width="500">
       <v-card>
         <v-card-title>Добавить участника</v-card-title>
-        
+
         <v-tabs v-model="inviteTab" color="primary">
           <v-tab value="email">Email</v-tab>
           <v-tab value="link">Ссылка</v-tab>
@@ -259,7 +270,7 @@ const deleteUser = async (user: User) => {
               <p class="text-body-2 text-medium-emphasis mb-4">
                 Сгенерируйте ссылку для приглашения и отправьте её самостоятельно.
               </p>
-              
+
               <v-select
                 v-model="inviteExpiration"
                 :items="expirationOptions"
@@ -292,9 +303,9 @@ const deleteUser = async (user: User) => {
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="isInviteModalOpen = false">Отмена</v-btn>
-          <v-btn 
-             color="primary" 
-             @click="sendInvite" 
+          <v-btn
+             color="primary"
+             @click="sendInvite"
              :loading="inviteLoading"
              :disabled="(inviteTab === 'email' && !inviteEmail) || (inviteTab === 'link' && inviteLink !== '')"
           >

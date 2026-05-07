@@ -11,6 +11,7 @@ export interface User {
   display_name: string | null
   avatar_url: string | null
   last_seen?: string | null
+  is_online?: boolean
 }
 
 interface TokensReply {

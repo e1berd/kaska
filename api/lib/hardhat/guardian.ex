@@ -48,11 +48,15 @@ defmodule Hardhat.Guardian do
 
   def on_revoke(%{"jti" => jti} = claims, _token, _options) do
     case Repo.get(Token, jti) do
-      nil -> {:ok, claims}
-      token -> Repo.delete(token) |> case do
-        {:ok, _} -> {:ok, claims}
-        {:error, _} -> {:error, :token_revoke_failure}
-      end
+      nil ->
+        {:ok, claims}
+
+      token ->
+        Repo.delete(token)
+        |> case do
+          {:ok, _} -> {:ok, claims}
+          {:error, _} -> {:error, :token_revoke_failure}
+        end
     end
   end
 end
