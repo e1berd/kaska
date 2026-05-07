@@ -55,11 +55,16 @@ services:
     container_name: hardhat-api
     environment:
       MIX_ENV: dev
-      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@postgres:5432/${POSTGRES_DB:-hardhat_dev}
+      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-hardhat_dev}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_min_64_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:-dev_guardian_secret}
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
       MAIL_FROM: ${MAIL_FROM:-noreply@hardhat.local}
       WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:5173}
       PHX_HOST: ${PHX_HOST:-localhost}

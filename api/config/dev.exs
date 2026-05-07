@@ -2,10 +2,10 @@ import Config
 
 # Configure your database
 config :hardhat, Hardhat.Repo,
-  username: System.get_env("DB_USERNAME", "hardhat"),
-  password: System.get_env("DB_PASSWORD", "hardhat"),
-  hostname: System.get_env("DB_HOSTNAME", "postgres"),
-  database: System.get_env("DB_DATABASE", "hardhat_dev"),
+  username: System.get_env("POSTGRES_USER", "hardhat"),
+  password: System.get_env("POSTGRES_PASSWORD", "hardhat"),
+  hostname: System.get_env("POSTGRES_HOST", "postgres"),
+  database: System.get_env("POSTGRES_DB", "hardhat_dev"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
