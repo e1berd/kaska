@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
+import { useSocketStore } from '../stores/socket'
 import { PhPlus, PhMagnifyingGlass, PhDotsThreeVertical, PhCopy, PhCheckCircle, PhProhibit } from '@phosphor-icons/vue'
 
 const sys = useSysStore()
 const auth = useAuthStore()
+const socket = useSocketStore()
 
 const loading = ref(false)
 const users = ref<User[]>([])
@@ -20,6 +22,8 @@ const inviteLink = ref('')
 const inviteExpiration = ref<number | null>(60)
 const inviteLoading = ref(false)
 const inviteError = ref<string | null>(null)
+const usersChannel = ref<any>(null)
+const userCreatedRef = ref<number | null>(null)
 
 const expirationOptions = [
   { title: '5 минут', value: 5 },
@@ -73,7 +77,24 @@ function openInviteModal() {
 onMounted(() => {
   void sys.initPresence()
   loadUsers()
+  void subscribeUsersRealtime()
 })
+
+onBeforeUnmount(() => {
+  if (usersChannel.value && userCreatedRef.value !== null) {
+    usersChannel.value.off('user_created', userCreatedRef.value)
+  }
+  usersChannel.value = null
+  userCreatedRef.value = null
+})
+
+async function subscribeUsersRealtime() {
+  const { channel } = await socket.joinChannel('sys:lobby')
+  usersChannel.value = channel
+  userCreatedRef.value = channel.on('user_created', () => {
+    void loadUsers()
+  })
+}
 
 const onSearchInput = () => {
   loadUsers()

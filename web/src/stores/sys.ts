@@ -18,11 +18,19 @@ type PresenceState = Record<string, PresenceEntry>
 export const useSysStore = defineStore('sys', () => {
   const presences = ref<PresenceState>({})
   const presenceChannel = ref<Channel | null>(null)
+  const listenersAttached = ref(false)
 
   async function initPresence() {
-    if (presenceChannel.value) return
+    if (presenceChannel.value?.state === 'joined' || presenceChannel.value?.state === 'joining') return
     const sock = useSocketStore()
     const { channel } = await sock.joinChannel('sys:lobby')
+    if (presenceChannel.value !== channel) {
+      presenceChannel.value = channel
+      listenersAttached.value = false
+    }
+
+    if (listenersAttached.value) return
+
     presenceChannel.value = channel
     channel.on('presence_state', (state: PresenceState) => {
       presences.value = Presence.syncState(presences.value, state)
@@ -30,6 +38,7 @@ export const useSysStore = defineStore('sys', () => {
     channel.on('presence_diff', (diff: { joins: PresenceState; leaves: PresenceState }) => {
       presences.value = Presence.syncDiff(presences.value, diff)
     })
+    listenersAttached.value = true
   }
 
   function isUserOnline(userId: string): boolean {

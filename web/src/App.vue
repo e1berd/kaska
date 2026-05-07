@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from './stores/auth'
+import { useSocketStore } from './stores/socket'
+import { useSysStore } from './stores/sys'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
+const socket = useSocketStore()
+const sys = useSysStore()
 const route = useRoute()
 const { mobile } = useDisplay()
 
@@ -16,6 +20,22 @@ const drawer = ref(!mobile.value)
 watch(mobile, (m) => {
   drawer.value = !m
 })
+
+onMounted(() => {
+  if (auth.isAuthed) {
+    void sys.initPresence()
+  }
+})
+
+watch(
+  () => [auth.isAuthed, socket.connected] as const,
+  ([isAuthed, connected]) => {
+    if (isAuthed && connected) {
+      void sys.initPresence()
+    }
+  },
+  { immediate: true },
+)
 
 const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
 

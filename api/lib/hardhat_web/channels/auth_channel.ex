@@ -2,6 +2,7 @@ defmodule HardhatWeb.AuthChannel do
   use Phoenix.Channel
 
   alias Hardhat.{Accounts, Guardian}
+  alias HardhatWeb.Endpoint
 
   @access_ttl {15, :minutes}
   @refresh_ttl {30, :days}
@@ -59,6 +60,8 @@ defmodule HardhatWeb.AuthChannel do
           if !first_user_bootstrap do
             Accounts.deliver_verify_email_instructions(user)
           end
+
+          Endpoint.broadcast("sys:lobby", "user_created", user_view(user))
 
           {:reply,
            {:ok,
