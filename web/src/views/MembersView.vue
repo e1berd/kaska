@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
@@ -11,6 +11,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const users = ref<User[]>([])
 const search = ref('')
+const canManageMembers = computed(() => auth.user?.role === 'admin')
 
 const isInviteModalOpen = ref(false)
 const inviteTab = ref('email')
@@ -50,11 +51,13 @@ async function sendInvite() {
       isInviteModalOpen.value = false
       inviteEmail.value = ''
     } else {
-      const res = await sys.createInvite({ expire_in_minutes: inviteExpiration.value })
+      const res = await sys.createInvite({ expires_in_minutes: inviteExpiration.value })
       inviteLink.value = `${window.location.origin}/register?token=${res.token}`
     }
   } catch (e: any) {
-    inviteError.value = e?.message || 'Failed to create invite'
+    inviteError.value = e?.reason === 'forbidden'
+      ? 'Недостаточно прав для создания приглашений'
+      : (e?.message || 'Failed to create invite')
   } finally {
     inviteLoading.value = false
   }
@@ -119,7 +122,7 @@ const userLastOnlineAt = (user: User) => sys.userLastOnlineAt(user.id)
   <div class="pa-4 pa-sm-6 pa-md-8 mx-auto" style="max-width: 1200px;">
     <div class="d-flex align-center justify-space-between mb-6">
       <h1 class="md-headline-medium">Участники</h1>
-      <v-btn v-if="auth.isAuthed" color="primary" @click="openInviteModal">
+      <v-btn v-if="canManageMembers" color="primary" @click="openInviteModal">
         <template #prepend><ph-plus :size="20" weight="bold" /></template>
         Добавить
       </v-btn>

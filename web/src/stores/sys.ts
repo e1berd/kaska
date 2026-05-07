@@ -66,7 +66,7 @@ export const useSysStore = defineStore('sys', () => {
     return pushAsync<User[]>(channel, 'get_users', { query })
   }
 
-  async function createInvite(input: { email?: string, expire_in_minutes?: number | null }) {
+  async function createInvite(input: { email?: string, expires_in_minutes?: number | null }) {
     const sock = useSocketStore()
     const { channel } = await sock.joinChannel('sys:lobby')
     return pushAsync<{ token: string, expires_at: string, email: string }>(channel, 'create_invite', input)
