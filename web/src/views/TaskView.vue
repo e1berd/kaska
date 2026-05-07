@@ -5,6 +5,7 @@ import { useAuthStore, type User } from '../stores/auth'
 import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '../stores/board'
 import { docToHtml, isDocEmpty } from '../utils/tiptap'
 import RichEditor from '../components/RichEditor.vue'
+import PresenceGroup from '../components/PresenceGroup.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -344,24 +345,13 @@ watch(
     <header class="hh-task-page__bar">
       <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <span class="md-title-large">Задача</span>
-      <div v-if="taskViewers.length" class="hh-task-page__presence ml-2">
-        <span class="hh-task-page__presence-label md-label-small">Сейчас в задаче</span>
-        <v-tooltip
-          v-for="user in taskViewers"
-          :key="user.id"
-          :text="user.display_name || user.email"
-          location="bottom"
-        >
-          <template #activator="{ props }">
-            <span v-bind="props" class="hh-task-page__presence-item">
-              <v-avatar size="24" color="primary" class="hh-task-page__presence-avatar">
-                <img v-if="user.avatar_url" :src="user.avatar_url" alt="" />
-                <span v-else>{{ (user.display_name || user.email || '?').slice(0, 1).toUpperCase() }}</span>
-              </v-avatar>
-            </span>
-          </template>
-        </v-tooltip>
-      </div>
+      <PresenceGroup
+        v-if="taskViewers.length"
+        class="ml-2"
+        :users="taskViewers"
+        label="Сейчас в задаче"
+        size="sm"
+      />
       <v-spacer />
       <v-tooltip text="Поделиться ссылкой" location="bottom">
         <template #activator="{ props }">
@@ -579,25 +569,6 @@ watch(
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-}
-.hh-task-page__presence {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.hh-task-page__presence-label {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  white-space: nowrap;
-}
-.hh-task-page__presence-item {
-  display: inline-flex;
-}
-.hh-task-page__presence-avatar {
-  margin-left: -6px;
-  border: 2px solid rgb(var(--v-theme-surface));
-}
-.hh-task-page__presence-item:first-child .hh-task-page__presence-avatar {
-  margin-left: 0;
 }
 .hh-task-page__state {
   display: flex;

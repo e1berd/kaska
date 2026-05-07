@@ -7,6 +7,7 @@ import { useSocketStore } from './stores/socket'
 import { useSysStore } from './stores/sys'
 import { useBoardStore } from './stores/board'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
+import PresenceGroup from './components/PresenceGroup.vue'
 
 const auth = useAuthStore()
 const socket = useSocketStore()
@@ -75,10 +76,6 @@ const headerPresenceUsers = computed(() => {
 const headerPresenceLabel = computed(() =>
   currentTaskId.value ? 'Сейчас в задаче' : 'Сейчас в проекте',
 )
-
-function userTitle(displayName: string | null, email: string): string {
-  return displayName || email
-}
 
 interface NavItem {
   key: string
@@ -153,30 +150,13 @@ function logout() {
 
         <template #append>
           <template v-if="auth.isAuthed">
-            <div v-if="headerPresenceUsers.length" class="hh-bar__presence mr-2">
-              <span class="hh-bar__presence-label md-label-small">{{ headerPresenceLabel }}</span>
-              <v-tooltip
-                v-for="user in headerPresenceUsers"
-                :key="user.id"
-                :text="userTitle(user.display_name, user.email)"
-                location="bottom"
-              >
-                <template #activator="{ props }">
-                  <span v-bind="props" class="hh-bar__presence-item">
-                    <v-avatar size="28" color="primary" class="hh-bar__presence-avatar">
-                      <img
-                        v-if="user.avatar_url"
-                        :src="user.avatar_url"
-                        alt=""
-                      />
-                      <span v-else>{{
-                        (user.display_name || user.email || '?').slice(0, 1).toUpperCase()
-                      }}</span>
-                    </v-avatar>
-                  </span>
-                </template>
-              </v-tooltip>
-            </div>
+            <PresenceGroup
+              v-if="headerPresenceUsers.length"
+              class="mr-2"
+              :users="headerPresenceUsers"
+              :label="headerPresenceLabel"
+              size="sm"
+            />
             <v-menu v-if="auth.isAuthed">
               <template #activator="{ props }">
                 <button
@@ -321,26 +301,6 @@ function logout() {
   text-decoration: none;
   color: inherit;
   --md-state-color: rgb(var(--v-theme-on-surface));
-}
-.hh-bar__presence {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.hh-bar__presence-label {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  white-space: nowrap;
-}
-.hh-bar__presence-item {
-  display: inline-flex;
-}
-.hh-bar__presence-avatar {
-  margin-left: -8px;
-  border: 2px solid rgb(var(--v-theme-surface));
-  box-shadow: var(--md-elev-1);
-}
-.hh-bar__presence-item:first-child .hh-bar__presence-avatar {
-  margin-left: 0;
 }
 .hh-bar__avatar {
   width: 32px;

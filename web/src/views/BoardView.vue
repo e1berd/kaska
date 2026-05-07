@@ -18,6 +18,7 @@ import {
 import { useProjectsStore } from '../stores/projects'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import RichEditor from '../components/RichEditor.vue'
+import PresenceGroup from '../components/PresenceGroup.vue'
 import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
 
 const route = useRoute()
@@ -110,7 +111,7 @@ const taskAttachments = computed<Attachment[]>(() => {
 })
 const taskViewers = computed(() => {
   if (!taskTarget.value) return []
-  return board.viewersForTask(taskTarget.value.id)
+  return board.viewersForTask(taskTarget.value.id).filter((user) => user.id !== auth.user?.id)
 })
 const taskEditors = computed(() => {
   if (!taskTarget.value) return []
@@ -1132,30 +1133,13 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       <v-card v-if="taskTarget" rounded="xl">
         <v-card-title class="px-6 pt-6 d-flex align-center ga-2">
           <span class="md-headline-small">Карточка</span>
-          <div v-if="taskViewers.length" class="hh-task-viewers ml-2">
-            <span class="hh-task-viewers__label md-label-small">Сейчас в задаче</span>
-            <v-tooltip
-              v-for="user in taskViewers"
-              :key="user.id"
-              :text="user.display_name || user.email"
-              location="bottom"
-            >
-              <template #activator="{ props }">
-                <span v-bind="props" class="hh-task-viewers__item">
-                  <v-avatar size="24" color="primary" class="hh-task-viewers__avatar">
-                    <img
-                      v-if="user.avatar_url"
-                      :src="user.avatar_url"
-                      alt=""
-                    />
-                    <span v-else>{{
-                      (user.display_name || user.email || '?').slice(0, 1).toUpperCase()
-                    }}</span>
-                  </v-avatar>
-                </span>
-              </template>
-            </v-tooltip>
-          </div>
+          <PresenceGroup
+            v-if="taskViewers.length"
+            class="ml-2"
+            :users="taskViewers"
+            label="Сейчас в задаче"
+            size="sm"
+          />
           <v-spacer />
           <v-tooltip text="Открыть на странице" location="bottom">
             <template #activator="{ props }">
@@ -1642,26 +1626,6 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 .hh-task-meta-grid :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
-.hh-task-viewers {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.hh-task-viewers__label {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  white-space: nowrap;
-}
-.hh-task-viewers__item {
-  display: inline-flex;
-}
-.hh-task-viewers__avatar {
-  margin-left: -6px;
-  border: 2px solid rgb(var(--v-theme-surface));
-}
-.hh-task-viewers__item:first-child .hh-task-viewers__avatar {
-  margin-left: 0;
-}
-
 .hh-task__row {
   display: flex;
   gap: 16px;
