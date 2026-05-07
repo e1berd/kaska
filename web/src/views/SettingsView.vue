@@ -59,7 +59,7 @@ onMounted(() => {
               <h2 class="text-h6 font-weight-regular">Регистрация</h2>
               <div class="text-body-2 text-medium-emphasis">Разрешить свободную регистрацию новых пользователей</div>
             </div>
-            
+
             <v-switch
               v-model="allowRegistration"
               color="primary"

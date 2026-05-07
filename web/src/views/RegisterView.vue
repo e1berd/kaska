@@ -22,7 +22,7 @@ async function checkRegistration() {
   checkLoading.value = true
   if (route.query.token) {
     inviteToken.value = route.query.token as string
-    registrationAllowed.value = true // Token implies specific registration is allowed
+    registrationAllowed.value = true
     checkLoading.value = false
     return
   }
@@ -38,9 +38,7 @@ async function checkRegistration() {
   }
 }
 
-onMounted(() => {
-  checkRegistration()
-})
+onMounted(checkRegistration)
 
 async function submit() {
   if (!registrationAllowed.value && !inviteToken.value) {

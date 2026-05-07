@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
@@ -72,10 +72,8 @@ onMounted(() => {
   loadUsers()
 })
 
-// React to presence updates
 watch(() => sys.presences, () => {
   if (!loading.value) {
-    // Only re-fetch users when presences change if we are not already fetching
     loadUsers()
   }
 }, { deep: true })

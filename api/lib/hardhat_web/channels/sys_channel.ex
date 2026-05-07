@@ -26,15 +26,13 @@ defmodule HardhatWeb.SysChannel do
 
   @impl true
   def handle_in("get_settings", _payload, socket) do
-    if is_admin(socket.assigns[:current_user]) do
-      settings = %{
-        allow_registration: Accounts.get_setting("allow_registration", "true") == "true"
-      }
 
-      {:reply, {:ok, settings}, socket}
-    else
-      {:reply, {:error, %{reason: "forbidden"}}, socket}
-    end
+    settings = %{
+      allow_registration: Accounts.get_setting("allow_registration", "true") == "true"
+    }
+
+    {:reply, {:ok, settings}, socket}
+
   end
 
   def handle_in("set_settings", payload, socket) do
@@ -43,7 +41,7 @@ defmodule HardhatWeb.SysChannel do
         Accounts.set_setting("allow_registration", payload["allow_registration"])
       end
 
-      {:reply, {:ok, %{}}, socket}
+      {:reply, {:ok, %{"allow_registration" => Accounts.get_setting("allow_registration", "true") == "true"}}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
     end
