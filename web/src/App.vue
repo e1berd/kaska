@@ -131,7 +131,7 @@ function logout() {
         class="hh-nav"
         :border="0"
       >
-        <nav class="hh-nav__list">
+        <nav class="hh-nav__list" v-auto-animate>
           <router-link
             v-for="item in navItems"
             :key="item.key"
@@ -244,6 +244,7 @@ function logout() {
 
 .hh-nav {
   background: rgb(var(--v-theme-surface)) !important;
+  border-right: 1px solid rgba(var(--v-theme-on-surface), 0.06);
 }
 .hh-nav__list {
   display: flex;

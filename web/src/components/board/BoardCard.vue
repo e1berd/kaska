@@ -144,13 +144,13 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="root"
-    class="hh-card md-state-layer"
+    class="hh-card md-state-layer overflow-hidden"
     :class="{ 'hh-card--dragging': dragging }"
     :data-task-id="task.id"
     @click="$emit('open', task)"
   >
     <div v-if="firstImageUrl" class="hh-card__cover">
-      <img :src="firstImageUrl" :alt="task.title" />
+      <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
     </div>
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
     <div v-if="preview" class="hh-card__desc md-body-small">{{ preview }}</div>
@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
         {{ taskType.name }}
       </span>
       <span v-if="attachmentCount > 0" class="hh-card__chip">
-        <v-icon size="14">mdi-paperclip</v-icon>    
+        <v-icon size="14">mdi-paperclip</v-icon>
         {{ attachmentCount }}
       </span>
       <span v-if="startDate || endDate" class="hh-card__chip hh-card__dates">
@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
         {{ startDate || '??' }} - {{ endDate || '??' }}
       </span>
     </div>
-    
+
     <div v-if="assignee" class="mt-2 text-caption text-medium-emphasis d-flex align-center">
       <v-avatar :image="assignee.avatar_url || ''" size="20" class="mr-1" color="primary">
         <span v-if="!assignee.avatar_url" class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>

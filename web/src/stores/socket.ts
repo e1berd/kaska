@@ -39,6 +39,7 @@ export const useSocketStore = defineStore('socket', () => {
     const s = new Socket(SOCKET_URL, {
       params: token ? { token } : {},
       reconnectAfterMs,
+      logger: (kind, msg, data) => console.log(`${kind}: ${msg}`, data)
     })
 
     s.onOpen(() => {
