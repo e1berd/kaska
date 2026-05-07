@@ -6,6 +6,7 @@ import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { VDateInput } from 'vuetify/labs/VDateInput'
+import { ru } from 'vuetify/locale'
 
 
 // Material Design 3 baseline palette (primary = #6750A4).
@@ -91,9 +92,10 @@ export default createVuetify({
     VDateInput,
   },
   directives,
-  // Override the default 'lg' threshold (1280px) — on a regular laptop that
-  // would flip useDisplay().mobile to true and collapse the navigation
-  // drawer into a temporary overlay. We treat 'mobile' as actual phones.
+  locale: {
+    locale: 'ru',
+    messages: { ru }
+  },
   display: {
     mobileBreakpoint: 'sm',
   },
