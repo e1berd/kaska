@@ -21,6 +21,8 @@ defmodule Hardhat.Guardian do
     end
   end
 
+  def on_verify(%{"typ" => "access"} = claims, _token, _options), do: {:ok, claims}
+
   def on_verify(claims, token, _options) do
     with {:ok, _} <- Guardian.DB.on_verify(claims, token) do
       {:ok, claims}

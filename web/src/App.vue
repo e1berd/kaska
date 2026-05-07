@@ -3,16 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from './stores/auth'
-import { useSocketStore } from './stores/socket'
 
 const auth = useAuthStore()
-const socketStore = useSocketStore()
 const route = useRoute()
 const { mobile } = useDisplay()
 
-const connected = computed(() => socketStore.connected)
-
-const showSidebar = computed(() => route.name !== 'home')
+const showSidebar = ref(route.name !== 'home')
+watch(() => route.name, (name) => { showSidebar.value = name !== 'home' })
 
 const drawer = ref(!mobile.value)
 watch(mobile, (m) => {
@@ -55,19 +52,7 @@ function logout() {
 
 <template>
   <v-app>
-    <div class="hh-loader" :class="{ 'hh-loader--hidden': connected }">
-      <svg class="hh-loader__spinner" viewBox="25 25 50 50">
-        <circle cx="50" cy="50" r="20" />
-      </svg>
-      <div class="hh-loader__label">
-        <span>Загрузка</span>
-        <span class="hh-loader__dot">.</span>
-        <span class="hh-loader__dot">.</span>
-        <span class="hh-loader__dot">.</span>
-      </div>
-    </div>
-
-    <template v-if="connected">
+    <template v-if="true">
       <v-app-bar flat color="surface" class="hh-bar" height="64">
         <template #prepend>
           <v-app-bar-nav-icon
@@ -173,79 +158,6 @@ function logout() {
 </template>
 
 <style scoped>
-@keyframes md-spinner-rotate {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes md-spinner-dash {
-  0%   { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
-  50%  { stroke-dasharray: 100, 200; stroke-dashoffset: -30; }
-  100% { stroke-dasharray: 100, 200; stroke-dashoffset: -124; }
-}
-
-@keyframes md-dots {
-  0%, 100% { opacity: 0.38; transform: scale(0.8); }
-  50%       { opacity: 1;    transform: scale(1); }
-}
-
-.hh-loader {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  background: rgb(var(--v-theme-surface));
-  color: rgb(var(--v-theme-on-surface));
-  opacity: 1;
-  visibility: visible;
-  transition:
-    opacity var(--md-duration-long1) var(--md-easing-standard),
-    visibility var(--md-duration-long1) var(--md-easing-standard);
-}
-
-.hh-loader--hidden {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.hh-loader__spinner {
-  width: 48px;
-  height: 48px;
-  animation: md-spinner-rotate 1.4s linear infinite;
-}
-
-.hh-loader__spinner circle {
-  stroke: rgb(var(--v-theme-primary));
-  stroke-linecap: round;
-  fill: none;
-  stroke-width: 4;
-  stroke-dasharray: 1, 200;
-  stroke-dashoffset: 0;
-  animation: md-spinner-dash 1.4s var(--md-easing-standard) infinite;
-}
-
-.hh-loader__label {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  color: rgb(var(--v-theme-on-surface-variant));
-  font-family: 'Roboto Flex', 'Roboto', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.1px;
-}
-
-.hh-loader__dot {
-  display: inline-block;
-  animation: md-dots 1.2s var(--md-easing-standard) infinite;
-}
-
-.hh-loader__dot:nth-child(2) { animation-delay: 0.2s; }
-.hh-loader__dot:nth-child(3) { animation-delay: 0.4s; }
-
 .hh-bar {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
   backdrop-filter: saturate(180%) blur(8px);

@@ -70,7 +70,6 @@ export const useAuthStore = defineStore('auth', () => {
     access.value = resp.access
     refresh.value = resp.refresh
     user.value = resp.user
-    // Re-establish the socket with the access token so it joins as authed.
     sock.connect(resp.access)
     return resp
   }
@@ -149,30 +148,23 @@ export const useAuthStore = defineStore('auth', () => {
     sock.connect(null)
   }
 
-  /**
-   * Boot the socket using whatever we already have in localStorage.
-   *
-   * If we hold an access token, validate it via `fetchMe` and clear the
-   * session if it has expired or been revoked — so the UI doesn't keep
-   * showing the user as logged in while the server treats them as a guest.
-   */
   function bootstrap() {
     const sock = useSocketStore()
     sock.connect(access.value)
 
     if (access.value && user.value) {
-      fetchMe().catch(async () => {
-        // Try to recover with the refresh token; on failure, fall back to guest.
+      void fetchMe().catch(async () => {
         if (refresh.value) {
           try {
             await refreshTokens()
             sock.connect(access.value)
             return
-          } catch {
-            /* fallthrough to logout */
-          }
+          } catch {}
         }
-        logout()
+        access.value = null
+        refresh.value = null
+        user.value = null
+        sock.connect(null)
       })
     }
   }
