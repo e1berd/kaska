@@ -19,7 +19,11 @@ import { PhDotsSix } from '@phosphor-icons/vue'
 
 const PAGE_SIZE = 20
 
-const props = defineProps<{ column: Column; accent: 'primary' | 'secondary' | 'tertiary' }>()
+const props = defineProps<{
+  column: Column
+  accent: 'primary' | 'secondary' | 'tertiary'
+  tasks?: Task[]
+}>()
 defineEmits<{
   (e: 'open-task', task: Task): void
   (e: 'rename', column: Column): void
@@ -28,7 +32,11 @@ defineEmits<{
 
 const board = useBoardStore()
 const auth = useAuthStore()
-const tasksInColumn = computed(() => board.tasksFor(props.column.id))
+const tasksInColumn = computed(() =>
+  props.tasks
+    ? props.tasks.slice().sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
+    : board.tasksFor(props.column.id),
+)
 
 const visibleCount = ref(PAGE_SIZE)
 

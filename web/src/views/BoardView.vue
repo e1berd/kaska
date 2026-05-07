@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
@@ -18,7 +18,7 @@ import {
 import { useProjectsStore } from '../stores/projects'
 import BoardColumn from '../components/board/BoardColumn.vue'
 import RichEditor from '../components/RichEditor.vue'
-import { docToHtml, isDocEmpty } from '../utils/tiptap'
+import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +37,42 @@ let scrollCleanup: (() => void) | null = null
 
 const viewMode = ref<'columns' | 'list'>('columns')
 const VIEW_MODE_KEY_PREFIX = 'hardhat.board.view_mode'
+const FILTERS_EXPANDED_KEY_PREFIX = 'hardhat.board.filters_expanded'
+const filtersExpanded = ref(false)
+const filterQuery = ref('')
+const filterTaskType = ref<string | null>(null)
+const filterAssignee = ref<string | null>(null)
+const filterStartDate = ref<string | null>(null)
+const filterEndDate = ref<string | null>(null)
+const syncingFiltersFromRoute = ref(false)
+
+const filterStartDateModel = computed<Date | null>({
+  get: () => parseIsoDate(filterStartDate.value),
+  set: (value) => {
+    filterStartDate.value = value ? formatIsoDate(value) : null
+  },
+})
+
+const filterEndDateModel = computed<Date | null>({
+  get: () => parseIsoDate(filterEndDate.value),
+  set: (value) => {
+    filterEndDate.value = value ? formatIsoDate(value) : null
+  },
+})
+
+const taskStartDateModel = computed<Date | null>({
+  get: () => parseIsoDate(taskStartDate.value),
+  set: (value) => {
+    taskStartDate.value = value ? formatIsoDate(value) : null
+  },
+})
+
+const taskEndDateModel = computed<Date | null>({
+  get: () => parseIsoDate(taskEndDate.value),
+  set: (value) => {
+    taskEndDate.value = value ? formatIsoDate(value) : null
+  },
+})
 
 const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
@@ -78,6 +114,40 @@ const orderedTasks = computed<Task[]>(() => {
   })
 })
 
+const filteredTasks = computed<Task[]>(() => {
+  const byMeta = orderedTasks.value.filter((task) => {
+    if (filterTaskType.value && task.task_type_id !== filterTaskType.value) return false
+    if (filterAssignee.value && task.assignee_id !== filterAssignee.value) return false
+    if (filterStartDate.value) {
+      if (!task.start_date) return false
+      if (task.start_date.slice(0, 10) < filterStartDate.value) return false
+    }
+    if (filterEndDate.value) {
+      if (!task.end_date) return false
+      if (task.end_date.slice(0, 10) > filterEndDate.value) return false
+    }
+    return true
+  })
+
+  const q = filterQuery.value.trim().toLowerCase()
+  if (!q) return byMeta
+
+  const titleMatches: Task[] = []
+  const descriptionMatches: Task[] = []
+
+  for (const task of byMeta) {
+    const title = task.title.toLowerCase()
+    if (title.includes(q)) {
+      titleMatches.push(task)
+      continue
+    }
+    const body = docPreview(task.body_doc ?? null, 5000).toLowerCase()
+    if (body.includes(q)) descriptionMatches.push(task)
+  }
+
+  return [...titleMatches, ...descriptionMatches]
+})
+
 const listHeaders = computed(() => [
   { title: 'Карточка', key: 'title', sortable: true, minWidth: '260px' },
   { title: 'Тип', key: 'task_type_id', sortable: true, width: '180px' },
@@ -96,9 +166,41 @@ function userFor(id: string | null | undefined) {
   return board.users.find((u) => u.id === id) ?? null
 }
 
+function optionUser(item: unknown): User {
+  const candidate = item as { raw?: User } & User
+  return (candidate.raw ?? candidate) as User
+}
+
+function userLabel(item: unknown): string {
+  const user = optionUser(item)
+  return user.display_name || user.email || '—'
+}
+
+function userInitial(item: unknown): string {
+  return userLabel(item).slice(0, 1).toUpperCase()
+}
+
+function userAvatar(item: unknown): string {
+  return optionUser(item).avatar_url || ''
+}
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString()
+}
+
+function parseIsoDate(value: string | null): Date | null {
+  if (!value) return null
+  const [y, m, d] = value.split('-').map((n) => Number(n))
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+function formatIsoDate(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 async function load() {
@@ -226,10 +328,72 @@ watch(
 )
 
 watch(
+  () => [auth.user?.id ?? 'guest', slug.value] as const,
+  ([userId, currentSlug]) => {
+    const saved = localStorage.getItem(`${FILTERS_EXPANDED_KEY_PREFIX}:${userId}:${currentSlug}`)
+    if (saved === '1') filtersExpanded.value = true
+    else if (saved === '0') filtersExpanded.value = false
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.query,
+  (query) => {
+    syncingFiltersFromRoute.value = true
+    filterQuery.value = typeof query.q === 'string' ? query.q : ''
+    filterTaskType.value = typeof query.type === 'string' ? query.type : null
+    filterAssignee.value = typeof query.assignee === 'string' ? query.assignee : null
+    filterStartDate.value = typeof query.start === 'string' ? query.start : null
+    filterEndDate.value = typeof query.end === 'string' ? query.end : null
+    syncingFiltersFromRoute.value = false
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [
+    filterQuery.value,
+    filterTaskType.value,
+    filterAssignee.value,
+    filterStartDate.value,
+    filterEndDate.value,
+  ] as const,
+  ([q, type, assignee, start, end]) => {
+    if (syncingFiltersFromRoute.value) return
+
+    const nextQuery: LocationQueryRaw = { ...route.query }
+    if (q.trim()) nextQuery.q = q.trim()
+    else delete nextQuery.q
+    if (type) nextQuery.type = type
+    else delete nextQuery.type
+    if (assignee) nextQuery.assignee = assignee
+    else delete nextQuery.assignee
+    if (start) nextQuery.start = start
+    else delete nextQuery.start
+    if (end) nextQuery.end = end
+    else delete nextQuery.end
+
+    void router.replace({ query: nextQuery })
+  },
+)
+
+watch(
   () => viewMode.value,
   (mode) => {
     const userId = auth.user?.id ?? 'guest'
     localStorage.setItem(`${VIEW_MODE_KEY_PREFIX}:${userId}:${slug.value}`, mode)
+  },
+)
+
+watch(
+  () => filtersExpanded.value,
+  (expanded) => {
+    const userId = auth.user?.id ?? 'guest'
+    localStorage.setItem(
+      `${FILTERS_EXPANDED_KEY_PREFIX}:${userId}:${slug.value}`,
+      expanded ? '1' : '0',
+    )
   },
 )
 
@@ -365,6 +529,14 @@ function backToProjects() {
   router.push({ name: 'projects' })
 }
 
+function clearFilters() {
+  filterQuery.value = ''
+  filterTaskType.value = null
+  filterAssignee.value = null
+  filterStartDate.value = null
+  filterEndDate.value = null
+}
+
 async function changeColumn(task: Task, newColumnId: unknown) {
   const targetId = typeof newColumnId === 'string' ? newColumnId : null
   if (!targetId || targetId === task.column_id) return
@@ -428,6 +600,14 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         </v-tooltip>
       </div>
       <v-btn
+        variant="text"
+        rounded="pill"
+        :prepend-icon="filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
+        @click="filtersExpanded = !filtersExpanded"
+      >
+        Фильтры
+      </v-btn>
+      <v-btn
         v-if="auth.isAuthed"
         prepend-icon="mdi-plus"
         key="auth.isAuthed"
@@ -438,6 +618,107 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         Новая колонка
       </v-btn>
     </header>
+
+    <v-expand-transition>
+      <div v-if="filtersExpanded" class="hh-board__filters">
+        <v-text-field
+          v-model="filterQuery"
+          label="Поиск по названию и описанию"
+          prepend-inner-icon="mdi-magnify"
+          variant="filled"
+          density="comfortable"
+          hide-details
+          clearable
+        />
+        <v-select
+          v-model="filterTaskType"
+          :items="board.task_types"
+          item-title="name"
+          item-value="id"
+          label="Тип задачи"
+          variant="filled"
+          density="comfortable"
+          hide-details
+          clearable
+        />
+        <v-select
+          v-model="filterAssignee"
+          :items="board.users"
+          :item-title="(u: User) => u.display_name || u.email"
+          item-value="id"
+          label="Исполнитель"
+          variant="filled"
+          density="comfortable"
+          hide-details
+          clearable
+        >
+          <template #item="{ props: itemProps, item }">
+            <v-list-item
+              v-bind="itemProps"
+              :title="userLabel(item)"
+            >
+              <template #prepend>
+                <v-avatar
+                  :image="userAvatar(item)"
+                  size="24"
+                  class="mr-2"
+                  color="primary"
+                >
+                  <span
+                    v-if="!userAvatar(item)"
+                    class="text-white text-caption"
+                  >
+                    {{ userInitial(item) }}
+                  </span>
+                </v-avatar>
+              </template>
+            </v-list-item>
+          </template>
+          <template #selection="{ item }">
+            <div class="hh-filter-user">
+              <v-avatar
+                :image="userAvatar(item)"
+                size="20"
+                class="mr-2"
+                color="primary"
+              >
+                <span
+                  v-if="!userAvatar(item)"
+                  class="text-white"
+                  style="font-size: 10px"
+                >
+                  {{ userInitial(item) }}
+                </span>
+              </v-avatar>
+              <span class="hh-filter-user__label">
+                {{ userLabel(item) }}
+              </span>
+            </div>
+          </template>
+        </v-select>
+        <v-date-input
+          v-model="filterStartDateModel"
+          label="Дата начала от"
+          density="comfortable"
+          hide-details
+          clearable
+          prepend-icon=""
+          prepend-inner-icon="mdi-calendar"
+        />
+        <v-date-input
+          v-model="filterEndDateModel"
+          label="Дата завершения до"
+          density="comfortable"
+          hide-details
+          clearable
+          prepend-icon=""
+          prepend-inner-icon="mdi-calendar"
+        />
+        <v-btn variant="text" rounded="pill" prepend-icon="mdi-filter-off-outline" @click="clearFilters">
+          Сбросить
+        </v-btn>
+      </div>
+    </v-expand-transition>
 
     <div v-if="loading" class="hh-board__state">
       <v-progress-circular indeterminate color="primary" />
@@ -457,6 +738,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
         v-for="(column, idx) in board.orderedColumns"
         :key="column.id"
         :column="column"
+        :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
         :accent="accentFor(idx)"
         @open-task="openTask"
         @rename="onRename"
@@ -468,7 +750,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
       <v-card class="hh-board__table" rounded="lg" variant="elevated" :elevation="1">
         <v-data-table
           :headers="listHeaders"
-          :items="orderedTasks"
+          :items="filteredTasks"
           :items-per-page="-1"
           item-value="id"
           density="comfortable"
@@ -642,22 +924,23 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
           />
 
           <div class="hh-task__row">
-            <v-text-field
-              v-model="taskStartDate"
+            <v-date-input
+              v-model="taskStartDateModel"
               label="Дата начала"
-              variant="filled"
               density="comfortable"
-              type="date"
-              :readonly="!auth.isAuthed"
-            />
-            <v-text-field
-              v-model="taskEndDate"
-              label="Дата окончания"
-              variant="filled"
-              density="comfortable"
-              type="date"
               clearable
               :readonly="!auth.isAuthed"
+              prepend-icon=""
+              prepend-inner-icon="mdi-calendar"
+            />
+            <v-date-input
+              v-model="taskEndDateModel"
+              label="Дата окончания"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+              prepend-icon=""
+              prepend-inner-icon="mdi-calendar"
             />
           </div>
 
@@ -938,6 +1221,27 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   background: rgb(var(--v-theme-surface-container));
   border: 1px solid rgba(var(--v-theme-outline), 0.24);
 }
+.hh-board__filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+.hh-board__filters :deep(.v-input) {
+  min-width: 0;
+}
+.hh-filter-user {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+.hh-filter-user__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .hh-board__state {
   display: flex;
   justify-content: center;
@@ -1016,7 +1320,16 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   min-width: 0;
 }
 
+@media (max-width: 960px) {
+  .hh-board__filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 600px) {
+  .hh-board__filters {
+    grid-template-columns: 1fr;
+  }
   .hh-board__cols {
     padding: 8px 12px 16px;
   }
