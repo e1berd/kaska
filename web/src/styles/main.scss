@@ -6,7 +6,6 @@ body,
   margin: 0;
   padding: 0;
   height: 100%;
-  /* Roboto Flex is the M3 system font; opsz/wght axes are loaded in index.html */
   font-family: 'Roboto Flex', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +21,6 @@ body {
   box-sizing: border-box;
 }
 
-/* M3 emphasised scrollbars — slim, surface-tinted, only on hover. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -42,12 +40,24 @@ body {
   border: 2px solid transparent;
 }
 
-/* Vuetify v-app uses its own background — make it follow the theme. */
 .v-application {
   background-color: rgb(var(--v-theme-surface)) !important;
 }
 
-/* Snap a more correct M3 corner family onto common Vuetify widgets. */
+.v-main {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.v-main > .v-main__scroller {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .v-card {
   border-radius: var(--md-shape-l) !important;
 }
@@ -60,7 +70,6 @@ body {
   border-radius: var(--md-shape-xs) var(--md-shape-xs) 0 0;
 }
 
-/* Disable Vuetify's accidentally-bumpy global font weight on big text. */
 .text-h1,
 .text-h2,
 .text-h3,

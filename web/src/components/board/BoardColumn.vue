@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { useBoardStore, type Column, type Task } from '../../stores/board'
 import { useAuthStore } from '../../stores/auth'
 import BoardCard from './BoardCard.vue'
+
+const PAGE_SIZE = 20
 
 const props = defineProps<{ column: Column; accent: 'primary' | 'secondary' | 'tertiary' }>()
 defineEmits<{
@@ -18,10 +20,47 @@ const board = useBoardStore()
 const auth = useAuthStore()
 const tasksInColumn = computed(() => board.tasksFor(props.column.id))
 
+const visibleCount = ref(PAGE_SIZE)
+
+const visibleTasks = computed(() => tasksInColumn.value.slice(0, visibleCount.value))
+const hasMore = computed(() => visibleCount.value < tasksInColumn.value.length)
+
+watch(
+  () => tasksInColumn.value.length,
+  (len) => {
+    if (visibleCount.value < len && len <= PAGE_SIZE) {
+      visibleCount.value = len
+    }
+  },
+)
+
+function loadMore() {
+  visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, tasksInColumn.value.length)
+}
+
+const sentinel = ref<HTMLElement | null>(null)
+let sentinelObserver: IntersectionObserver | null = null
+
+function attachSentinel(el: HTMLElement) {
+  sentinelObserver?.disconnect()
+  sentinelObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting) loadMore()
+    },
+    { threshold: 0.1 },
+  )
+  sentinelObserver.observe(el)
+}
+
+watch(sentinel, (el) => {
+  if (el) attachSentinel(el)
+  else sentinelObserver?.disconnect()
+})
+
 const root = ref<HTMLElement | null>(null)
 const cardsScroll = ref<HTMLElement | null>(null)
 const isOver = ref(false)
-let cleanup: (() => void) | null = null
+let dndCleanup: (() => void) | null = null
 
 const adding = ref(false)
 const newTitle = ref('')
@@ -29,7 +68,7 @@ const submitting = ref(false)
 
 onMounted(() => {
   if (!root.value || !cardsScroll.value) return
-  cleanup = combine(
+  dndCleanup = combine(
     dropTargetForElements({
       element: root.value,
       canDrop: ({ source }) => source.data.type === 'task',
@@ -38,8 +77,6 @@ onMounted(() => {
       onDragLeave: () => (isOver.value = false),
       onDrop: () => (isOver.value = false),
     }),
-    // Vertical auto-scroll: when the cursor is near the top/bottom edge of
-    // the cards list while dragging, the list scrolls in that direction.
     autoScrollForElements({
       element: cardsScroll.value,
       canScroll: ({ source }) => source.data.type === 'task',
@@ -48,7 +85,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  cleanup?.()
+  dndCleanup?.()
+  sentinelObserver?.disconnect()
 })
 
 function startAdd() {
@@ -66,6 +104,7 @@ async function commitAdd() {
   try {
     await board.createTask(props.column.id, { title })
     newTitle.value = ''
+    visibleCount.value = Math.max(visibleCount.value, tasksInColumn.value.length)
   } catch (e) {
     console.warn('[board] create task failed', e)
   } finally {
@@ -116,11 +155,16 @@ function cancelAdd() {
 
     <div ref="cardsScroll" class="hh-col__cards">
       <BoardCard
-        v-for="task in tasksInColumn"
+        v-for="task in visibleTasks"
         :key="task.id"
         :task="task"
         @open="$emit('open-task', $event)"
       />
+
+      <div v-if="hasMore" ref="sentinel" class="hh-col__sentinel">
+        <v-progress-circular indeterminate size="20" width="2" color="primary" />
+      </div>
+
       <div v-if="!tasksInColumn.length" class="hh-col__empty md-body-small">
         Перетащите карточку сюда
       </div>
@@ -185,11 +229,10 @@ function cancelAdd() {
   flex-direction: column;
   width: 296px;
   flex: 0 0 auto;
+  height: 100%;
   background: rgb(var(--v-theme-surface-container));
   border-radius: var(--md-shape-l);
   padding: 12px;
-  max-height: calc(100vh - 152px);
-  overflow-y: auto;
   transition:
     background-color var(--md-duration-short4) var(--md-easing-standard),
     box-shadow var(--md-duration-short4) var(--md-easing-standard);
@@ -214,7 +257,9 @@ function cancelAdd() {
   align-items: center;
   justify-content: space-between;
   padding: 4px 6px 8px;
+  flex-shrink: 0;
 }
+
 .hh-col__title {
   display: inline-flex;
   align-items: center;
@@ -239,10 +284,27 @@ function cancelAdd() {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.18) transparent;
   padding: 4px 4px 8px;
-  min-height: 8px;
 }
+.hh-col__cards::-webkit-scrollbar {
+  width: 5px;
+}
+.hh-col__cards::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: rgba(var(--v-theme-on-surface), 0.18);
+}
+
+.hh-col__sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
 .hh-col__empty {
   text-align: center;
   padding: 24px 8px;
@@ -262,6 +324,7 @@ function cancelAdd() {
 
 .hh-col__add {
   margin-top: 4px;
+  flex-shrink: 0;
 }
 .hh-col__addbtn {
   display: inline-flex;

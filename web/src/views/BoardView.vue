@@ -36,7 +36,6 @@ let scrollCleanup: (() => void) | null = null
 
 const viewMode = ref<'columns' | 'list'>('columns')
 
-// dialogs
 const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
 const renameValue = ref('')
@@ -56,9 +55,6 @@ const taskUploading = ref(false)
 const taskUploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
 
-// Description rendering: cards with content default to a read-only HTML
-// preview with an "edit" affordance; cards without content drop straight
-// into the tiptap editor so creators don't see an empty viewer.
 const editingDescription = ref(false)
 const descriptionHtml = computed(() => docToHtml(taskBody.value))
 const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
@@ -70,8 +66,6 @@ const taskAttachments = computed<Attachment[]>(() => {
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
 
-// List view: order tasks by their column position, then their per-column
-// rank, so the table mirrors what the columns view shows.
 const orderedTasks = computed<Task[]>(() => {
   const colIndex = new Map(board.orderedColumns.map((c, i) => [c.id, i]))
   return [...board.tasks].sort((a, b) => {
@@ -222,8 +216,6 @@ function openTask(task: Task) {
   taskEndDate.value = task.end_date ?? null
   taskType.value = task.task_type_id ?? null
   taskAssignee.value = task.assignee_id ?? null
-  // Editor opens by default only when there's nothing to read yet (or the
-  // viewer is impossible because the user can't edit anyway).
   editingDescription.value = auth.isAuthed && isDocEmpty(taskBody.value)
   taskDialog.value = true
 }
@@ -317,9 +309,6 @@ function backToProjects() {
   router.push({ name: 'projects' })
 }
 
-// Inline column change from the list-view table. Drops the task at the end
-// of the new column so the move is unambiguous; realtime broadcasts will
-// reorder elsewhere if needed.
 async function changeColumn(task: Task, newColumnId: unknown) {
   const targetId = typeof newColumnId === 'string' ? newColumnId : null
   if (!targetId || targetId === task.column_id) return
@@ -840,7 +829,8 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 .hh-board {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px);
+  flex: 1;
+  min-height: 0;
   background:
     radial-gradient(1200px 600px at 0% 0%, rgba(var(--v-theme-primary), 0.05), transparent 60%),
     radial-gradient(1200px 600px at 100% 100%, rgba(var(--v-theme-tertiary), 0.05), transparent 60%),
@@ -871,6 +861,8 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 }
 .hh-board__cols {
   flex: 1;
+  min-height: 0;
+  height: 0;
   display: flex;
   gap: 14px;
   padding: 8px 16px 20px;
@@ -879,7 +871,6 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   align-items: stretch;
 }
 
-/* List view — surface-tinted card hosting the data table. */
 .hh-board__list {
   flex: 1;
   padding: 8px 16px 20px;
@@ -930,7 +921,6 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
 
-/* Task dialog rows */
 .hh-task__row {
   display: flex;
   gap: 16px;
@@ -943,15 +933,11 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 }
 
 @media (max-width: 600px) {
-  .hh-board {
-    height: calc(100dvh - 64px);
-  }
   .hh-board__cols {
     padding: 8px 12px 16px;
   }
 }
 
-/* Description: switch between read-only viewer and the tiptap editor. */
 .hh-desc__head {
   display: flex;
   align-items: center;
@@ -1024,7 +1010,6 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
-/* Attachments inside the task dialog */
 .hh-attach__head {
   display: flex;
   align-items: center;

@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="root"
-    class="hh-card md-state-layer overflow-hidden"
+    class="hh-card md-state-layer"
     :class="{ 'hh-card--dragging': dragging }"
     :data-task-id="task.id"
     @click="$emit('open', task)"
@@ -187,6 +187,10 @@ onBeforeUnmount(() => {
   color: rgb(var(--v-theme-on-surface));
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
   border-radius: var(--md-shape-m);
+  & img {
+    border-top-left-radius: var(--md-shape-m);
+    border-top-right-radius: var(--md-shape-m);
+  }
   padding: 12px 14px;
   cursor: grab;
   user-select: none;
