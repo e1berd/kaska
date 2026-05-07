@@ -5,7 +5,45 @@ defmodule Hardhat.Accounts do
   """
 
   alias Hardhat.Repo
-  alias Hardhat.Accounts.{User, UserToken, UserNotifier}
+  alias Hardhat.Accounts.{User, UserToken, UserNotifier, Setting, Invite}
+
+  def get_setting(key, default \\ nil) do
+    case Repo.get_by(Setting, key: to_string(key)) do
+      nil -> default
+      setting -> setting.value
+    end
+  end
+
+  def set_setting(key, value) do
+    key_str = to_string(key)
+    val_str = to_string(value)
+
+    case Repo.get_by(Setting, key: key_str) do
+      nil ->
+        %Setting{}
+        |> Setting.changeset(%{key: key_str, value: val_str})
+        |> Repo.insert()
+
+      setting ->
+        setting
+        |> Setting.changeset(%{value: val_str})
+        |> Repo.update()
+    end
+  end
+
+  def get_invite(token) do
+    Repo.get_by(Invite, token: token)
+  end
+
+  def create_invite(attrs) do
+    %Invite{}
+    |> Invite.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def delete_invite(%Invite{} = invite) do
+    Repo.delete(invite)
+  end
 
   def get_user(id) when is_binary(id) do
     case Ecto.UUID.cast(id) do

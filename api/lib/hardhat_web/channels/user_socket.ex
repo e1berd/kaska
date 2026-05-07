@@ -6,6 +6,7 @@ defmodule HardhatWeb.UserSocket do
   channel "projects:lobby", HardhatWeb.ProjectsChannel
   channel "board:*", HardhatWeb.BoardChannel
   channel "board_slug:*", HardhatWeb.BoardChannel
+  channel "sys:*", HardhatWeb.SysChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info)

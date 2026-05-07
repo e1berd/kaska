@@ -10,20 +10,53 @@ defmodule HardhatWeb.AuthChannel do
   def join("auth:lobby", _payload, socket), do: {:ok, socket}
 
   @impl true
-  def handle_in("register", %{"email" => email, "password" => password}, socket) do
-    case Accounts.register_user(%{email: email, password: password}) do
-      {:ok, user} ->
-        Accounts.deliver_verify_email_instructions(user)
+  def handle_in("settings", _payload, socket) do
+    # Only return public settings, like allow_registration
+    allow_reg = Accounts.get_setting("allow_registration", "true")
+    {:reply, {:ok, %{allow_registration: allow_reg == "true"}}, socket}
+  end
 
-        {:reply,
-         {:ok,
-          %{
-            message: "registered. check your inbox to confirm.",
-            user: user_view(user)
-          }}, socket}
+  def handle_in("register", payload, socket) do
+    email = Map.get(payload, "email")
+    password = Map.get(payload, "password")
+    invite_token = Map.get(payload, "invite_token")
 
-      {:error, changeset} ->
-        {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+    allow_registration = Accounts.get_setting("allow_registration", "true") == "true"
+    valid_invite = fn token ->
+      case token do
+        nil -> nil
+        t ->
+          invite = Accounts.get_invite(t)
+          if invite && (is_nil(invite.expires_at) || DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt) do
+            invite
+          else
+            nil
+          end
+      end
+    end
+
+    invite = valid_invite.(invite_token)
+
+    if !allow_registration && is_nil(invite) do
+      {:reply, {:error, %{message: "registration is currently disabled"}}, socket}
+    else
+      case Accounts.register_user(%{email: email, password: password}) do
+        {:ok, user} ->
+          if invite do
+            Accounts.delete_invite(invite)
+          end
+          Accounts.deliver_verify_email_instructions(user)
+
+          {:reply,
+           {:ok,
+            %{
+              message: "registered. check your inbox to confirm.",
+              user: user_view(user)
+            }}, socket}
+
+        {:error, changeset} ->
+          {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+      end
     end
   end
 
