@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import type { User } from '../stores/auth'
@@ -68,15 +68,9 @@ function openInviteModal() {
 }
 
 onMounted(() => {
-  sys.initPresence()
+  void sys.initPresence()
   loadUsers()
 })
-
-watch(() => sys.presences, () => {
-  if (!loading.value) {
-    loadUsers()
-  }
-}, { deep: true })
 
 const onSearchInput = () => {
   loadUsers()
@@ -116,6 +110,9 @@ const deleteUser = async (user: User) => {
     console.error("Failed to delete user", e)
   }
 }
+
+const isUserOnline = (user: User) => sys.isUserOnline(user.id)
+const userLastOnlineAt = (user: User) => sys.userLastOnlineAt(user.id)
 </script>
 
 <template>
@@ -179,16 +176,16 @@ const deleteUser = async (user: User) => {
             <div class="d-flex align-center">
               <v-badge
                 dot
-                :color="(item as any).last_seen && (new Date().getTime() - new Date((item as any).last_seen).getTime()) < 300000 ? 'success' : 'grey'"
+                :color="isUserOnline(item) ? 'success' : 'grey'"
                 class="mr-2"
                 inline
               ></v-badge>
               <span class="text-caption text-medium-emphasis">
-                <template v-if="(item as any).last_seen && (new Date().getTime() - new Date((item as any).last_seen).getTime()) < 300000">
+                <template v-if="isUserOnline(item)">
                   Онлайн
                 </template>
-                <template v-else-if="(item as any).last_seen">
-                  Был(а) в сети: {{ new Date((item as any).last_seen).toLocaleString() }}
+                <template v-else-if="userLastOnlineAt(item)">
+                  Был(а) в сети: {{ userLastOnlineAt(item)?.toLocaleString() }}
                 </template>
                 <template v-else>
                   Оффлайн

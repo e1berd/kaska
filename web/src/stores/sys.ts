@@ -3,19 +3,49 @@ import { pushAsync, useSocketStore } from './socket'
 import { ref } from 'vue'
 import type { User } from './auth'
 import { Presence } from 'phoenix'
+import type { Channel } from 'phoenix'
+
+type PresenceMeta = {
+  online_at?: string
+}
+
+type PresenceEntry = {
+  metas: PresenceMeta[]
+}
+
+type PresenceState = Record<string, PresenceEntry>
 
 export const useSysStore = defineStore('sys', () => {
-  const presences = ref<any>({})
+  const presences = ref<PresenceState>({})
+  const presenceChannel = ref<Channel | null>(null)
 
   async function initPresence() {
+    if (presenceChannel.value) return
     const sock = useSocketStore()
     const { channel } = await sock.joinChannel('sys:lobby')
-    channel.on('presence_state', (state: any) => {
+    presenceChannel.value = channel
+    channel.on('presence_state', (state: PresenceState) => {
       presences.value = Presence.syncState(presences.value, state)
     })
-    channel.on('presence_diff', (diff: any) => {
+    channel.on('presence_diff', (diff: { joins: PresenceState; leaves: PresenceState }) => {
       presences.value = Presence.syncDiff(presences.value, diff)
     })
+  }
+
+  function isUserOnline(userId: string): boolean {
+    const entry = presences.value[userId]
+    return !!entry && entry.metas.length > 0
+  }
+
+  function userLastOnlineAt(userId: string): Date | null {
+    const entry = presences.value[userId]
+    if (!entry || entry.metas.length === 0) return null
+    const ts = entry.metas
+      .map((meta) => Number(meta.online_at))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => b - a)[0]
+    if (!ts) return null
+    return new Date(ts * 1000)
   }
 
   async function getSettings() {
@@ -63,6 +93,8 @@ export const useSysStore = defineStore('sys', () => {
   return {
     presences,
     initPresence,
+    isUserOnline,
+    userLastOnlineAt,
     getSettings,
     setSettings,
     getUsers,
