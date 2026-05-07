@@ -319,5 +319,8 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.78);
   font-size: 12px;
   font-weight: 500;
+  &:not(.hh-card__dates) {
+    max-height: 22px;
+  }
 }
 </style>

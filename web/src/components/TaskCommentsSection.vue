@@ -222,6 +222,8 @@ watch(
             v-else-if="comment.author_avatar_url"
             :src="comment.author_avatar_url"
             :alt="authorLabel(comment)"
+            width="30"
+            height="30"
           />
           <span v-else class="md-label-medium">{{ authorInitial(comment) }}</span>
         </v-avatar>

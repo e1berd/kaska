@@ -33,7 +33,13 @@ const avatarSize = computed(() => (props.size === 'sm' ? 22 : 26))
         <template #activator="{ props: tipProps }">
           <span v-bind="tipProps" class="hh-presence__item">
             <v-avatar :size="avatarSize" color="primary" class="hh-presence__avatar">
-              <img v-if="user.avatar_url" :src="user.avatar_url" alt="" />
+              <img
+                v-if="user.avatar_url"
+                :src="user.avatar_url"
+                alt=""
+                width="22"
+                height="22"
+              />
               <span v-else>{{ (user.display_name || user.email || '?').slice(0, 1).toUpperCase() }}</span>
             </v-avatar>
           </span>
@@ -84,4 +90,3 @@ const avatarSize = computed(() => (props.size === 'sm' ? 22 : 26))
   gap: 6px;
 }
 </style>
-
