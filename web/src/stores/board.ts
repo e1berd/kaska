@@ -344,6 +344,9 @@ export const useBoardStore = defineStore('board', () => {
   }
 
   function setActiveTask(taskId: string | null, editingDescription = false) {
+    if (!channel.value) {
+      return Promise.resolve({ task_id: taskId, editing_description: editingDescription })
+    }
     return pushAsync(ch(), 'set_active_task', {
       task_id: taskId,
       editing_description: editingDescription,

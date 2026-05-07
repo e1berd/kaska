@@ -5,6 +5,8 @@ import { useAuthStore } from '../stores/auth'
 import { useBoardStore, type TaskType } from '../stores/board'
 import { useProjectsStore } from '../stores/projects'
 
+defineProps<{ slug?: string }>()
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -325,4 +327,3 @@ function colorStyle(hex: string) {
   cursor: pointer;
 }
 </style>
-

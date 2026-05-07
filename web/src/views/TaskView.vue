@@ -7,6 +7,8 @@ import { docToHtml, isDocEmpty } from '../utils/tiptap'
 import RichEditor from '../components/RichEditor.vue'
 import PresenceGroup from '../components/PresenceGroup.vue'
 
+defineProps<{ slug?: string; taskId?: string }>()
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()

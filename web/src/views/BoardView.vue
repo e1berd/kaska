@@ -21,6 +21,8 @@ import RichEditor from '../components/RichEditor.vue'
 import PresenceGroup from '../components/PresenceGroup.vue'
 import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
 
+defineProps<{ slug?: string }>()
+
 const route = useRoute()
 const router = useRouter()
 const { mobile } = useDisplay()
