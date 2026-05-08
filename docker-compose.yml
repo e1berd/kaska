@@ -2,6 +2,8 @@ name: hardhat
 
 services:
   postgres:
+    networks:
+      - default
     image: postgres:17-alpine
     container_name: hardhat-postgres
     restart: unless-stopped
@@ -18,6 +20,8 @@ services:
       retries: 10
 
   mailpit:
+    networks:
+      - default
     image: axllent/mailpit:latest
     container_name: hardhat-mailpit
     restart: unless-stopped
@@ -29,6 +33,8 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
   rustfs:
+    networks:
+      - default
     image: rustfs/rustfs:latest
     container_name: hardhat-rustfs
     restart: unless-stopped
@@ -50,6 +56,8 @@ services:
       retries: 10
 
   api:
+    networks:
+      - default
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -84,6 +92,8 @@ services:
         condition: service_started
 
   web:
+    networks:
+      - default
     build:
       context: ./web
       dockerfile: Dockerfile
@@ -100,3 +110,7 @@ services:
 volumes:
   postgres-data:
   rustfs-data:
+
+networks:
+  default:
+    name: hardhat-net
