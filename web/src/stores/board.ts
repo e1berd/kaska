@@ -180,6 +180,10 @@ export const useBoardStore = defineStore('board', () => {
     if (reply.users) users.value = reply.users.slice()
     attachments.value = (reply.attachments ?? []).slice()
 
+    ch.on('project_updated', (p: Project) => {
+      project.value = p
+    })
+
     ch.on('column_created', (c: Column) => upsertColumn(c))
     ch.on('column_updated', (c: Column) => upsertColumn(c))
     ch.on('column_moved', (c: Column) => upsertColumn(c))

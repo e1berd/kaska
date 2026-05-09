@@ -147,7 +147,9 @@ defmodule HardhatWeb.AuthChannel do
       role: user.role,
       confirmed_at: user.confirmed_at,
       display_name: user.display_name,
-      avatar_url: avatar_url(user)
+      avatar_url: avatar_url(user),
+      theme_slug: Map.get(user, :theme_slug),
+      theme_mode: Map.get(user, :theme_mode)
     }
   end
 

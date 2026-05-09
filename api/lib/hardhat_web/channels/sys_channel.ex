@@ -2,6 +2,7 @@ defmodule HardhatWeb.SysChannel do
   use Phoenix.Channel
 
   alias Hardhat.Accounts
+  alias Hardhat.Themes
   alias HardhatWeb.Presence
   alias Hardhat.Accounts.UserNotifier
 
@@ -26,13 +27,7 @@ defmodule HardhatWeb.SysChannel do
 
   @impl true
   def handle_in("get_settings", _payload, socket) do
-    settings = %{
-      allow_registration: Accounts.get_setting("allow_registration", "true") == "true",
-      allow_guest_comments: Accounts.get_setting("allow_guest_comments", "false") == "true",
-      first_user_bootstrap: Accounts.users_count() == 0
-    }
-
-    {:reply, {:ok, settings}, socket}
+    {:reply, {:ok, settings_view()}, socket}
   end
 
   def handle_in("set_settings", payload, socket) do
@@ -45,15 +40,58 @@ defmodule HardhatWeb.SysChannel do
         Accounts.set_setting("allow_guest_comments", payload["allow_guest_comments"])
       end
 
-      {:reply,
-       {:ok,
-        %{
-          "allow_registration" => Accounts.get_setting("allow_registration", "true") == "true",
-          "allow_guest_comments" =>
-            Accounts.get_setting("allow_guest_comments", "false") == "true"
-        }}, socket}
+      theme_changed? = Map.has_key?(payload, "theme_slug") or Map.has_key?(payload, "theme_mode")
+
+      if Map.has_key?(payload, "theme_slug") do
+        slug = payload["theme_slug"] || ""
+
+        if slug == "" or Themes.get_by_slug(slug) do
+          Accounts.set_setting("theme_slug", slug)
+        end
+      end
+
+      if Map.has_key?(payload, "theme_mode") do
+        mode = payload["theme_mode"]
+
+        if mode in ["light", "dark", "system", "", nil] do
+          Accounts.set_setting("theme_mode", mode || "")
+        end
+      end
+
+      view = settings_view()
+
+      if theme_changed? do
+        broadcast!(socket, "global_theme_updated", %{
+          theme_slug: view.theme_slug,
+          theme_mode: view.theme_mode
+        })
+      end
+
+      {:reply, {:ok, view}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
+    end
+  end
+
+  def handle_in("list_themes", _payload, socket) do
+    {:reply, {:ok, %{themes: Themes.list_index()}}, socket}
+  end
+
+  def handle_in("get_theme", %{"slug" => slug}, socket) do
+    case Themes.get_by_slug(slug) do
+      nil ->
+        {:reply, {:error, %{reason: "theme not found"}}, socket}
+
+      theme ->
+        {:reply,
+         {:ok,
+          %{
+            slug: theme.slug,
+            name: theme.name,
+            palette_light: theme.palette_light,
+            palette_dark: theme.palette_dark,
+            updated_at: theme.updated_at
+          }}, socket}
     end
   end
 
@@ -160,6 +198,28 @@ defmodule HardhatWeb.SysChannel do
   defp is_admin(nil), do: false
   defp is_admin(%{role: role}), do: role in [:admin, :superadmin]
   defp is_admin(_), do: false
+
+  defp settings_view do
+    theme_slug =
+      case Accounts.get_setting("theme_slug", "") do
+        "" -> Themes.default_slug()
+        slug -> slug
+      end
+
+    theme_mode =
+      case Accounts.get_setting("theme_mode", "") do
+        mode when mode in ["light", "dark", "system"] -> mode
+        _ -> "system"
+      end
+
+    %{
+      allow_registration: Accounts.get_setting("allow_registration", "true") == "true",
+      allow_guest_comments: Accounts.get_setting("allow_guest_comments", "false") == "true",
+      first_user_bootstrap: Accounts.users_count() == 0,
+      theme_slug: theme_slug,
+      theme_mode: theme_mode
+    }
+  end
 
   defp user_view(user, presences) do
     is_online = Map.has_key?(presences, user.id)

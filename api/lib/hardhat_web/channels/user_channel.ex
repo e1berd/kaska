@@ -40,6 +40,23 @@ defmodule HardhatWeb.UserChannel do
     end
   end
 
+  def handle_in("set_theme", payload, socket) do
+    attrs = %{
+      theme_slug: normalize_theme_slug(Map.get(payload, "theme_slug")),
+      theme_mode: normalize_theme_mode(Map.get(payload, "theme_mode"))
+    }
+
+    case socket.assigns.current_user
+         |> User.theme_changeset(attrs)
+         |> Repo.update() do
+      {:ok, user} ->
+        {:reply, {:ok, user_view(user)}, assign(socket, :current_user, user)}
+
+      {:error, cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+    end
+  end
+
   def handle_in("request_avatar_upload", payload, socket) do
     user = socket.assigns.current_user
 
@@ -95,9 +112,21 @@ defmodule HardhatWeb.UserChannel do
       role: user.role,
       confirmed_at: user.confirmed_at,
       display_name: user.display_name,
-      avatar_url: avatar_url(user)
+      avatar_url: avatar_url(user),
+      theme_slug: user.theme_slug,
+      theme_mode: user.theme_mode
     }
   end
+
+  defp normalize_theme_slug(nil), do: nil
+  defp normalize_theme_slug(""), do: nil
+  defp normalize_theme_slug(slug) when is_binary(slug), do: slug
+  defp normalize_theme_slug(_), do: nil
+
+  defp normalize_theme_mode(nil), do: nil
+  defp normalize_theme_mode(""), do: nil
+  defp normalize_theme_mode(mode) when mode in ["light", "dark", "system"], do: mode
+  defp normalize_theme_mode(_), do: nil
 
   defp avatar_url(%User{avatar_key: nil}), do: nil
 

@@ -14,8 +14,16 @@ defmodule Hardhat.Accounts.User do
     field :role, Ecto.Enum, values: [:user, :admin, :superadmin], default: :user
     field :display_name, :string
     field :avatar_key, :string
+    field :theme_slug, :string
+    field :theme_mode, Ecto.Enum, values: [:light, :dark, :system]
 
     timestamps()
+  end
+
+  def theme_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:theme_slug, :theme_mode])
+    |> validate_length(:theme_slug, min: 2, max: 64)
   end
 
   def profile_changeset(user, attrs) do

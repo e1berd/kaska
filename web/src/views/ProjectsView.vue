@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useProjectsStore } from '../stores/projects'
+import { useProjectsStore, type Project } from '../stores/projects'
 import { useAuthStore } from '../stores/auth'
 
 const projects = useProjectsStore()
@@ -14,6 +14,19 @@ const submitting = ref(false)
 const error = ref<string | null>(null)
 const filter = ref('')
 const loading = ref(true)
+
+const editDialog = ref(false)
+const editing = ref<Project | null>(null)
+const editName = ref('')
+const editDescription = ref('')
+const editError = ref<string | null>(null)
+const editSubmitting = ref(false)
+const avatarUploading = ref(false)
+const backgroundUploading = ref(false)
+const deleteConfirm = ref(false)
+const deleteSubmitting = ref(false)
+const avatarInput = ref<HTMLInputElement | null>(null)
+const backgroundInput = ref<HTMLInputElement | null>(null)
 
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase()
@@ -67,6 +80,98 @@ async function submit() {
 function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
   const sum = [...id].reduce((s, c) => s + c.charCodeAt(0), 0)
   return (['primary', 'secondary', 'tertiary'] as const)[sum % 3]
+}
+
+function openEdit(p: Project) {
+  editing.value = p
+  editName.value = p.name
+  editDescription.value = p.description ?? ''
+  editError.value = null
+  editDialog.value = true
+}
+
+function closeEdit() {
+  editDialog.value = false
+  editing.value = null
+}
+
+async function submitEdit() {
+  if (!editing.value) return
+  editSubmitting.value = true
+  editError.value = null
+  try {
+    await projects.updateProject({
+      id: editing.value.id,
+      name: editName.value.trim(),
+      description: editDescription.value.trim(),
+    })
+    closeEdit()
+  } catch (e) {
+    const msg = e as { errors?: Record<string, string[]>; message?: string }
+    if (msg.errors) {
+      editError.value = Object.entries(msg.errors)
+        .map(([k, v]) => `${k}: ${v.join(', ')}`)
+        .join('; ')
+    } else {
+      editError.value = msg.message ?? 'не удалось обновить проект'
+    }
+  } finally {
+    editSubmitting.value = false
+  }
+}
+
+async function pickMedia(kind: 'avatar' | 'background') {
+  const input = kind === 'avatar' ? avatarInput.value : backgroundInput.value
+  input?.click()
+}
+
+async function onMediaPicked(kind: 'avatar' | 'background', e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !editing.value) return
+
+  const flag = kind === 'avatar' ? avatarUploading : backgroundUploading
+  flag.value = true
+  editError.value = null
+  try {
+    const updated = await projects.uploadProjectMedia(kind, editing.value.id, file)
+    editing.value = updated
+  } catch (err) {
+    editError.value = (err as { message?: string }).message ?? 'не удалось загрузить файл'
+  } finally {
+    flag.value = false
+  }
+}
+
+async function clearMedia(kind: 'avatar' | 'background') {
+  if (!editing.value) return
+  const flag = kind === 'avatar' ? avatarUploading : backgroundUploading
+  flag.value = true
+  editError.value = null
+  try {
+    const updated = await projects.clearProjectMedia(kind, editing.value.id)
+    editing.value = updated
+  } catch (err) {
+    editError.value = (err as { message?: string }).message ?? 'не удалось убрать файл'
+  } finally {
+    flag.value = false
+  }
+}
+
+async function confirmDelete() {
+  if (!editing.value) return
+  deleteSubmitting.value = true
+  editError.value = null
+  try {
+    await projects.deleteProject(editing.value.id)
+    deleteConfirm.value = false
+    closeEdit()
+  } catch (err) {
+    editError.value = (err as { message?: string }).message ?? 'не удалось удалить проект'
+  } finally {
+    deleteSubmitting.value = false
+  }
 }
 </script>
 
@@ -174,14 +279,26 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
         :to="{ name: 'board', params: { slug: p.slug } }"
         class="hh-project md-state-layer"
       >
+        <v-btn
+          v-if="auth.isAuthed"
+          icon="mdi-pencil-outline"
+          size="x-small"
+          variant="text"
+          density="comfortable"
+          rounded="pill"
+          class="hh-project__edit"
+          aria-label="Редактировать проект"
+          @click.stop.prevent="openEdit(p)"
+        />
         <div class="hh-project__head">
           <v-avatar
-            :color="accent(p.id)"
+            :color="p.avatar_url ? undefined : accent(p.id)"
+            :image="p.avatar_url ?? undefined"
             size="48"
             rounded="lg"
             class="hh-project__badge"
           >
-            <span class="text-white md-title-medium">
+            <span v-if="!p.avatar_url" class="text-white md-title-medium">
               {{ p.name.slice(0, 1).toUpperCase() }}
             </span>
           </v-avatar>
@@ -199,6 +316,170 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
         </div>
       </router-link>
     </div>
+
+    <input
+      ref="avatarInput"
+      type="file"
+      accept="image/*"
+      hidden
+      @change="onMediaPicked('avatar', $event)"
+    />
+    <input
+      ref="backgroundInput"
+      type="file"
+      accept="image/*"
+      hidden
+      @change="onMediaPicked('background', $event)"
+    />
+
+    <v-dialog v-model="editDialog" max-width="640" @after-leave="editing = null">
+      <v-card v-if="editing" rounded="xl">
+        <div
+          class="hh-edit__cover"
+          :style="
+            editing.background_url ? { backgroundImage: `url(${editing.background_url})` } : null
+          "
+        >
+          <div class="hh-edit__cover-actions">
+            <v-btn
+              size="small"
+              variant="flat"
+              color="surface"
+              prepend-icon="mdi-image-edit-outline"
+              :loading="backgroundUploading"
+              @click="pickMedia('background')"
+            >
+              {{ editing.background_url ? 'Заменить фон' : 'Загрузить фон' }}
+            </v-btn>
+            <v-btn
+              v-if="editing.background_url"
+              size="small"
+              variant="text"
+              color="surface"
+              icon="mdi-close"
+              :loading="backgroundUploading"
+              @click="clearMedia('background')"
+            />
+          </div>
+          <div class="hh-edit__avatar-wrap">
+            <v-avatar
+              :color="editing.avatar_url ? undefined : accent(editing.id)"
+              :image="editing.avatar_url ?? undefined"
+              size="80"
+              rounded="lg"
+              class="hh-edit__avatar"
+            >
+              <span v-if="!editing.avatar_url" class="text-white md-headline-small">
+                {{ editing.name.slice(0, 1).toUpperCase() }}
+              </span>
+            </v-avatar>
+            <div class="hh-edit__avatar-buttons">
+              <v-btn
+                size="x-small"
+                variant="flat"
+                color="surface"
+                icon="mdi-camera-outline"
+                :loading="avatarUploading"
+                aria-label="Загрузить аватар"
+                @click="pickMedia('avatar')"
+              />
+              <v-btn
+                v-if="editing.avatar_url"
+                size="x-small"
+                variant="flat"
+                color="surface"
+                icon="mdi-close"
+                :loading="avatarUploading"
+                aria-label="Убрать аватар"
+                @click="clearMedia('avatar')"
+              />
+            </div>
+          </div>
+        </div>
+        <v-card-title class="md-headline-small px-6 pt-6">
+          Редактирование проекта
+        </v-card-title>
+        <v-card-text class="px-6 pt-2">
+          <v-text-field
+            v-model="editName"
+            label="название"
+            variant="filled"
+            density="comfortable"
+          />
+          <v-textarea
+            v-model="editDescription"
+            label="описание"
+            hint="оставьте пустым, чтобы убрать"
+            persistent-hint
+            variant="filled"
+            rows="3"
+            density="comfortable"
+            class="mt-3"
+          />
+          <v-alert v-if="editError" type="error" variant="tonal" class="mt-4" rounded="lg">
+            {{ editError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions class="px-6 pb-6">
+          <v-btn
+            color="error"
+            variant="text"
+            rounded="pill"
+            :disabled="editSubmitting || deleteSubmitting"
+            @click="deleteConfirm = true"
+          >
+            Удалить проект
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            rounded="pill"
+            :disabled="editSubmitting"
+            @click="closeEdit"
+          >
+            Отмена
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            rounded="pill"
+            :loading="editSubmitting"
+            @click="submitEdit"
+          >
+            Сохранить
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="deleteConfirm" max-width="420" persistent>
+      <v-card rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Удалить проект?</v-card-title>
+        <v-card-text class="px-6 pt-2 md-body-medium">
+          Действие необратимо. Все колонки, задачи и комментарии будут удалены.
+        </v-card-text>
+        <v-card-actions class="px-6 pb-6">
+          <v-spacer />
+          <v-btn
+            variant="text"
+            rounded="pill"
+            :disabled="deleteSubmitting"
+            @click="deleteConfirm = false"
+          >
+            Отмена
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            rounded="pill"
+            :loading="deleteSubmitting"
+            @click="confirmDelete"
+          >
+            Удалить
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="dialog" max-width="560">
       <v-card rounded="xl">
@@ -388,6 +669,7 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 /* M3 filled card with primary state-layer overlay on hover/focus. */
 .hh-project {
   --md-state-color: rgb(var(--v-theme-primary));
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -401,6 +683,18 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
     transform var(--md-duration-short4) var(--md-easing-emphasized),
     box-shadow var(--md-duration-short4) var(--md-easing-emphasized),
     border-color var(--md-duration-short4) var(--md-easing-emphasized);
+}
+.hh-project__edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity var(--md-duration-short3) var(--md-easing-standard);
+}
+.hh-project:hover .hh-project__edit,
+.hh-project:focus-within .hh-project__edit {
+  opacity: 1;
 }
 .hh-project:hover {
   transform: translateY(-2px);
@@ -530,5 +824,54 @@ function accent(id: string): 'primary' | 'secondary' | 'tertiary' {
 
 .hh-project-skeleton__desc--short {
   width: 70%;
+}
+
+.hh-edit__cover {
+  position: relative;
+  height: 160px;
+  margin-bottom: 40px;
+  background:
+    linear-gradient(
+      135deg,
+      rgb(var(--v-theme-primary-container)),
+      rgb(var(--v-theme-tertiary-container))
+    );
+  background-size: cover;
+  background-position: center;
+  border-top-left-radius: var(--md-shape-xl);
+  border-top-right-radius: var(--md-shape-xl);
+}
+.hh-edit__cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.35) 100%);
+  pointer-events: none;
+}
+.hh-edit__cover-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  gap: 6px;
+  z-index: 2;
+}
+.hh-edit__avatar-wrap {
+  position: absolute;
+  left: 24px;
+  bottom: -32px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 8px;
+  z-index: 2;
+}
+.hh-edit__avatar {
+  border: 4px solid rgb(var(--v-theme-surface));
+  box-shadow: var(--md-elev-2);
+}
+.hh-edit__avatar-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
 }
 </style>

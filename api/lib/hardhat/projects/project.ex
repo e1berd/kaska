@@ -13,6 +13,8 @@ defmodule Hardhat.Projects.Project do
     field :slug, :string
     field :name, :string
     field :description, :string
+    field :avatar_key, :string
+    field :background_key, :string
 
     belongs_to :owner, User
     has_many :columns, Column
@@ -44,6 +46,13 @@ defmodule Hardhat.Projects.Project do
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 120)
     |> validate_length(:description, max: 4000)
+  end
+
+  def media_changeset(project, attrs) do
+    project
+    |> cast(attrs, [:avatar_key, :background_key])
+    |> validate_length(:avatar_key, max: 512)
+    |> validate_length(:background_key, max: 512)
   end
 
   defp normalize_slug(nil), do: nil

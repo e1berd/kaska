@@ -99,6 +99,27 @@ defmodule Hardhat.Projects do
     |> Repo.update()
   end
 
+  def set_project_media(%Project{} = project, attrs) do
+    old_avatar = project.avatar_key
+    old_background = project.background_key
+
+    case project |> Project.media_changeset(attrs) |> Repo.update() do
+      {:ok, updated} = ok ->
+        if Map.has_key?(attrs, :avatar_key) and old_avatar &&
+             old_avatar != updated.avatar_key,
+           do: Hardhat.Storage.delete_object(old_avatar)
+
+        if Map.has_key?(attrs, :background_key) and old_background &&
+             old_background != updated.background_key,
+           do: Hardhat.Storage.delete_object(old_background)
+
+        ok
+
+      err ->
+        err
+    end
+  end
+
   def delete_project(%Project{} = project), do: Repo.delete(project)
 
   ## Board snapshot ───────────────────────────────────────────────────────

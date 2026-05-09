@@ -777,7 +777,13 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 </script>
 
 <template>
-  <div class="hh-board">
+  <div class="hh-board" :class="{ 'hh-board--bg': !!board.project?.background_url }">
+    <div
+      v-if="board.project?.background_url"
+      class="hh-board__bg"
+      :style="{ backgroundImage: `url(${board.project.background_url})` }"
+    />
+    <div v-if="board.project?.background_url" class="hh-board__bg-scrim" />
     <header class="hh-board__bar">
       <v-btn
         icon="mdi-arrow-left"
@@ -1487,10 +1493,41 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   background:
     radial-gradient(1200px 600px at 0% 0%, rgba(var(--v-theme-primary), 0.05), transparent 60%),
     radial-gradient(1200px 600px at 100% 100%, rgba(var(--v-theme-tertiary), 0.05), transparent 60%),
     rgb(var(--v-theme-surface));
+}
+.hh-board--bg {
+  background: rgb(var(--v-theme-surface));
+}
+.hh-board__bg,
+.hh-board__bg-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.hh-board__bg {
+  background-position: center;
+  background-size: cover;
+  filter: blur(20px) saturate(115%);
+  transform: scale(1.08);
+  opacity: 0.4;
+}
+.hh-board__bg-scrim {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-surface), 0.55) 0%,
+    rgba(var(--v-theme-surface), 0.85) 100%
+  );
+}
+.hh-board > *:not(.hh-board__bg):not(.hh-board__bg-scrim) {
+  position: relative;
+  z-index: 1;
 }
 .hh-board__bar {
   display: flex;

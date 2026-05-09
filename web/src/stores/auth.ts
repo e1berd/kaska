@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { pushAsync, useSocketStore } from './socket'
 import { uploadToPresignedUrl } from '../utils/upload'
 
+export type ThemeMode = 'light' | 'dark' | 'system'
+
 export interface User {
   id: string
   email: string
@@ -10,6 +12,8 @@ export interface User {
   confirmed_at: string | null
   display_name: string | null
   avatar_url: string | null
+  theme_slug: string | null
+  theme_mode: ThemeMode | null
   last_seen?: string | null
   is_online?: boolean
 }
@@ -129,6 +133,16 @@ export const useAuthStore = defineStore('auth', () => {
     return me
   }
 
+  async function setUserTheme(input: { theme_slug?: string | null; theme_mode?: ThemeMode | null }) {
+    const ch = await userChannel()
+    const me = await pushAsync<User>(ch, 'set_theme', {
+      theme_slug: input.theme_slug ?? null,
+      theme_mode: input.theme_mode ?? null,
+    })
+    user.value = me
+    return me
+  }
+
   async function uploadAvatar(file: File, onProgress?: (f: number) => void) {
     const ch = await userChannel()
     const meta = await pushAsync<{ attachment_id: string; put_url: string }>(
@@ -190,6 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshTokens,
     fetchMe,
     updateProfile,
+    setUserTheme,
     uploadAvatar,
     logout,
   }

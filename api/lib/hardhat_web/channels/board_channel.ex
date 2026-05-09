@@ -463,8 +463,19 @@ defmodule HardhatWeb.BoardChannel do
       slug: p.slug,
       name: p.name,
       description: p.description,
-      owner_id: p.owner_id
+      owner_id: p.owner_id,
+      avatar_url: media_url(p.avatar_key),
+      background_url: media_url(p.background_key)
     }
+  end
+
+  defp media_url(nil), do: nil
+
+  defp media_url(key) when is_binary(key) do
+    case Hardhat.Storage.presigned_get(key, expires_in: 3600 * 6) do
+      {:ok, url} -> url
+      _ -> nil
+    end
   end
 
   defp column_view(%Column{} = c) do

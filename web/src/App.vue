@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
-import { useDisplay } from 'vuetify'
+import { useDisplay, useTheme } from 'vuetify'
 import { useAuthStore } from './stores/auth'
 import { useSocketStore } from './stores/socket'
 import { useSysStore } from './stores/sys'
 import { useBoardStore } from './stores/board'
+import { useThemeStore } from './stores/theme'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 import PresenceGroup from './components/PresenceGroup.vue'
 
@@ -13,8 +14,44 @@ const auth = useAuthStore()
 const socket = useSocketStore()
 const sys = useSysStore()
 const board = useBoardStore()
+const theme = useThemeStore()
 const route = useRoute()
 const { mobile } = useDisplay()
+const vuetifyTheme = useTheme()
+
+function hexToRgbTriplet(hex: string): string {
+  const h = hex.replace('#', '')
+  if (h.length === 3) {
+    const r = parseInt(h[0] + h[0], 16)
+    const g = parseInt(h[1] + h[1], 16)
+    const b = parseInt(h[2] + h[2], 16)
+    return `${r},${g},${b}`
+  }
+  if (h.length === 6) {
+    return `${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)}`
+  }
+  return hex
+}
+
+watchEffect(() => {
+  const palette = theme.effectivePalette
+  const dark = theme.effectiveDark
+  vuetifyTheme.global.name.value = dark ? 'hardhatDark' : 'hardhatLight'
+  if (!palette) return
+  const colors = dark ? palette.palette_dark : palette.palette_light
+  vuetifyTheme.themes.value.hardhatLight.colors = {
+    ...vuetifyTheme.themes.value.hardhatLight.colors,
+    ...palette.palette_light,
+  }
+  vuetifyTheme.themes.value.hardhatDark.colors = {
+    ...vuetifyTheme.themes.value.hardhatDark.colors,
+    ...palette.palette_dark,
+  }
+  const root = document.documentElement
+  for (const [key, value] of Object.entries(colors)) {
+    root.style.setProperty(`--v-theme-${key}`, hexToRgbTriplet(value))
+  }
+})
 
 const showSidebar = ref(route.name !== 'home')
 watch(() => route.name, (name) => { showSidebar.value = name !== 'home' })
@@ -28,6 +65,7 @@ onMounted(() => {
   if (auth.isAuthed) {
     void sys.initPresence()
   }
+  void theme.bootstrap()
 })
 
 watch(

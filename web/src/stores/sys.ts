@@ -64,6 +64,8 @@ export const useSysStore = defineStore('sys', () => {
       allow_registration: boolean
       allow_guest_comments: boolean
       first_user_bootstrap: boolean
+      theme_slug: string
+      theme_mode: 'light' | 'dark' | 'system'
     }>(
       channel,
       'get_settings',
@@ -72,16 +74,20 @@ export const useSysStore = defineStore('sys', () => {
   }
 
   async function setSettings(input: {
-    allow_registration: boolean
-    allow_guest_comments: boolean
+    allow_registration?: boolean
+    allow_guest_comments?: boolean
+    theme_slug?: string
+    theme_mode?: 'light' | 'dark' | 'system'
   }) {
     const sock = useSocketStore()
     const { channel } = await sock.joinChannel('sys:lobby')
-    return pushAsync<{ allow_registration: boolean; allow_guest_comments: boolean }>(
-      channel,
-      'set_settings',
-      input,
-    )
+    return pushAsync<{
+      allow_registration: boolean
+      allow_guest_comments: boolean
+      first_user_bootstrap: boolean
+      theme_slug: string
+      theme_mode: 'light' | 'dark' | 'system'
+    }>(channel, 'set_settings', input)
   }
 
   async function getUsers(query?: string) {

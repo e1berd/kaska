@@ -10,7 +10,8 @@ defmodule Hardhat.Application do
       {Phoenix.PubSub, name: Hardhat.PubSub},
       HardhatWeb.Presence,
       HardhatWeb.Endpoint,
-      Hardhat.Storage.Bootstrap
+      Hardhat.Storage.Bootstrap,
+      Hardhat.Themes.Seeder
     ]
 
     opts = [strategy: :one_for_one, name: Hardhat.Supervisor]
