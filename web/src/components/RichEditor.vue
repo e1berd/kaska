@@ -204,18 +204,93 @@ function toggleLink() {
   background: rgb(var(--v-theme-surface-container-lowest));
   overflow: hidden;
   transition: border-color var(--md-duration-short3) var(--md-easing-standard);
-}
-.hh-rich:focus-within {
-  border-color: rgb(var(--v-theme-primary));
-  box-shadow: 0 0 0 1px rgb(var(--v-theme-primary));
-}
-.hh-rich--ro {
-  background: transparent;
-  border-color: rgba(var(--v-theme-outline-variant), 0.4);
-}
-.hh-rich--ro:focus-within {
-  border-color: rgba(var(--v-theme-outline-variant), 0.4);
-  box-shadow: none;
+
+  &:focus-within {
+    border-color: rgb(var(--v-theme-primary));
+    box-shadow: 0 0 0 1px rgb(var(--v-theme-primary));
+  }
+
+  &--ro {
+    background: transparent;
+    border-color: rgba(var(--v-theme-outline-variant), 0.4);
+
+    &:focus-within {
+      border-color: rgba(var(--v-theme-outline-variant), 0.4);
+      box-shadow: none;
+    }
+  }
+
+  :deep(.tiptap) {
+    outline: none;
+    color: rgb(var(--v-theme-on-surface));
+
+    p {
+      margin: 0 0 8px;
+      line-height: 1.5;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    h2 {
+      font-family: inherit;
+      font-size: var(--md-type-title-large);
+      line-height: 1.25;
+      font-weight: 500;
+      margin: 16px 0 8px;
+    }
+
+    h3 {
+      font-family: inherit;
+      font-size: var(--md-type-title-medium);
+      line-height: 1.3;
+      font-weight: 500;
+      margin: 12px 0 6px;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin: 4px 0;
+    }
+
+    blockquote {
+      border-left: 3px solid rgb(var(--v-theme-primary));
+      padding: 2px 12px;
+      margin: 8px 0;
+      color: rgba(var(--v-theme-on-surface), 0.78);
+    }
+
+    pre {
+      background: rgb(var(--v-theme-surface-container-high));
+      border-radius: var(--md-shape-s);
+      padding: 10px 12px;
+      font-family: 'Roboto Mono', ui-monospace, monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+
+    code {
+      font-family: 'Roboto Mono', ui-monospace, monospace;
+      font-size: 0.92em;
+      background: rgb(var(--v-theme-surface-container-high));
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    a {
+      color: rgb(var(--v-theme-primary));
+      text-decoration: underline;
+    }
+
+    p.is-editor-empty:first-child::before {
+      content: attr(data-placeholder);
+      color: rgba(var(--v-theme-on-surface), 0.45);
+      pointer-events: none;
+      height: 0;
+      float: left;
+    }
+  }
 }
 
 .hh-rich__toolbar {
@@ -227,6 +302,7 @@ function toggleLink() {
   background: rgb(var(--v-theme-surface-container));
   border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
+
 .hh-rich__btn {
   display: inline-flex;
   align-items: center;
@@ -239,21 +315,26 @@ function toggleLink() {
   border-radius: var(--md-shape-s);
   cursor: pointer;
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);
+
+  &:hover {
+    background: rgba(var(--v-theme-on-surface), 0.08);
+  }
+
+  &:active {
+    background: rgba(var(--v-theme-on-surface), 0.12);
+  }
+
+  &.is-active {
+    background: rgb(var(--v-theme-secondary-container));
+    color: rgb(var(--v-theme-on-secondary-container));
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
 }
-.hh-rich__btn:hover {
-  background: rgba(var(--v-theme-on-surface), 0.08);
-}
-.hh-rich__btn:active {
-  background: rgba(var(--v-theme-on-surface), 0.12);
-}
-.hh-rich__btn.is-active {
-  background: rgb(var(--v-theme-secondary-container));
-  color: rgb(var(--v-theme-on-secondary-container));
-}
-.hh-rich__btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
+
 .hh-rich__sep {
   width: 1px;
   height: 20px;
@@ -265,69 +346,5 @@ function toggleLink() {
   padding: 12px 16px;
   min-height: 170px;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
-}
-
-.hh-rich :deep(.tiptap) {
-  outline: none;
-  color: rgb(var(--v-theme-on-surface));
-}
-.hh-rich :deep(.tiptap p) {
-  margin: 0 0 8px;
-  line-height: 1.5;
-}
-.hh-rich :deep(.tiptap p:last-child) {
-  margin-bottom: 0;
-}
-.hh-rich :deep(.tiptap h2) {
-  font-family: inherit;
-  font-size: var(--md-type-title-large);
-  line-height: 1.25;
-  font-weight: 500;
-  margin: 16px 0 8px;
-}
-.hh-rich :deep(.tiptap h3) {
-  font-family: inherit;
-  font-size: var(--md-type-title-medium);
-  line-height: 1.3;
-  font-weight: 500;
-  margin: 12px 0 6px;
-}
-.hh-rich :deep(.tiptap ul),
-.hh-rich :deep(.tiptap ol) {
-  padding-left: 22px;
-  margin: 4px 0;
-}
-.hh-rich :deep(.tiptap blockquote) {
-  border-left: 3px solid rgb(var(--v-theme-primary));
-  padding: 2px 12px;
-  margin: 8px 0;
-  color: rgba(var(--v-theme-on-surface), 0.78);
-}
-.hh-rich :deep(.tiptap pre) {
-  background: rgb(var(--v-theme-surface-container-high));
-  border-radius: var(--md-shape-s);
-  padding: 10px 12px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 13px;
-  overflow-x: auto;
-}
-.hh-rich :deep(.tiptap code) {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 0.92em;
-  background: rgb(var(--v-theme-surface-container-high));
-  border-radius: 4px;
-  padding: 1px 4px;
-}
-.hh-rich :deep(.tiptap a) {
-  color: rgb(var(--v-theme-primary));
-  text-decoration: underline;
-}
-
-.hh-rich :deep(.tiptap p.is-editor-empty:first-child::before) {
-  content: attr(data-placeholder);
-  color: rgba(var(--v-theme-on-surface), 0.45);
-  pointer-events: none;
-  height: 0;
-  float: left;
 }
 </style>
