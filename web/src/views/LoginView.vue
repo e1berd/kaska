@@ -90,32 +90,3 @@ async function submit() {
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.hh-auth {
-  min-height: calc(100vh - 64px);
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
-}
-.hh-auth__card {
-  width: 100%;
-  max-width: 440px;
-  padding: 32px;
-  background: rgb(var(--v-theme-surface-container-low)) !important;
-}
-.hh-auth__links {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
-}
-.hh-auth__link {
-  color: rgb(var(--v-theme-primary));
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 14px;
-}
-.hh-auth__link:hover {
-  text-decoration: underline;
-}
-</style>

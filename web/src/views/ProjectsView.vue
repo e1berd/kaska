@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useProjectsStore, type Project } from '../stores/projects'
 import { useAuthStore } from '../stores/auth'
+import { cssUrlImageOr } from '../utils/css'
 
 const projects = useProjectsStore()
 const auth = useAuthStore()
@@ -38,6 +39,12 @@ const filtered = computed(() => {
       (p.description ?? '').toLowerCase().includes(q),
   )
 })
+
+const editCoverStyle = computed(() =>
+  editing.value?.background_url
+    ? { backgroundImage: cssUrlImageOr(editing.value.background_url) }
+    : null,
+)
 
 onMounted(() => {
   projects.joinLobby()
@@ -336,9 +343,7 @@ async function confirmDelete() {
       <v-card v-if="editing" rounded="xl">
         <div
           class="hh-edit__cover"
-          :style="
-            editing.background_url ? { backgroundImage: `url(${editing.background_url})` } : null
-          "
+          :style="editCoverStyle"
         >
           <div class="hh-edit__cover-actions">
             <v-btn

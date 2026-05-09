@@ -4,6 +4,7 @@ import { useSysStore } from '../stores/sys'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import type { ThemeMode } from '../stores/auth'
+import { cssColorOr } from '../utils/css'
 
 const sys = useSysStore()
 const auth = useAuthStore()
@@ -64,6 +65,10 @@ const globalMode = computed<ThemeMode>({
     void theme.setGlobalMode(value)
   },
 })
+
+function swatchStyle(color: string | null | undefined) {
+  return { background: cssColorOr(color, 'transparent') }
+}
 
 async function loadSettings() {
   loading.value = true
@@ -162,22 +167,15 @@ watch(
           >
             <span
               class="hh-theme__swatch"
-              :style="{
-                background: theme.palettes[t.slug]?.palette_light?.primary ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.primary)"
             />
             <span
               class="hh-theme__swatch"
-              :style="{
-                background:
-                  theme.palettes[t.slug]?.palette_light?.['secondary-container'] ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.['secondary-container'])"
             />
             <span
               class="hh-theme__swatch"
-              :style="{
-                background: theme.palettes[t.slug]?.palette_light?.tertiary ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.tertiary)"
             />
             <span class="hh-theme__name md-label-large">{{ t.name }}</span>
           </button>
@@ -223,22 +221,15 @@ watch(
           >
             <span
               class="hh-theme__swatch"
-              :style="{
-                background: theme.palettes[t.slug]?.palette_light?.primary ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.primary)"
             />
             <span
               class="hh-theme__swatch"
-              :style="{
-                background:
-                  theme.palettes[t.slug]?.palette_light?.['secondary-container'] ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.['secondary-container'])"
             />
             <span
               class="hh-theme__swatch"
-              :style="{
-                background: theme.palettes[t.slug]?.palette_light?.tertiary ?? 'transparent',
-              }"
+              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.tertiary)"
             />
             <span class="hh-theme__name md-label-large">{{ t.name }}</span>
           </button>

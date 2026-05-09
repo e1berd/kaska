@@ -60,26 +60,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.hh-auth {
-  min-height: calc(100vh - 64px);
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
-}
 .hh-auth__card {
-  width: 100%;
-  max-width: 440px;
-  padding: 40px 32px;
-  background: rgb(var(--v-theme-surface-container-low)) !important;
+  --hh-auth-card-padding: 40px 32px;
 }
 .hh-verify__icon {
-  width: 72px;
-  height: 72px;
+  inline-size: 72px;
+  block-size: 72px;
   margin: 0 auto;
   border-radius: var(--md-shape-full);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
 }
 .hh-verify__icon--ok {
   background: rgb(var(--v-theme-primary-container));

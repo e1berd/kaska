@@ -20,6 +20,7 @@ import BoardColumn from '../components/board/BoardColumn.vue'
 import RichEditor from '../components/RichEditor.vue'
 import PresenceGroup from '../components/PresenceGroup.vue'
 import TaskCommentsSection from '../components/TaskCommentsSection.vue'
+import { cssUrlImageOr } from '../utils/css'
 import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
 
 defineProps<{ slug?: string }>()
@@ -774,6 +775,10 @@ const accents = ['primary', 'secondary', 'tertiary'] as const
 function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   return accents[idx % accents.length]
 }
+
+const boardBackgroundStyle = computed(() => ({
+  backgroundImage: cssUrlImageOr(board.project?.background_url),
+}))
 </script>
 
 <template>
@@ -781,7 +786,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
     <div
       v-if="board.project?.background_url"
       class="hh-board__bg"
-      :style="{ backgroundImage: `url(${board.project.background_url})` }"
+      :style="boardBackgroundStyle"
     />
     <div v-if="board.project?.background_url" class="hh-board__bg-scrim" />
     <header class="hh-board__bar">
@@ -1783,92 +1788,7 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 .hh-edit-lock-btn {
   opacity: 0.9;
 }
-.hh-dots::after {
-  content: '...';
-  display: inline-block;
-  width: 1.2em;
-  margin-left: 2px;
-  vertical-align: bottom;
-  animation: hh-dots-fade 1.1s ease-in-out infinite;
-}
-@keyframes hh-dots-fade {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
-}
-
-.hh-attach__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.hh-attach__input {
-  display: none;
-}
-.hh-attach__empty {
-  padding: 16px;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.7);
-  border-radius: var(--md-shape-m);
-}
-.hh-attach__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-}
-.hh-attach {
-  position: relative;
-  background: rgb(var(--v-theme-surface-container-low));
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
-  border-radius: var(--md-shape-m);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.hh-attach__media {
-  aspect-ratio: 16 / 10;
-  background: rgb(var(--v-theme-surface-container-high));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.hh-attach__media img,
-.hh-attach__media video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.hh-attach__file {
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.hh-attach__meta {
-  padding: 8px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.hh-attach__name {
-  color: rgb(var(--v-theme-on-surface));
-  text-decoration: none;
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-.hh-attach__name:hover {
-  color: rgb(var(--v-theme-primary));
-}
 .hh-attach__size {
   color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.hh-attach__remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.45) !important;
-  color: white !important;
 }
 </style>

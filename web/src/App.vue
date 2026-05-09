@@ -9,6 +9,7 @@ import { useBoardStore } from './stores/board'
 import { useThemeStore } from './stores/theme'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 import PresenceGroup from './components/PresenceGroup.vue'
+import { cssColorOr } from './utils/css'
 
 const auth = useAuthStore()
 const socket = useSocketStore()
@@ -19,8 +20,12 @@ const route = useRoute()
 const { mobile } = useDisplay()
 const vuetifyTheme = useTheme()
 
-function hexToRgbTriplet(hex: string): string {
-  const h = hex.replace('#', '')
+function hexToRgbTriplet(color: string): string | null {
+  const safeColor = cssColorOr(color, '')
+  if (!/^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(safeColor)) return null
+  const hex = safeColor.replace('#', '')
+  if (!hex) return null
+  const h = hex
   if (h.length === 3) {
     const r = parseInt(h[0] + h[0], 16)
     const g = parseInt(h[1] + h[1], 16)
@@ -30,13 +35,14 @@ function hexToRgbTriplet(hex: string): string {
   if (h.length === 6) {
     return `${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)}`
   }
-  return hex
+  return null
 }
 
 function paletteToCssBlock(selector: string, palette: Record<string, string>): string {
   const lines: string[] = [`${selector} {`]
   for (const [k, v] of Object.entries(palette)) {
-    lines.push(`  --v-theme-${k}: ${hexToRgbTriplet(v)} !important;`)
+    const rgb = hexToRgbTriplet(v)
+    if (rgb) lines.push(`  --v-theme-${k}: ${rgb} !important;`)
   }
   lines.push('}')
   return lines.join('\n')

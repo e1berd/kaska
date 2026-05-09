@@ -74,18 +74,3 @@ async function submit() {
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.hh-auth {
-  min-height: calc(100vh - 64px);
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
-}
-.hh-auth__card {
-  width: 100%;
-  max-width: 440px;
-  padding: 32px;
-  background: rgb(var(--v-theme-surface-container-low)) !important;
-}
-</style>

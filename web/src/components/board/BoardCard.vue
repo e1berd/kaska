@@ -14,6 +14,7 @@ import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { computed } from 'vue'
 import { useBoardStore, type Task } from '../../stores/board'
 import { docPreview } from '../../utils/tiptap'
+import { cssColorOr } from '../../utils/css'
 
 const board = useBoardStore()
 
@@ -41,6 +42,11 @@ const taskType = computed(() => {
   if (!props.task.task_type_id) return null
   return board.task_types.find(t => t.id === props.task.task_type_id) || null
 })
+
+const taskTypeChipStyle = computed(() => ({
+  backgroundColor: cssColorOr(taskType.value?.color, '#757575'),
+  color: '#fff',
+}))
 
 const assignee = computed(() => {
   if (!props.task.assignee_id) return null
@@ -155,7 +161,7 @@ onBeforeUnmount(() => {
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
     <div v-if="preview" class="hh-card__desc md-body-small">{{ preview }}</div>
     <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="hh-card__meta">
-      <span v-if="taskType" class="hh-card__chip" :style="{ backgroundColor: taskType.color, color: '#fff' }">
+      <span v-if="taskType" class="hh-card__chip" :style="taskTypeChipStyle">
         {{ taskType.name }}
       </span>
       <span v-if="attachmentCount > 0" class="hh-card__chip">
