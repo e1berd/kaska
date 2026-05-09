@@ -31,8 +31,8 @@ defmodule Hardhat.Themes do
       attrs = %{
         slug: slug,
         name: name,
-        palette_light: Map.merge(light_neutrals(), light_roles),
-        palette_dark: Map.merge(dark_neutrals(), dark_roles)
+        palette_light: Map.merge(light_neutrals(light_roles["primary"]), light_roles),
+        palette_dark: Map.merge(dark_neutrals(dark_roles["primary"]), dark_roles)
       }
 
       Repo.insert(
@@ -236,55 +236,78 @@ defmodule Hardhat.Themes do
     ]
   end
 
-  defp light_neutrals do
+  defp light_neutrals(seed) do
+    base = "#FFFBFE"
+
     %{
-      "background" => "#FFFBFE",
+      "background" => mix(base, seed, 0.025),
       "on-background" => "#1C1B1F",
-      "surface" => "#FFFBFE",
+      "surface" => mix(base, seed, 0.025),
       "on-surface" => "#1C1B1F",
-      "surface-variant" => "#E7E0EC",
+      "surface-variant" => mix("#E7E0EC", seed, 0.06),
       "on-surface-variant" => "#49454F",
       "surface-container-lowest" => "#FFFFFF",
-      "surface-container-low" => "#F7F2FA",
-      "surface-container" => "#F3EDF7",
-      "surface-container-high" => "#ECE6F0",
-      "surface-container-highest" => "#E6E0E9",
+      "surface-container-low" => mix(base, seed, 0.05),
+      "surface-container" => mix(base, seed, 0.08),
+      "surface-container-high" => mix(base, seed, 0.11),
+      "surface-container-highest" => mix(base, seed, 0.14),
       "error" => "#B3261E",
       "on-error" => "#FFFFFF",
       "error-container" => "#F9DEDC",
       "on-error-container" => "#410E0B",
-      "outline" => "#79747E",
-      "outline-variant" => "#CAC4D0",
+      "outline" => mix("#79747E", seed, 0.08),
+      "outline-variant" => mix("#CAC4D0", seed, 0.08),
       "shadow" => "#000000",
       "scrim" => "#000000",
-      "inverse-surface" => "#313033",
+      "inverse-surface" => mix("#313033", seed, 0.08),
       "inverse-on-surface" => "#F4EFF4"
     }
   end
 
-  defp dark_neutrals do
+  defp dark_neutrals(seed) do
+    base = "#141318"
+
     %{
-      "background" => "#1C1B1F",
+      "background" => mix(base, seed, 0.04),
       "on-background" => "#E6E1E5",
-      "surface" => "#1C1B1F",
+      "surface" => mix(base, seed, 0.04),
       "on-surface" => "#E6E1E5",
-      "surface-variant" => "#49454F",
+      "surface-variant" => mix("#49454F", seed, 0.08),
       "on-surface-variant" => "#CAC4D0",
-      "surface-container-lowest" => "#0F0D13",
-      "surface-container-low" => "#1D1B20",
-      "surface-container" => "#211F26",
-      "surface-container-high" => "#2B2930",
-      "surface-container-highest" => "#36343B",
+      "surface-container-lowest" => mix(base, seed, 0.02),
+      "surface-container-low" => mix(base, seed, 0.06),
+      "surface-container" => mix(base, seed, 0.09),
+      "surface-container-high" => mix(base, seed, 0.13),
+      "surface-container-highest" => mix(base, seed, 0.18),
       "error" => "#F2B8B5",
       "on-error" => "#601410",
       "error-container" => "#8C1D18",
       "on-error-container" => "#F9DEDC",
-      "outline" => "#938F99",
-      "outline-variant" => "#49454F",
+      "outline" => mix("#938F99", seed, 0.08),
+      "outline-variant" => mix("#49454F", seed, 0.08),
       "shadow" => "#000000",
       "scrim" => "#000000",
       "inverse-surface" => "#E6E1E5",
-      "inverse-on-surface" => "#313033"
+      "inverse-on-surface" => mix("#313033", seed, 0.08)
+    }
+  end
+
+  defp mix(hex_a, hex_b, ratio) when is_binary(hex_a) and is_binary(hex_b) do
+    {ra, ga, ba} = parse_hex(hex_a)
+    {rb, gb, bb} = parse_hex(hex_b)
+    r = round(ra + (rb - ra) * ratio)
+    g = round(ga + (gb - ga) * ratio)
+    b = round(ba + (bb - ba) * ratio)
+    "#" <> Enum.map_join([r, g, b], "", &Integer.to_string(&1, 16) |> String.pad_leading(2, "0"))
+  end
+
+  defp parse_hex("#" <> rest), do: parse_hex(rest)
+
+  defp parse_hex(<<r1, r2, g1, g2, b1, b2>>) do
+    {
+      String.to_integer(<<r1, r2>>, 16),
+      String.to_integer(<<g1, g2>>, 16),
+      String.to_integer(<<b1, b2>>, 16)
     }
   end
 end

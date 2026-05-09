@@ -33,24 +33,35 @@ function hexToRgbTriplet(hex: string): string {
   return hex
 }
 
+function paletteToCssBlock(selector: string, palette: Record<string, string>): string {
+  const lines: string[] = [`${selector} {`]
+  for (const [k, v] of Object.entries(palette)) {
+    lines.push(`  --v-theme-${k}: ${hexToRgbTriplet(v)};`)
+  }
+  lines.push('}')
+  return lines.join('\n')
+}
+
+function ensureThemeStyleEl(): HTMLStyleElement {
+  let el = document.getElementById('hh-theme-vars') as HTMLStyleElement | null
+  if (!el) {
+    el = document.createElement('style')
+    el.id = 'hh-theme-vars'
+    document.head.appendChild(el)
+  }
+  return el
+}
+
 watchEffect(() => {
   const palette = theme.effectivePalette
   const dark = theme.effectiveDark
   vuetifyTheme.global.name.value = dark ? 'hardhatDark' : 'hardhatLight'
   if (!palette) return
-  const colors = dark ? palette.palette_dark : palette.palette_light
-  vuetifyTheme.themes.value.hardhatLight.colors = {
-    ...vuetifyTheme.themes.value.hardhatLight.colors,
-    ...palette.palette_light,
-  }
-  vuetifyTheme.themes.value.hardhatDark.colors = {
-    ...vuetifyTheme.themes.value.hardhatDark.colors,
-    ...palette.palette_dark,
-  }
-  const root = document.documentElement
-  for (const [key, value] of Object.entries(colors)) {
-    root.style.setProperty(`--v-theme-${key}`, hexToRgbTriplet(value))
-  }
+  const css = [
+    paletteToCssBlock('.v-theme--hardhatLight', palette.palette_light),
+    paletteToCssBlock('.v-theme--hardhatDark', palette.palette_dark),
+  ].join('\n')
+  ensureThemeStyleEl().textContent = css
 })
 
 const showSidebar = ref(route.name !== 'home')

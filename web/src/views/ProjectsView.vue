@@ -293,12 +293,12 @@ async function confirmDelete() {
         <div class="hh-project__head">
           <v-avatar
             :color="p.avatar_url ? undefined : accent(p.id)"
-            :image="p.avatar_url ?? undefined"
             size="48"
             rounded="lg"
             class="hh-project__badge"
           >
-            <span v-if="!p.avatar_url" class="text-white md-title-medium">
+            <v-img v-if="p.avatar_url" :src="p.avatar_url" cover alt="" />
+            <span v-else class="text-white md-title-medium">
               {{ p.name.slice(0, 1).toUpperCase() }}
             </span>
           </v-avatar>
@@ -364,12 +364,12 @@ async function confirmDelete() {
           <div class="hh-edit__avatar-wrap">
             <v-avatar
               :color="editing.avatar_url ? undefined : accent(editing.id)"
-              :image="editing.avatar_url ?? undefined"
               size="80"
               rounded="lg"
               class="hh-edit__avatar"
             >
-              <span v-if="!editing.avatar_url" class="text-white md-headline-small">
+              <v-img v-if="editing.avatar_url" :src="editing.avatar_url" cover alt="" />
+              <span v-else class="text-white md-headline-small">
                 {{ editing.name.slice(0, 1).toUpperCase() }}
               </span>
             </v-avatar>
