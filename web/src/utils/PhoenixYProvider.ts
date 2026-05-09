@@ -11,29 +11,10 @@ const REMOTE_ORIGIN = '__phoenix_y_remote__'
 const SETTLE_DELAY_MS = 5_000
 
 type Options = {
-  /**
-   * Base64-encoded `Y.encodeStateAsUpdate(serverDoc)` from the channel join
-   * reply. Applied once during construction so the local doc starts in sync
-   * with whatever the server already has.
-   */
   initialStateB64?: string
-  /**
-   * Invoked once when no further local updates have happened for
-   * `SETTLE_DELAY_MS`. The host (the editor) uses this to push a
-   * `materialize_body_doc` with `editor.getJSON()` — only the user who is
-   * actually typing needs to push, not every observer.
-   */
   onLocalSettle?: () => void
 }
 
-/**
- * Glues a Y.Doc + Awareness to a Phoenix Channel.
- *
- * Local Y.Doc updates (origin !== this provider) are pushed to the channel.
- * Remote `update` events are applied with this provider as the transaction
- * origin so the local listener can ignore them — that's how we avoid an
- * echo loop. Awareness uses the same trick with a string origin marker.
- */
 export class PhoenixYProvider {
   readonly doc: Y.Doc
   readonly awareness: Awareness
@@ -120,7 +101,6 @@ export class PhoenixYProvider {
       this.settleTimer = null
     }
 
-    // Tell peers our cursor is gone before tearing down the awareness state.
     removeAwarenessStates(this.awareness, [this.doc.clientID], 'local')
 
     this.doc.off('update', this.handleDocUpdate)

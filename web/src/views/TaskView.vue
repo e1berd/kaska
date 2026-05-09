@@ -12,22 +12,7 @@ import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 
-const COLLAB_PALETTE = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
-] as const
-function colorFromId(id: string): string {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  return COLLAB_PALETTE[Math.abs(hash) % COLLAB_PALETTE.length]
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
+import { collabUserColor, base64ToUint8 } from '@/utils/collab'
 
 defineProps<{ slug?: string; taskId?: string }>()
 
@@ -73,7 +58,7 @@ const collabUser = computed(() => {
   if (!u) return null
   return {
     name: u.display_name || u.email?.split('@')[0] || 'Гость',
-    color: colorFromId(u.id),
+    color: collabUserColor(u.id),
   }
 })
 

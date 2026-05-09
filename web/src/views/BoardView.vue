@@ -29,26 +29,7 @@ import { cssUrlImageOr } from '@/utils/css'
 import { docPreview } from '@/utils/tiptap'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 
-// Picked from the M3-ish palette used elsewhere in the app. Hex only —
-// y-tiptap's caret extension rejects hsl()/rgb() strings and won't render
-// the cursor at all, which is the difference between "guests see cursors"
-// and "guests see only text changes".
-const COLLAB_PALETTE = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
-] as const
-function colorFromId(id: string): string {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  return COLLAB_PALETTE[Math.abs(hash) % COLLAB_PALETTE.length]
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
+import { collabUserColor, base64ToUint8 } from '@/utils/collab'
 
 defineProps<{ slug?: string }>()
 
@@ -133,9 +114,6 @@ let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
 let taskSavingStartedAt = 0
 let taskSaveQueued = false
 
-// Collaboration state for the open task. Y.Doc is the source of truth for
-// the description; provider relays updates / awareness through the
-// `task_doc:<id>` channel. Recreated per opened task.
 const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
 let taskProvider: PhoenixYProvider | null = null
@@ -155,7 +133,7 @@ const collabUser = computed(() => {
   if (!u) return null
   return {
     name: u.display_name || u.email?.split('@')[0] || 'Гость',
-    color: colorFromId(u.id),
+    color: collabUserColor(u.id),
   }
 })
 
@@ -632,7 +610,6 @@ async function setupCollab(taskId: string) {
   const topic = `task_doc:${taskId}`
   try {
     const { channel, reply } = await socket.joinChannel<{ state?: string }>(topic)
-    // Bail if the user already moved on while we were joining.
     if (taskTargetId.value !== taskId) {
       socket.leaveChannel(topic)
       return

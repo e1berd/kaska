@@ -115,9 +115,8 @@ watch(
 )
 
 const currentSlug = computed(() => (route.params.slug as string | undefined) ?? null)
-const currentTaskId = computed(() => (route.params.taskId as string | undefined) ?? null)
 
-const activeProjectUsers = computed(() => {
+const headerPresenceUsers = computed(() => {
   if (!currentSlug.value || !board.project) return []
   return board.activeViewerIds
     .filter((id) => id !== auth.user?.id)
@@ -125,21 +124,7 @@ const activeProjectUsers = computed(() => {
     .filter((u): u is NonNullable<typeof u> => !!u)
 })
 
-const activeTaskUsers = computed(() => {
-  if (!currentTaskId.value) return []
-  return board
-    .viewersForTask(currentTaskId.value)
-    .filter((user) => user.id !== auth.user?.id)
-})
-
-const headerPresenceUsers = computed(() => {
-  if (currentTaskId.value) return activeTaskUsers.value
-  return activeProjectUsers.value
-})
-
-const headerPresenceLabel = computed(() =>
-  currentTaskId.value ? 'Сейчас в задаче' : 'Сейчас в проекте',
-)
+const headerPresenceLabel = 'Сейчас в проекте'
 
 interface NavItem {
   key: string

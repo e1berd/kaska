@@ -34,7 +34,7 @@ function saveFor(userId: string | null | undefined, items: PinnedProject[]) {
   try {
     localStorage.setItem(storageKey(userId), JSON.stringify(items))
   } catch {
-    // localStorage full or disabled — pinning just won't persist this session.
+    void 0
   }
 }
 
@@ -42,7 +42,6 @@ export const usePinnedProjectsStore = defineStore('pinnedProjects', () => {
   const auth = useAuthStore()
   const items = ref<PinnedProject[]>(loadFor(auth.user?.id))
 
-  // User identity changes (login/logout) → swap to that user's pin list.
   watch(
     () => auth.user?.id ?? null,
     (id) => {
@@ -57,7 +56,6 @@ export const usePinnedProjectsStore = defineStore('pinnedProjects', () => {
   function add(project: PinnedProject) {
     const existing = items.value.findIndex((p) => p.id === project.id)
     if (existing >= 0) {
-      // Refresh stored metadata in case name/avatar changed since last visit.
       items.value[existing] = { ...items.value[existing], ...project }
     } else {
       items.value = [...items.value, project]

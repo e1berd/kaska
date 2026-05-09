@@ -25,7 +25,6 @@
     "@tiptap/extension-placeholder": "^3.23.1",
     "@tiptap/starter-kit": "^3.23.1",
     "@tiptap/vue-3": "^3.23.1",
-    "animejs": "^4.4.1",
     "date-fns": "^4.1.0",
     "phoenix": "^1.8.5",
     "pinia": "^3.0.4",

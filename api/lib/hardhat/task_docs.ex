@@ -1,28 +1,11 @@
 defmodule Hardhat.TaskDocs do
-  @moduledoc """
-  Persistence for collaborative Y.Doc state of task descriptions.
-
-  Two tables back this:
-  - `task_doc_snapshots`: a single merged Y.Doc snapshot per task, plus its
-    state vector. Replaced in place when the doc is compacted.
-  - `task_doc_updates`: append-only log of Y.Doc updates received between
-    snapshots. Pruned when a fresh snapshot covers them.
-
-  A late-joining client receives `snapshot ++ updates_after(snapshot.seq)`,
-  which it applies into its local Y.Doc. The CRDT (`Yex`) takes care of
-  ordering — `seq` here is just a watermark for prune/load, not a logical
-  clock.
-  """
+  @moduledoc false
 
   import Ecto.Query
 
   alias Hardhat.Repo
   alias Hardhat.Projects.{Task, TaskDocSnapshot, TaskDocUpdate}
 
-  @doc """
-  Returns `{snapshot_binary | nil, state_vector_binary | nil, [update_binary]}`
-  for the given task. Used on channel join to rehydrate a client.
-  """
   def load_state(task_id) do
     snapshot = Repo.get(TaskDocSnapshot, task_id)
     seq = if snapshot, do: snapshot.seq, else: 0
@@ -38,10 +21,6 @@ defmodule Hardhat.TaskDocs do
     {snapshot && snapshot.snapshot, snapshot && snapshot.state_vector, updates}
   end
 
-  @doc """
-  Returns the highest `seq` ever assigned to this task's update log, or `0`
-  if the task has no updates yet. Used at server boot to seed the watermark.
-  """
   def max_seq(task_id) when is_binary(task_id) do
     Repo.one(
       from u in TaskDocUpdate,
@@ -50,9 +29,6 @@ defmodule Hardhat.TaskDocs do
     ) || 0
   end
 
-  @doc """
-  Appends a Y.Doc update binary to the task's log. Returns the assigned `seq`.
-  """
   def append_update(task_id, update_bin, author_id)
       when is_binary(task_id) and is_binary(update_bin) do
     {1, [%{seq: seq}]} =
@@ -72,10 +48,6 @@ defmodule Hardhat.TaskDocs do
     {:ok, seq}
   end
 
-  @doc """
-  Replaces the snapshot for a task and prunes any updates whose `seq` is at
-  or below `seq`. Run inside a transaction to keep load_state consistent.
-  """
   def save_snapshot(task_id, snapshot_bin, state_vector_bin, seq)
       when is_binary(task_id) and is_binary(snapshot_bin) and is_binary(state_vector_bin) and
              is_integer(seq) do
@@ -106,11 +78,6 @@ defmodule Hardhat.TaskDocs do
     end)
   end
 
-  @doc """
-  Updates `tasks.body_doc` directly without going through the changeset.
-  Server-side materialization from the Y.Doc — bypasses validation since
-  the doc is produced by the server itself.
-  """
   def update_body_doc(task_id, %{"type" => "doc"} = doc) when is_binary(task_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 

@@ -92,8 +92,6 @@ export interface BoardSnapshot {
 
 type PresenceMeta = {
   online_at?: string
-  active_task_id?: string | null
-  editing_description?: boolean
 }
 
 type PresenceEntry = {
@@ -130,26 +128,6 @@ export const useBoardStore = defineStore('board', () => {
     return tasks.value
       .filter((t) => t.column_id === columnId)
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
-  }
-
-  function viewersForTask(taskId: string): User[] {
-    const ids = Object.entries(presences.value)
-      .filter(([, entry]) =>
-        entry.metas.some((meta) => meta.active_task_id === taskId),
-      )
-      .map(([id]) => id)
-    return users.value.filter((user) => ids.includes(user.id))
-  }
-
-  function editorsForTask(taskId: string): User[] {
-    const ids = Object.entries(presences.value)
-      .filter(([, entry]) =>
-        entry.metas.some(
-          (meta) => meta.active_task_id === taskId && meta.editing_description === true,
-        ),
-      )
-      .map(([id]) => id)
-    return users.value.filter((user) => ids.includes(user.id))
   }
 
   async function joinBySlug(slug: string) {
@@ -403,16 +381,6 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task_type', { id })
   }
 
-  function setActiveTask(taskId: string | null, editingDescription = false) {
-    if (!channel.value) {
-      return Promise.resolve({ task_id: taskId, editing_description: editingDescription })
-    }
-    return pushAsync(ch(), 'set_active_task', {
-      task_id: taskId,
-      editing_description: editingDescription,
-    })
-  }
-
   return {
     project,
     columns,
@@ -425,8 +393,6 @@ export const useBoardStore = defineStore('board', () => {
     lastTaskDeleted,
     orderedColumns,
     activeViewerIds,
-    viewersForTask,
-    editorsForTask,
     tasksFor,
     attachmentsFor,
     commentsFor,
@@ -446,7 +412,6 @@ export const useBoardStore = defineStore('board', () => {
     createTaskType,
     updateTaskType,
     deleteTaskType,
-    setActiveTask,
     uploadTaskAttachment,
     deleteTaskAttachment,
   }

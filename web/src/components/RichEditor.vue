@@ -65,9 +65,6 @@ const baseExtensions: AnyExtension[] = [
   StarterKit.configure({
     link: false,
     heading: { levels: [2, 3] },
-    // Tiptap v3 ships UndoRedo (formerly History). Yjs owns undo in collab
-    // mode — both fighting over the same transactions throws inside
-    // dispatchTransaction, so disable the StarterKit one.
     ...(collabMode ? { undoRedo: false as const } : {}),
   }),
   Placeholder.configure({ placeholder: props.placeholder }),
@@ -78,15 +75,10 @@ const baseExtensions: AnyExtension[] = [
   }),
 ]
 
-// Custom caret renderer: a thin coloured bar plus a name label that
-// `floating-ui` keeps inside the editor box. Default renderer hard-codes
-// `top: -1.2em; left: -1px;` which clips on long lines near the right edge.
 function buildCaret(user: CollabUser): HTMLElement {
   const cursor = document.createElement('span')
   cursor.className = 'hh-collab-caret'
   cursor.style.borderColor = user.color
-  // The two zero-width chars are how y-prosemirror anchors the caret in
-  // text — we keep them or selection placement breaks.
   cursor.appendChild(document.createTextNode('⁠'))
 
   const label = document.createElement('div')
@@ -96,9 +88,6 @@ function buildCaret(user: CollabUser): HTMLElement {
   cursor.appendChild(label)
   cursor.appendChild(document.createTextNode('⁠'))
 
-  // floating-ui's autoUpdate keeps the label glued through scroll, resize,
-  // and reflow — needed because text wrapping can shove the cursor near
-  // the editor's right edge after the initial compute.
   let stop: (() => void) | null = null
   let removalObserver: MutationObserver | null = null
 
@@ -122,10 +111,6 @@ function buildCaret(user: CollabUser): HTMLElement {
       })
     })
 
-    // ProseMirror destroys this widget when the cursor moves; we need to
-    // tear down the autoUpdate listeners (scroll, ResizeObserver) or they
-    // pile up. One MutationObserver per cursor is fine — cursors rarely
-    // exceed a handful of concurrent users.
     const root = editor ?? document.body
     removalObserver = new MutationObserver(() => {
       if (cursor.isConnected) return
@@ -144,9 +129,6 @@ const collabExtensions: AnyExtension[] = []
 if (collabMode && props.ydoc) {
   collabExtensions.push(Collaboration.configure({ document: props.ydoc }))
   if (props.awareness) {
-    // Guests still need this extension to *see* peers' carets. They never
-    // broadcast — the server rejects awareness pushes from unauthed sockets
-    // — so the placeholder user value is purely defensive.
     collabExtensions.push(
       CollaborationCaret.configure({
         provider: { awareness: props.awareness },
@@ -160,14 +142,8 @@ if (collabMode && props.ydoc) {
 const editor = new Editor({
   editable: resolveEditable(),
   autofocus: props.autofocus,
-  // In collab mode `Collaboration` extension provides content from the Y.Doc,
-  // so we mustn't pass `content` (it would clobber the shared doc).
   content: collabMode ? undefined : (props.modelValue ?? { type: 'doc', content: [] }),
   extensions: [...baseExtensions, ...collabExtensions],
-  // Tiptap registers every `on*` option as an event listener. Passing
-  // `undefined` here would clobber the default no-op and crash the next
-  // time that event fires. Only attach the callback when we actually want
-  // it (non-collab mode); in collab the Y.Doc is the source of truth.
   ...(collabMode
     ? {}
     : {
@@ -433,8 +409,6 @@ function toggleLink() {
     line-height: normal;
     padding: 0.1rem 0.3rem;
     position: absolute;
-    /* floating-ui sets top/left after the element mounts. Until it does,
-       keep the label off-screen so the unstyled flash doesn't leak. */
     top: -9999px;
     left: -9999px;
     user-select: none;
@@ -446,7 +420,6 @@ function toggleLink() {
     z-index: 1;
   }
 
-  /* Selection backgrounds drawn by y-prosemirror's selectionBuilder. */
   :deep(.ProseMirror-yjs-selection) {
     pointer-events: none;
   }

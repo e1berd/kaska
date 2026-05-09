@@ -1,22 +1,5 @@
 defmodule Hardhat.TaskDocs.Server do
-  @moduledoc """
-  One GenServer per task that holds the authoritative `Yex.Doc` for that
-  task's description.
-
-  Responsibilities:
-    * On boot, rehydrate the Y.Doc from `task_doc_snapshots` + replay
-      `task_doc_updates`.
-    * Apply incoming client updates into the in-memory doc and persist them.
-    * Periodically compact the log into a fresh snapshot.
-    * Hand out the encoded current state to new joiners.
-
-  Awareness (cursors / selections) is not handled here — it's ephemeral and
-  goes straight through the channel as broadcast.
-
-  Body_doc materialization (the JSON used for previews / filter search) is
-  pushed by clients via a separate channel event, not derived here. When an
-  AI agent path lands, it will materialize on its own using `Yex` directly.
-  """
+  @moduledoc false
 
   use GenServer
 
@@ -34,8 +17,6 @@ defmodule Hardhat.TaskDocs.Server do
     ]
   end
 
-  ## Public API ────────────────────────────────────────────────────────────
-
   def child_spec(task_id) do
     %{
       id: {__MODULE__, task_id},
@@ -48,28 +29,17 @@ defmodule Hardhat.TaskDocs.Server do
     GenServer.start_link(__MODULE__, task_id, name: via(task_id))
   end
 
-  @doc """
-  Apply a Y.Doc update binary received from a client (or AI agent). The
-  caller is responsible for broadcasting the same binary to other channel
-  subscribers — the server only owns persistence + in-memory state.
-  """
   def apply_update(task_id, update_bin, author_id)
       when is_binary(task_id) and is_binary(update_bin) do
     GenServer.call(via(task_id), {:apply_update, update_bin, author_id})
   end
 
-  @doc """
-  Returns `{:ok, state_binary}` containing the entire Y.Doc state encoded as
-  a single update — the new joiner applies it once into a fresh local doc.
-  """
   def get_state(task_id) when is_binary(task_id) do
     GenServer.call(via(task_id), :get_state)
   end
 
   defp via(task_id),
     do: {:via, Registry, {Hardhat.TaskDocs.Registry, task_id}}
-
-  ## Callbacks ────────────────────────────────────────────────────────────
 
   @impl true
   def init(task_id) do
@@ -114,8 +84,6 @@ defmodule Hardhat.TaskDocs.Server do
       other -> {:reply, other, state}
     end
   end
-
-  ## Compaction ───────────────────────────────────────────────────────────
 
   defp maybe_compact(%State{updates_since_snapshot: n} = state)
        when n >= @compact_threshold do

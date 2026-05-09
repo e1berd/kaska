@@ -1,11 +1,5 @@
 defmodule Hardhat.TaskDocs.Supervisor do
-  @moduledoc """
-  DynamicSupervisor that owns one `Hardhat.TaskDocs.Server` per active task.
-
-  `lookup_or_start/1` returns the pid for `task_id`, starting a server if
-  one isn't running yet. Servers are registered by `task_id` in
-  `Hardhat.TaskDocs.Registry`.
-  """
+  @moduledoc false
 
   use DynamicSupervisor
 

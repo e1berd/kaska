@@ -50,9 +50,6 @@ importers:
       '@tiptap/vue-3':
         specifier: ^3.23.1
         version: 3.23.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(vue@3.5.34(typescript@6.0.3))
-      animejs:
-        specifier: ^4.4.1
-        version: 4.4.1
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -637,9 +634,6 @@ packages:
 
   alien-signals@3.1.2:
     resolution: {integrity: sha512-d9dYqZTS90WLiU0I5c6DHj/HcKkF8ZyGN3G5x8wSbslulz70KOxaqCT0hQCo9KOyhVqzqGojvNdJXoTumZOtcw==}
-
-  animejs@4.4.1:
-    resolution: {integrity: sha512-XimhJw4vPb6tAd6Zaoa6BaspJ8UteQMKvL7Pvrt6MW/6u2UvJs0TB/LLqR1sigaiYvpVPC3Tokr9emcCMhWFhw==}
 
   bind-event-listener@3.0.0:
     resolution: {integrity: sha512-PJvH288AWQhKs2v9zyfYdPzlPqf5bXbGMmhmUIY9x4dAUGIWgomO771oBQNwJnMQSnUIXhKu6sgzpBRXTlvb8Q==}
@@ -1682,8 +1676,6 @@ snapshots:
       vue: 3.5.34(typescript@6.0.3)
 
   alien-signals@3.1.2: {}
-
-  animejs@4.4.1: {}
 
   bind-event-listener@3.0.0: {}
 

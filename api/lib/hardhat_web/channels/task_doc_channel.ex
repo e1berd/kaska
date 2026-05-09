@@ -1,20 +1,5 @@
 defmodule HardhatWeb.TaskDocChannel do
-  @moduledoc """
-  `task_doc:<task_id>` — public read, authed write.
-
-  Carries the collaborative editing protocol for a task description:
-    * On join, server sends the current Y.Doc state encoded as a single
-      update binary; the client applies it into a fresh local doc.
-    * `update` events relay Y.Doc updates between peers via a server-held
-      authoritative doc (`Hardhat.TaskDocs.Server`) that also persists them.
-    * `awareness` events relay cursor/selection state directly between
-      peers — they are ephemeral and not persisted.
-    * `materialize_body_doc` lets a client push a final ProseMirror JSON
-      version of the doc for use in previews / list view / search.
-
-  Anonymous viewers can join and receive `update` / `awareness` broadcasts
-  but cannot send any of them.
-  """
+  @moduledoc false
 
   use Phoenix.Channel
 
@@ -55,14 +40,10 @@ defmodule HardhatWeb.TaskDocChannel do
     {:noreply, socket}
   end
 
-  ## Auth gate ────────────────────────────────────────────────────────────
-
   @impl true
   def handle_in(_event, _payload, %{assigns: %{current_user: nil}} = socket) do
     {:reply, {:error, %{message: "unauthorized"}}, socket}
   end
-
-  ## Y.Doc updates ────────────────────────────────────────────────────────
 
   def handle_in("update", %{"u" => b64}, socket) when is_binary(b64) do
     with {:ok, bin} <- Base.decode64(b64),
@@ -76,15 +57,11 @@ defmodule HardhatWeb.TaskDocChannel do
     end
   end
 
-  ## Awareness (cursors, selections) ──────────────────────────────────────
-
   def handle_in("awareness", %{"s" => b64}, socket) when is_binary(b64) do
     user = socket.assigns.current_user
     broadcast_from!(socket, "awareness", %{s: b64, from: user.id})
     {:reply, :ok, socket}
   end
-
-  ## Body_doc materialization ─────────────────────────────────────────────
 
   def handle_in("materialize_body_doc", %{"doc" => %{"type" => "doc"} = doc}, socket) do
     case TaskDocs.update_body_doc(socket.assigns.task_id, doc) do
