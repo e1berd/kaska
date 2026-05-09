@@ -15,7 +15,7 @@ HardHat — kanban/board-система с публичным чтением и 
 - Frontend: Vue 3, TypeScript, Pinia, Vue Router, Vuetify 4
 - БД: PostgreSQL
 - Object storage: S3-совместимое хранилище (RustFS)
-- Почта (dev): Mailpit
+- Почта (dev): Swoosh local mailbox preview на `/mailbox`. Prod — SMTP через env (`MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_PORT`, `MAIL_SSL`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`).
 
 ## Быстрый старт (dev)
 

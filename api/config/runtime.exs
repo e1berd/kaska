@@ -75,16 +75,29 @@ if internal = System.get_env("S3_INTERNAL_ENDPOINT") do
     port: uri.port
 end
 
-if mail_host = System.get_env("MAIL_HOST") do
-  config :hardhat, Hardhat.Mailer,
+if (mail_host = System.get_env("MAIL_HOST")) && mail_host != "" do
+  mail_username = System.get_env("MAIL_USERNAME")
+  mail_password = System.get_env("MAIL_PASSWORD")
+  mail_ssl = System.get_env("MAIL_SSL", "false") in ~w(true 1)
+
+  base = [
     adapter: Swoosh.Adapters.SMTP,
     relay: mail_host,
-    port: String.to_integer(System.get_env("MAIL_PORT", "1025")),
-    auth: :never,
-    ssl: false,
-    tls: :never,
+    port: String.to_integer(System.get_env("MAIL_PORT", "465")),
+    ssl: mail_ssl,
+    tls: if(mail_ssl, do: :never, else: :if_available),
     retries: 1,
     no_mx_lookups: true
+  ]
+
+  auth =
+    if mail_username && mail_username != "" do
+      [auth: :always, username: mail_username, password: mail_password || ""]
+    else
+      [auth: :never]
+    end
+
+  config :hardhat, Hardhat.Mailer, base ++ auth
 end
 
 if config_env() == :prod do

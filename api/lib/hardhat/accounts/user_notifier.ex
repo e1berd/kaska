@@ -43,7 +43,10 @@ defmodule Hardhat.Accounts.UserNotifier do
     email =
       new()
       |> to(to)
-      |> from({"HardHat", System.get_env("MAIL_FROM", "noreply@hardhat.local")})
+      |> from(
+        {System.get_env("MAIL_FROM_NAME", "HardHat"),
+         System.get_env("MAIL_FROM_ADDRESS", "noreply@hardhat.local")}
+      )
       |> subject(subject)
       |> text_body(body)
 

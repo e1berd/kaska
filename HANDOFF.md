@@ -17,7 +17,7 @@
 | Бэкенд      | Elixir 1.15+, Phoenix v1.8, Ecto, Guardian (JWT), Phoenix Channels |
 | БД          | PostgreSQL 17 (docker)                                           |
 | Object store | RustFS (S3-совместимый, docker)                                 |
-| Mail dev    | Mailpit (docker, SMTP+UI)                                        |
+| Mail dev    | Swoosh local mailbox preview на `/mailbox` (без SMTP в dev)      |
 | Фронт       | Vue 3 (`<script setup>` + TS), Vite 8, Pinia 3, Vue Router 4     |
 | UI kit      | Vuetify 4 (с тяжёлыми кастомизациями под Material 3)             |
 | Editor      | tiptap 3 (StarterKit + Link + Placeholder)                       |
@@ -34,7 +34,7 @@
 
 ```
 hardhat/
-├── docker-compose.yml      # postgres + mailpit + rustfs
+├── docker-compose.yml      # postgres + rustfs
 ├── api/                    # Phoenix backend
 │   ├── lib/hardhat/
 │   │   ├── accounts/       # users, sessions, password reset
@@ -82,7 +82,7 @@ hardhat/
 ## Запуск dev
 
 ```bash
-# инфраструктура (PG + Mailpit + RustFS)
+# инфраструктура (PG + RustFS)
 docker compose up -d
 
 # бэкенд

@@ -19,19 +19,6 @@ services:
       timeout: 5s
       retries: 10
 
-  mailpit:
-    networks:
-      - default
-    image: axllent/mailpit:latest
-    container_name: hardhat-mailpit
-    restart: unless-stopped
-    ports:
-      - "${MAILPIT_SMTP_PORT:-1025}:1025"
-      - "${MAILPIT_UI_PORT:-8025}:8025"
-    environment:
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-
   rustfs:
     networks:
       - default
@@ -70,9 +57,13 @@ services:
       DATABASE_URL: ecto://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-hardhat}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:?}
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      MAIL_FROM: ${MAIL_FROM:-noreply@hardhat.local}
+      MAIL_HOST: ${MAIL_HOST:?}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:?}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?}
+      MAIL_SSL: ${MAIL_SSL:-true}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:?}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-HardHat}
       WEB_BASE_URL: ${WEB_BASE_URL:?}
       PHX_HOST: ${PHX_HOST:?}
       PORT: 4000
@@ -86,8 +77,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
       rustfs:
         condition: service_started
 

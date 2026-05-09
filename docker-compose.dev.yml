@@ -18,16 +18,6 @@ services:
       timeout: 5s
       retries: 10
 
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: hardhat-dev-mailpit
-    ports:
-      - "${MAILPIT_SMTP_PORT:-1025}:1025"
-      - "${MAILPIT_UI_PORT:-8025}:8025"
-    environment:
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-
   rustfs:
     image: rustfs/rustfs:latest
     container_name: hardhat-dev-rustfs
@@ -58,14 +48,18 @@ services:
       DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-hardhat_dev}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_min_64_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:-dev_guardian_secret}
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SSL: ${MAIL_SSL:-true}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@hardhat.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-HardHat}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
       POSTGRES_USER: ${POSTGRES_USER:-hardhat}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
-      MAIL_FROM: ${MAIL_FROM:-noreply@hardhat.local}
       WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:5173}
       PHX_HOST: ${PHX_HOST:-localhost}
       PORT: 4000
@@ -83,8 +77,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
       rustfs:
         condition: service_started
 

@@ -16,7 +16,7 @@ import {
   Quote,
   Code,
   Link as LinkIcon
-} from '@phosphoricons/vue'
+} from '@phosphor-icons/vue'
 
 import type { TiptapDoc } from '../stores/board'
 
