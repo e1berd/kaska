@@ -13,8 +13,6 @@ export interface Column {
   rank: string
 }
 
-// We borrow tiptap's own JSONContent shape so the editor accepts the doc
-// without a manual cast.
 import type { JSONContent } from '@tiptap/vue-3'
 export type TiptapDoc = JSONContent & { type: 'doc' }
 
@@ -273,8 +271,6 @@ export const useBoardStore = defineStore('board', () => {
 
   function removeColumn(id: string) {
     columns.value = columns.value.filter((c) => c.id !== id)
-    // tasks of the deleted column are removed by the DB cascade and broadcast,
-    // but if the broadcast lost a race, drop them locally too:
     tasks.value = tasks.value.filter((t) => t.column_id !== id)
   }
 
