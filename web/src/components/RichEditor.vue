@@ -6,16 +6,16 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import {
-  TextB,
-  TextItalic,
-  TextStrikethrough,
-  H2,
-  H3,
-  ListBullets,
-  ListNumbers,
-  Quote,
-  Code,
-  Link as LinkIcon
+  PhTextB as TextB,
+  PhTextItalic as TextItalic,
+  PhTextStrikethrough as TextStrikethrough,
+  PhTextHTwo as H2,
+  PhTextHThree as H3,
+  PhListBullets as ListBullets,
+  PhListNumbers as ListNumbers,
+  PhQuotes as Quote,
+  PhCode as Code,
+  PhLink as LinkIcon,
 } from '@phosphor-icons/vue'
 
 import type { TiptapDoc } from '../stores/board'
