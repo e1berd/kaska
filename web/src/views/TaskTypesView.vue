@@ -23,12 +23,14 @@ const editTarget = ref<TaskType | null>(null)
 const typeName = ref('')
 const typeDescription = ref('')
 const typeColor = ref('#4CAF50')
+const typeTextColor = ref('#FFFFFF')
 const submitting = ref(false)
 
 const predefinedColors = [
   '#E0E0E0', '#F44336', '#E91E63', '#9C27B0', '#3F51B5',
   '#2196F3', '#00BCD4', '#009688', '#4CAF50', '#FF9800',
 ]
+const predefinedTextColors = ['#FFFFFF', '#000000']
 
 onMounted(async () => {
   try {
@@ -60,6 +62,7 @@ function openNewTaskType() {
   typeName.value = ''
   typeDescription.value = ''
   typeColor.value = '#4CAF50'
+  typeTextColor.value = '#FFFFFF'
   dialog.value = true
 }
 
@@ -68,6 +71,7 @@ function openEditTaskType(type: TaskType) {
   typeName.value = type.name
   typeDescription.value = type.description ?? ''
   typeColor.value = type.color || '#4CAF50'
+  typeTextColor.value = type.text_color || '#FFFFFF'
   dialog.value = true
 }
 
@@ -81,6 +85,7 @@ async function saveTaskType() {
       name,
       description: typeDescription.value.trim() || null,
       color: typeColor.value,
+      text_color: typeTextColor.value,
     }
     if (editTarget.value) {
       await board.updateTaskType(editTarget.value.id, payload)
@@ -94,6 +99,11 @@ async function saveTaskType() {
     submitting.value = false
   }
 }
+
+const previewStyle = computed(() => ({
+  background: cssColorOr(typeColor.value, '#E0E0E0'),
+  color: cssColorOr(typeTextColor.value, '#FFFFFF'),
+}))
 
 async function deleteTaskType(type: TaskType) {
   if (!confirm(`Удалить тип "${type.name}"?`)) return
@@ -157,9 +167,11 @@ function colorStyle(hex: string) {
     <section v-else class="hh-types__grid">
       <article v-for="type in board.task_types" :key="type.id" class="hh-type-card">
         <div class="hh-type-card__head">
-          <span class="hh-type-card__dot" :style="colorStyle(type.color)" />
+          <span
+            class="hh-type-card__chip"
+            :style="{ background: cssColorOr(type.color, '#E0E0E0'), color: cssColorOr(type.text_color, '#FFFFFF') }"
+          >{{ type.name }}</span>
           <div class="hh-type-card__title-wrap">
-            <h3 class="hh-type-card__title">{{ type.name }}</h3>
             <p v-if="type.description" class="hh-type-card__desc">{{ type.description }}</p>
             <p v-else class="hh-type-card__desc hh-type-card__desc--muted">Описание не указано</p>
           </div>
@@ -193,7 +205,7 @@ function colorStyle(hex: string) {
             auto-grow
           />
 
-          <div class="md-label-large mb-2">Цвет</div>
+          <div class="md-label-large mb-2">Цвет фона</div>
           <div class="hh-colors mb-3">
             <button
               v-for="color in predefinedColors"
@@ -205,10 +217,32 @@ function colorStyle(hex: string) {
               @click="typeColor = color"
             />
           </div>
-          <div class="d-flex align-center ga-3">
+          <div class="d-flex align-center ga-3 mb-4">
             <input v-model="typeColor" type="color" class="hh-color-input" />
             <v-text-field v-model="typeColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
           </div>
+
+          <div class="md-label-large mb-2">Цвет текста</div>
+          <div class="hh-colors mb-3">
+            <button
+              v-for="color in predefinedTextColors"
+              :key="color"
+              type="button"
+              class="hh-colors__item"
+              :class="{ 'is-active': typeTextColor === color }"
+              :style="colorStyle(color)"
+              @click="typeTextColor = color"
+            />
+          </div>
+          <div class="d-flex align-center ga-3 mb-4">
+            <input v-model="typeTextColor" type="color" class="hh-color-input" />
+            <v-text-field v-model="typeTextColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
+          </div>
+
+          <div class="md-label-large mb-2">Превью</div>
+          <span class="hh-type-preview" :style="previewStyle">
+            {{ typeName.trim() || 'Тип задачи' }}
+          </span>
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
           <v-spacer />
@@ -274,12 +308,23 @@ function colorStyle(hex: string) {
   align-items: flex-start;
   gap: 10px;
 }
-.hh-type-card__dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  margin-top: 7px;
+.hh-type-card__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--md-shape-s);
+  font-size: 13px;
+  font-weight: 500;
   flex: 0 0 auto;
+  white-space: nowrap;
+}
+.hh-type-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--md-shape-s);
+  font-size: 14px;
+  font-weight: 500;
 }
 .hh-type-card__title-wrap {
   min-width: 0;

@@ -206,6 +206,7 @@ defmodule HardhatWeb.BoardChannel do
       name: Map.get(payload, "name"),
       description: Map.get(payload, "description"),
       color: Map.get(payload, "color") || "gray",
+      text_color: Map.get(payload, "text_color") || "white",
       project_id: project_id
     }
 
@@ -221,7 +222,7 @@ defmodule HardhatWeb.BoardChannel do
   end
 
   def handle_in("update_task_type", %{"id" => id} = payload, socket) do
-    attrs = take_present(payload, ["name", "description", "color"])
+    attrs = take_present(payload, ["name", "description", "color", "text_color"])
 
     with %Hardhat.Projects.TaskType{} = task_type <- get_owned_task_type(id, socket),
          {:ok, task_type} <- Projects.update_task_type(task_type, attrs) do
@@ -478,7 +479,8 @@ defmodule HardhatWeb.BoardChannel do
       project_id: tt.project_id,
       name: tt.name,
       description: tt.description,
-      color: tt.color
+      color: tt.color,
+      text_color: tt.text_color
     }
   end
 

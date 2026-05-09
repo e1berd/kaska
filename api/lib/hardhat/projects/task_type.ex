@@ -11,6 +11,7 @@ defmodule Hardhat.Projects.TaskType do
   schema "task_types" do
     field :name, :string
     field :color, :string, default: "gray"
+    field :text_color, :string, default: "white"
     field :description, :string
 
     belongs_to :project, Project
@@ -20,7 +21,7 @@ defmodule Hardhat.Projects.TaskType do
 
   def changeset(task_type, attrs) do
     task_type
-    |> cast(attrs, [:name, :description, :color, :project_id])
+    |> cast(attrs, [:name, :description, :color, :text_color, :project_id])
     |> update_change(:name, fn
       nil -> nil
       name -> String.trim(name)
@@ -33,7 +34,7 @@ defmodule Hardhat.Projects.TaskType do
         trimmed = String.trim(desc)
         if trimmed == "", do: nil, else: trimmed
     end)
-    |> validate_required([:name, :color, :project_id])
+    |> validate_required([:name, :color, :text_color, :project_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_length(:description, max: 1000)
     |> assoc_constraint(:project)

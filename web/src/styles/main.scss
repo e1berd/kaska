@@ -207,3 +207,12 @@ body {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
+
+::selection {
+  background: rgb(var(--v-theme-primary-container));
+  color: rgb(var(--v-theme-on-primary-container));
+}
+::-moz-selection {
+  background: rgb(var(--v-theme-primary-container));
+  color: rgb(var(--v-theme-on-primary-container));
+}

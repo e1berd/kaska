@@ -38,6 +38,7 @@ export interface TaskType {
   name: string
   description?: string | null
   color: string
+  text_color: string
 }
 
 export interface Attachment {
@@ -369,11 +370,24 @@ export const useBoardStore = defineStore('board', () => {
     })
   }
 
-  function createTaskType(input: { name: string; description?: string | null; color: string }) {
+  function createTaskType(input: {
+    name: string
+    description?: string | null
+    color: string
+    text_color: string
+  }) {
     return pushAsync<TaskType>(ch(), 'create_task_type', input)
   }
 
-  function updateTaskType(id: string, input: { name?: string; description?: string | null; color?: string }) {
+  function updateTaskType(
+    id: string,
+    input: {
+      name?: string
+      description?: string | null
+      color?: string
+      text_color?: string
+    },
+  ) {
     return pushAsync<TaskType>(ch(), 'update_task_type', { id, ...input })
   }
 
