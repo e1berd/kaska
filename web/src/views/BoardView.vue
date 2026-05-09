@@ -19,6 +19,7 @@ import {
   type TiptapDoc,
 } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
+import { usePinnedProjectsStore } from '@/stores/pinnedProjects'
 import { useSocketStore, pushAsync } from '@/stores/socket'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import RichEditor from '@/components/RichEditor.vue'
@@ -57,6 +58,7 @@ const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
+const pinned = usePinnedProjectsStore()
 
 const socket = useSocketStore()
 
@@ -323,6 +325,12 @@ async function load() {
       projects.list.length ? Promise.resolve() : projects.joinLobby(),
     ])
     if (!board.project) throw new Error('проект не найден')
+    pinned.add({
+      id: board.project.id,
+      slug: board.project.slug,
+      name: board.project.name,
+      avatar_url: board.project.avatar_url ?? null,
+    })
   } catch (e) {
     error.value = (e as { message?: string }).message ?? 'не удалось открыть доску'
   } finally {
@@ -860,6 +868,22 @@ const boardBackgroundStyle = computed(() => ({
         @click="backToProjects"
       />
       <div class="hh-board__title">
+        <v-avatar
+          v-if="board.project"
+          size="32"
+          class="hh-board__logo"
+          color="primary-container"
+        >
+          <v-img
+            v-if="board.project.avatar_url"
+            :src="board.project.avatar_url"
+            cover
+            alt=""
+          />
+          <span v-else class="md-label-large">
+            {{ (board.project.name || '?').slice(0, 1).toUpperCase() }}
+          </span>
+        </v-avatar>
         <span class="md-title-large">{{ board.project?.name ?? '…' }}</span>
         <code v-if="board.project" class="hh-board__slug">/{{ board.project.slug }}</code>
       </div>
@@ -1591,9 +1615,12 @@ const boardBackgroundStyle = computed(() => ({
 }
 .hh-board__title {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   color: rgb(var(--v-theme-on-surface));
+}
+.hh-board__logo {
+  flex: 0 0 auto;
 }
 .hh-board__slug {
   font-family: 'Roboto Mono', ui-monospace, monospace;

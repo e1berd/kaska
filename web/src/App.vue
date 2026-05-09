@@ -7,6 +7,7 @@ import { useSocketStore } from '@/stores/socket'
 import { useSysStore } from '@/stores/sys'
 import { useBoardStore } from '@/stores/board'
 import { useThemeStore } from '@/stores/theme'
+import { usePinnedProjectsStore } from '@/stores/pinnedProjects'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import { cssColorOr } from '@/utils/css'
@@ -16,6 +17,7 @@ const socket = useSocketStore()
 const sys = useSysStore()
 const board = useBoardStore()
 const theme = useThemeStore()
+const pinned = usePinnedProjectsStore()
 const route = useRoute()
 const { mobile } = useDisplay()
 const vuetifyTheme = useTheme()
@@ -155,14 +157,6 @@ const navItems = computed<NavItem[]>(() => {
       to: { name: 'projects' },
     },
   ]
-  if (currentSlug.value) {
-    items.push({
-      key: 'types',
-      label: 'Типы задач',
-      icon: 'mdi-tag-multiple-outline',
-      to: { name: 'board_types', params: { slug: currentSlug.value } },
-    })
-  }
 
   items.push({
     key: 'members',
@@ -306,6 +300,50 @@ function logout() {
         :border="0"
       >
         <nav class="hh-nav__list" v-auto-animate>
+          <div
+            v-for="project in pinned.list"
+            :key="`pin:${project.id}`"
+            class="hh-nav__pin-group"
+          >
+            <button
+              type="button"
+              class="hh-nav__pin-remove"
+              :aria-label="`Открепить ${project.name}`"
+              @click.stop.prevent="pinned.remove(project.id)"
+            >
+              <v-icon size="14">mdi-close</v-icon>
+            </button>
+            <router-link
+              :to="{ name: 'board', params: { slug: project.slug } }"
+              class="hh-nav__item hh-nav__item--pin md-state-layer"
+              :title="project.name"
+            >
+              <span class="hh-nav__pill hh-nav__pill--pin">
+                <v-avatar size="32" color="primary-container">
+                  <v-img
+                    v-if="project.avatar_url"
+                    :src="project.avatar_url"
+                    cover
+                    alt=""
+                  />
+                  <span v-else class="md-label-large">
+                    {{ (project.name || '?').slice(0, 1).toUpperCase() }}
+                  </span>
+                </v-avatar>
+              </span>
+              <span class="hh-nav__label md-label-medium">{{ project.name }}</span>
+            </router-link>
+            <router-link
+              :to="{ name: 'board_types', params: { slug: project.slug } }"
+              class="hh-nav__item hh-nav__item--sub md-state-layer"
+              :title="`Типы задач — ${project.name}`"
+            >
+              <span class="hh-nav__pill hh-nav__pill--sub">
+                <v-icon size="20">mdi-tag-multiple-outline</v-icon>
+              </span>
+              <span class="hh-nav__label md-label-medium">Типы</span>
+            </router-link>
+          </div>
           <router-link
             v-for="item in navItems"
             :key="item.key"
@@ -431,5 +469,81 @@ function logout() {
   letter-spacing: 0.5px;
   white-space: nowrap;
   color: inherit;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hh-nav__pin-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 4px;
+  border-radius: var(--md-shape-l);
+  background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
+  width: 80px;
+}
+.hh-nav__pin-group + .hh-nav__pin-group {
+  margin-top: 2px;
+}
+.hh-nav__pin-group + .hh-nav__item {
+  margin-top: 8px;
+}
+.hh-nav__pill--pin {
+  width: 56px;
+  height: 40px;
+  background: transparent;
+}
+.hh-nav__item--pin.router-link-active .hh-nav__pill--pin {
+  background: transparent;
+}
+.hh-nav__item--pin.router-link-active :deep(.v-avatar) {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+.hh-nav__item--sub {
+  width: 72px;
+  height: 50px;
+  padding: 2px 0 4px;
+}
+.hh-nav__pill--sub {
+  width: 48px;
+  height: 26px;
+  background: rgb(var(--v-theme-surface-container-high));
+}
+.hh-nav__item--sub.router-link-active .hh-nav__pill--sub {
+  background: rgb(var(--v-theme-secondary-container));
+  color: rgb(var(--v-theme-on-secondary-container));
+}
+.hh-nav__pin-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--v-theme-error));
+  color: rgb(var(--v-theme-on-error));
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity var(--md-duration-short3) var(--md-easing-standard),
+    transform var(--md-duration-short3) var(--md-easing-emphasized);
+  pointer-events: none;
+  z-index: 2;
+}
+.hh-nav__pin-group:hover .hh-nav__pin-remove,
+.hh-nav__pin-remove:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
 }
 </style>
