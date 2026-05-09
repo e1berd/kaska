@@ -8,7 +8,7 @@ import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
-import type { Channel } from 'phoenix'
+import { type Channel, Presence } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import {
   useBoardStore,
@@ -141,6 +141,9 @@ let taskDocChannel: Channel | null = null
 let taskDocTopic: string | null = null
 const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
 
+type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
+const taskDocPresences = shallowRef<PresenceState>({})
+
 const editingDescription = ref(false)
 const deleteSnackOpen = ref(false)
 const deleteSnackText = ref('')
@@ -158,8 +161,11 @@ const taskAttachments = computed<Attachment[]>(() => {
   return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
 })
 const taskViewers = computed(() => {
-  if (!taskTarget.value) return []
-  return board.viewersForTask(taskTarget.value.id).filter((user) => user.id !== auth.user?.id)
+  const selfId = auth.user?.id
+  return Object.keys(taskDocPresences.value)
+    .filter((id) => id !== selfId)
+    .map((id) => board.users.find((u) => u.id === id))
+    .filter((u): u is NonNullable<typeof u> => !!u)
 })
 const currentTask = computed<Task | null>(() => {
   if (!taskTargetId.value) return null
@@ -640,6 +646,19 @@ async function setupCollab(taskId: string) {
       },
     })
 
+    channel.on('presence_state', (state: PresenceState) => {
+      taskDocPresences.value = Presence.syncState({}, state) as PresenceState
+    })
+    channel.on(
+      'presence_diff',
+      (diff: { joins: PresenceState; leaves: PresenceState }) => {
+        taskDocPresences.value = Presence.syncDiff(
+          taskDocPresences.value,
+          diff,
+        ) as PresenceState
+      },
+    )
+
     taskYDoc.value = doc
     taskAwareness.value = aw
     taskProvider = provider
@@ -662,6 +681,7 @@ function tearDownCollab() {
     taskDocTopic = null
   }
   taskDocChannel = null
+  taskDocPresences.value = {}
 }
 
 async function saveTask() {

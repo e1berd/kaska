@@ -7,6 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
 import type * as Y from 'yjs'
 import type { Awareness } from 'y-protocols/awareness'
 import {
@@ -77,6 +78,68 @@ const baseExtensions: AnyExtension[] = [
   }),
 ]
 
+// Custom caret renderer: a thin coloured bar plus a name label that
+// `floating-ui` keeps inside the editor box. Default renderer hard-codes
+// `top: -1.2em; left: -1px;` which clips on long lines near the right edge.
+function buildCaret(user: CollabUser): HTMLElement {
+  const cursor = document.createElement('span')
+  cursor.className = 'hh-collab-caret'
+  cursor.style.borderColor = user.color
+  // The two zero-width chars are how y-prosemirror anchors the caret in
+  // text — we keep them or selection placement breaks.
+  cursor.appendChild(document.createTextNode('⁠'))
+
+  const label = document.createElement('div')
+  label.className = 'hh-collab-caret__label'
+  label.style.background = user.color
+  label.textContent = user.name
+  cursor.appendChild(label)
+  cursor.appendChild(document.createTextNode('⁠'))
+
+  // floating-ui's autoUpdate keeps the label glued through scroll, resize,
+  // and reflow — needed because text wrapping can shove the cursor near
+  // the editor's right edge after the initial compute.
+  let stop: (() => void) | null = null
+  let removalObserver: MutationObserver | null = null
+
+  requestAnimationFrame(() => {
+    if (!cursor.isConnected) return
+    const editor = cursor.closest('.tiptap') as HTMLElement | null
+
+    stop = autoUpdate(cursor, label, () => {
+      void computePosition(cursor, label, {
+        placement: 'top-start',
+        strategy: 'absolute',
+        middleware: [
+          offset(2),
+          flip({ fallbackPlacements: ['bottom-start', 'top-end', 'bottom-end'] }),
+          shift({ padding: 4, ...(editor ? { boundary: editor } : {}) }),
+        ],
+      }).then(({ x, y }) => {
+        if (!cursor.isConnected) return
+        label.style.left = `${x}px`
+        label.style.top = `${y}px`
+      })
+    })
+
+    // ProseMirror destroys this widget when the cursor moves; we need to
+    // tear down the autoUpdate listeners (scroll, ResizeObserver) or they
+    // pile up. One MutationObserver per cursor is fine — cursors rarely
+    // exceed a handful of concurrent users.
+    const root = editor ?? document.body
+    removalObserver = new MutationObserver(() => {
+      if (cursor.isConnected) return
+      stop?.()
+      stop = null
+      removalObserver?.disconnect()
+      removalObserver = null
+    })
+    removalObserver.observe(root, { childList: true, subtree: true })
+  })
+
+  return cursor
+}
+
 const collabExtensions: AnyExtension[] = []
 if (collabMode && props.ydoc) {
   collabExtensions.push(Collaboration.configure({ document: props.ydoc }))
@@ -88,6 +151,7 @@ if (collabMode && props.ydoc) {
       CollaborationCaret.configure({
         provider: { awareness: props.awareness },
         user: props.user ?? { name: 'Гость', color: '#9ca3af' },
+        render: buildCaret,
       }),
     )
   }
@@ -351,7 +415,7 @@ function toggleLink() {
     }
   }
 
-  :deep(.collaboration-carets__caret) {
+  :deep(.hh-collab-caret) {
     border-left: 1px solid;
     border-right: 1px solid;
     margin-left: -1px;
@@ -361,19 +425,30 @@ function toggleLink() {
     word-break: normal;
   }
 
-  :deep(.collaboration-carets__label) {
-    border-radius: 4px 4px 4px 0;
+  :deep(.hh-collab-caret__label) {
+    border-radius: 4px;
     color: white;
     font-size: 11px;
-    font-style: normal;
     font-weight: 600;
-    left: -1px;
     line-height: normal;
     padding: 0.1rem 0.3rem;
     position: absolute;
-    top: -1.2em;
+    /* floating-ui sets top/left after the element mounts. Until it does,
+       keep the label off-screen so the unstyled flash doesn't leak. */
+    top: -9999px;
+    left: -9999px;
     user-select: none;
     white-space: nowrap;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Selection backgrounds drawn by y-prosemirror's selectionBuilder. */
+  :deep(.ProseMirror-yjs-selection) {
+    pointer-events: none;
   }
 }
 

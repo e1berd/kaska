@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { useRoute, useRouter } from 'vue-router'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
-import type { Channel } from 'phoenix'
+import { type Channel, Presence } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '@/stores/board'
 import { useSocketStore, pushAsync } from '@/stores/socket'
@@ -65,6 +65,9 @@ let taskDocChannel: Channel | null = null
 let taskDocTopic: string | null = null
 const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
 
+type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
+const taskDocPresences = shallowRef<PresenceState>({})
+
 const collabUser = computed(() => {
   const u = auth.user
   if (!u) return null
@@ -79,9 +82,13 @@ const taskAttachments = computed<Attachment[]>(() => {
   if (!currentTask.value) return []
   return board.attachmentsFor(currentTask.value.id)
 })
-const taskViewers = computed(() =>
-  board.viewersForTask(taskId.value).filter((user) => user.id !== auth.user?.id),
-)
+const taskViewers = computed(() => {
+  const selfId = auth.user?.id
+  return Object.keys(taskDocPresences.value)
+    .filter((id) => id !== selfId)
+    .map((id) => board.users.find((u) => u.id === id))
+    .filter((u): u is NonNullable<typeof u> => !!u)
+})
 
 type TaskFormState = {
   title: string
@@ -189,6 +196,19 @@ async function setupCollab(id: string) {
       },
     })
 
+    channel.on('presence_state', (state: PresenceState) => {
+      taskDocPresences.value = Presence.syncState({}, state) as PresenceState
+    })
+    channel.on(
+      'presence_diff',
+      (diff: { joins: PresenceState; leaves: PresenceState }) => {
+        taskDocPresences.value = Presence.syncDiff(
+          taskDocPresences.value,
+          diff,
+        ) as PresenceState
+      },
+    )
+
     taskYDoc.value = doc
     taskAwareness.value = aw
     taskProvider = provider
@@ -211,6 +231,7 @@ function tearDownCollab() {
     taskDocTopic = null
   }
   taskDocChannel = null
+  taskDocPresences.value = {}
 }
 
 async function load() {

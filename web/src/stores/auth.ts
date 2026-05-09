@@ -163,11 +163,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
-    const sock = useSocketStore()
     access.value = null
     refresh.value = null
     user.value = null
-    sock.connect(null)
+    // Full reload — cheaper than tearing down every live channel/provider/Y.Doc
+    // by hand and reconnecting the socket as guest. Anything in-flight gets
+    // dropped cleanly.
+    window.location.assign('/')
   }
 
   function bootstrap() {
