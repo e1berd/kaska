@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { useSysStore } from '../stores/sys'
+import { useAuthStore } from '@/stores/auth'
+import { useSysStore } from '@/stores/sys'
 
 const auth = useAuthStore()
 const sys = useSysStore()

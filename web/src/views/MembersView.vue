@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
-import { useSysStore } from '../stores/sys'
-import { useAuthStore } from '../stores/auth'
-import type { User } from '../stores/auth'
-import { useSocketStore } from '../stores/socket'
+import { useSysStore } from '@/stores/sys'
+import { useAuthStore } from '@/stores/auth'
+import type { User } from '@/stores/auth'
+import { useSocketStore } from '@/stores/socket'
 import type { Channel } from 'phoenix'
 import { PhPlus, PhMagnifyingGlass, PhDotsThreeVertical, PhCopy, PhCheckCircle, PhProhibit } from '@phosphor-icons/vue'
 

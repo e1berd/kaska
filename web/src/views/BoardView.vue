@@ -6,7 +6,7 @@ import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/ad
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
-import { useAuthStore, type User } from '../stores/auth'
+import { useAuthStore, type User } from '@/stores/auth'
 import {
   useBoardStore,
   type Attachment,
@@ -14,14 +14,14 @@ import {
   type Task,
   type TaskType,
   type TiptapDoc,
-} from '../stores/board'
-import { useProjectsStore } from '../stores/projects'
-import BoardColumn from '../components/board/BoardColumn.vue'
-import RichEditor from '../components/RichEditor.vue'
-import PresenceGroup from '../components/PresenceGroup.vue'
-import TaskCommentsSection from '../components/TaskCommentsSection.vue'
-import { cssUrlImageOr } from '../utils/css'
-import { docPreview, docToHtml, isDocEmpty } from '../utils/tiptap'
+} from '@/stores/board'
+import { useProjectsStore } from '@/stores/projects'
+import BoardColumn from '@/components/board/BoardColumn.vue'
+import RichEditor from '@/components/RichEditor.vue'
+import PresenceGroup from '@/components/PresenceGroup.vue'
+import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
+import { cssUrlImageOr } from '@/utils/css'
+import { docPreview, docToHtml, isDocEmpty } from '@/utils/tiptap'
 
 defineProps<{ slug?: string }>()
 

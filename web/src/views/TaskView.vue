@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore, type User } from '../stores/auth'
-import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '../stores/board'
-import { docToHtml, isDocEmpty } from '../utils/tiptap'
-import RichEditor from '../components/RichEditor.vue'
-import PresenceGroup from '../components/PresenceGroup.vue'
-import TaskCommentsSection from '../components/TaskCommentsSection.vue'
+import { useAuthStore, type User } from '@/stores/auth'
+import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '@/stores/board'
+import { docToHtml, isDocEmpty } from '@/utils/tiptap'
+import RichEditor from '@/components/RichEditor.vue'
+import PresenceGroup from '@/components/PresenceGroup.vue'
+import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 
 defineProps<{ slug?: string; taskId?: string }>()
 

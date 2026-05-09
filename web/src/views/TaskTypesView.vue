@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { useBoardStore, type TaskType } from '../stores/board'
-import { useProjectsStore } from '../stores/projects'
-import { cssColorOr } from '../utils/css'
+import { useAuthStore } from '@/stores/auth'
+import { useBoardStore, type TaskType } from '@/stores/board'
+import { useProjectsStore } from '@/stores/projects'
+import { cssColorOr } from '@/utils/css'
 
 defineProps<{ slug?: string }>()
 

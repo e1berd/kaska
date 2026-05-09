@@ -12,9 +12,9 @@ import {
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { computed } from 'vue'
-import { useBoardStore, type Task } from '../../stores/board'
-import { docPreview } from '../../utils/tiptap'
-import { cssColorOr } from '../../utils/css'
+import { useBoardStore, type Task } from '@/stores/board'
+import { docPreview } from '@/utils/tiptap'
+import { cssColorOr } from '@/utils/css'
 
 const board = useBoardStore()
 

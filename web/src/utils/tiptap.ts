@@ -1,7 +1,7 @@
 import { generateHTML } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import type { TiptapDoc } from '../stores/board'
+import type { TiptapDoc } from '@/stores/board'
 
 interface JSONNode {
   type?: string

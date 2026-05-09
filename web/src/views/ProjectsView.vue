@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useProjectsStore, type Project } from '../stores/projects'
-import { useAuthStore } from '../stores/auth'
-import { cssUrlImageOr } from '../utils/css'
+import { useProjectsStore, type Project } from '@/stores/projects'
+import { useAuthStore } from '@/stores/auth'
+import { cssUrlImageOr } from '@/utils/css'
 
 const projects = useProjectsStore()
 const auth = useAuthStore()

@@ -1,63 +1,63 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'home', component: () => import('../views/HomeView.vue') },
-  { path: '/projects', name: 'projects', component: () => import('../views/ProjectsView.vue') },
+  { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
+  { path: '/projects', name: 'projects', component: () => import('@/views/ProjectsView.vue') },
   {
     path: '/p/:slug',
     name: 'board',
-    component: () => import('../views/BoardView.vue'),
+    component: () => import('@/views/BoardView.vue'),
     props: true,
   },
   {
     path: '/p/:slug/types',
     name: 'board_types',
-    component: () => import('../views/TaskTypesView.vue'),
+    component: () => import('@/views/TaskTypesView.vue'),
     props: true,
   },
   {
     path: '/p/:slug/tasks/:taskId',
     name: 'task',
-    component: () => import('../views/TaskView.vue'),
+    component: () => import('@/views/TaskView.vue'),
     props: true,
   },
-  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
-  { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
+  { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
+  { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
   {
     path: '/verify/:token',
     name: 'verify',
-    component: () => import('../views/VerifyView.vue'),
+    component: () => import('@/views/VerifyView.vue'),
     props: true,
   },
-  { path: '/forgot', name: 'forgot', component: () => import('../views/ForgotView.vue') },
+  { path: '/forgot', name: 'forgot', component: () => import('@/views/ForgotView.vue') },
   {
     path: '/reset/:token',
     name: 'reset',
-    component: () => import('../views/ResetView.vue'),
+    component: () => import('@/views/ResetView.vue'),
     props: true,
   },
   {
     path: '/me',
     name: 'me',
-    component: () => import('../views/MeView.vue'),
+    component: () => import('@/views/MeView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/members',
     name: 'members',
-    component: () => import('../views/MembersView.vue'),
+    component: () => import('@/views/MembersView.vue'),
   },
   {
     path: '/settings',
     name: 'settings',
-    component: () => import('../views/SettingsView.vue'),
+    component: () => import('@/views/SettingsView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
-    component: () => import('../views/NotFoundView.vue'),
+    component: () => import('@/views/NotFoundView.vue'),
   },
 ]
 

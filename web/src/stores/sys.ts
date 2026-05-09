@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { pushAsync, useSocketStore } from './socket'
+import { pushAsync, useSocketStore } from '@/stores/socket'
 import { ref } from 'vue'
-import type { User } from './auth'
+import type { User } from '@/stores/auth'
 import { Presence } from 'phoenix'
 import type { Channel } from 'phoenix'
 

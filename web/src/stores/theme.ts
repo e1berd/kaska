@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { pushAsync, useSocketStore } from './socket'
-import { useAuthStore } from './auth'
-import type { ThemeMode } from './auth'
+import { pushAsync, useSocketStore } from '@/stores/socket'
+import { useAuthStore } from '@/stores/auth'
+import type { ThemeMode } from '@/stores/auth'
 
 export type PaletteColors = Record<string, string>
 

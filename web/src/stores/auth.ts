@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { pushAsync, useSocketStore } from './socket'
-import { uploadToPresignedUrl } from '../utils/upload'
+import { pushAsync, useSocketStore } from '@/stores/socket'
+import { uploadToPresignedUrl } from '@/utils/upload'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 

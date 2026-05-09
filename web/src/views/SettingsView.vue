@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useSysStore } from '../stores/sys'
-import { useAuthStore } from '../stores/auth'
-import { useThemeStore } from '../stores/theme'
-import type { ThemeMode } from '../stores/auth'
-import { cssColorOr } from '../utils/css'
+import { useSysStore } from '@/stores/sys'
+import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
+import type { ThemeMode } from '@/stores/auth'
+import { cssColorOr } from '@/utils/css'
 
 const sys = useSysStore()
 const auth = useAuthStore()

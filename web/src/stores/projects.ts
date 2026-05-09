@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Channel } from 'phoenix'
-import { pushAsync, useSocketStore } from './socket'
-import { uploadToPresignedUrl } from '../utils/upload'
+import { pushAsync, useSocketStore } from '@/stores/socket'
+import { uploadToPresignedUrl } from '@/utils/upload'
 
 export interface Project {
   id: string

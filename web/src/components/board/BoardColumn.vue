@@ -12,9 +12,9 @@ import {
   extractClosestEdge,
   type Edge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { useBoardStore, type Column, type Task } from '../../stores/board'
-import { useAuthStore } from '../../stores/auth'
-import BoardCard from './BoardCard.vue'
+import { useBoardStore, type Column, type Task } from '@/stores/board'
+import { useAuthStore } from '@/stores/auth'
+import BoardCard from '@/components/board/BoardCard.vue'
 import { PhDotsSix } from '@phosphor-icons/vue'
 
 const PAGE_SIZE = 20

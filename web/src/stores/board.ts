@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { Presence, type Channel } from 'phoenix'
-import { pushAsync, useSocketStore } from './socket'
-import type { Project } from './projects'
-import type { User } from './auth'
-import { uploadToPresignedUrl } from '../utils/upload'
+import { pushAsync, useSocketStore } from '@/stores/socket'
+import type { Project } from '@/stores/projects'
+import type { User } from '@/stores/auth'
+import { uploadToPresignedUrl } from '@/utils/upload'
 
 export interface Column {
   id: string

@@ -18,7 +18,7 @@ import {
   PhLink as LinkIcon,
 } from '@phosphor-icons/vue'
 
-import type { TiptapDoc } from '../stores/board'
+import type { TiptapDoc } from '@/stores/board'
 
 const props = withDefaults(
   defineProps<{

@@ -3,8 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { PhDetective } from '@phosphor-icons/vue'
 import { format, isValid, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { useAuthStore } from '../stores/auth'
-import { useBoardStore, type TaskComment } from '../stores/board'
+import { useAuthStore } from '@/stores/auth'
+import { useBoardStore, type TaskComment } from '@/stores/board'
 
 const props = defineProps<{
   taskId: string

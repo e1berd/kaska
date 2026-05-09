@@ -2,14 +2,14 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { useDisplay, useTheme } from 'vuetify'
-import { useAuthStore } from './stores/auth'
-import { useSocketStore } from './stores/socket'
-import { useSysStore } from './stores/sys'
-import { useBoardStore } from './stores/board'
-import { useThemeStore } from './stores/theme'
+import { useAuthStore } from '@/stores/auth'
+import { useSocketStore } from '@/stores/socket'
+import { useSysStore } from '@/stores/sys'
+import { useBoardStore } from '@/stores/board'
+import { useThemeStore } from '@/stores/theme'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
-import PresenceGroup from './components/PresenceGroup.vue'
-import { cssColorOr } from './utils/css'
+import PresenceGroup from '@/components/PresenceGroup.vue'
+import { cssColorOr } from '@/utils/css'
 
 const auth = useAuthStore()
 const socket = useSocketStore()
