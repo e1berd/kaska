@@ -61,7 +61,7 @@ function ensureThemeStyleEl(): HTMLStyleElement {
 watchEffect(() => {
   const palette = theme.effectivePalette
   const dark = theme.effectiveDark
-  vuetifyTheme.global.name.value = dark ? 'hardhatDark' : 'hardhatLight'
+  vuetifyTheme.change(dark ? 'hardhatDark' : 'hardhatLight')
   if (!palette) return
   const css = [
     paletteToCssBlock(
@@ -211,14 +211,14 @@ function logout() {
         </template>
 
         <template #append>
+          <PresenceGroup
+            v-if="headerPresenceUsers.length"
+            class="mr-2"
+            :users="headerPresenceUsers"
+            :label="headerPresenceLabel"
+            size="sm"
+          />
           <template v-if="auth.isAuthed">
-            <PresenceGroup
-              v-if="headerPresenceUsers.length"
-              class="mr-2"
-              :users="headerPresenceUsers"
-              :label="headerPresenceLabel"
-              size="sm"
-            />
             <v-menu v-if="auth.isAuthed">
               <template #activator="{ props }">
                 <v-btn

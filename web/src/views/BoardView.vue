@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
+import * as Y from 'yjs'
+import { Awareness } from 'y-protocols/awareness'
+import type { Channel } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import {
   useBoardStore,
@@ -16,12 +19,35 @@ import {
   type TiptapDoc,
 } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
+import { useSocketStore, pushAsync } from '@/stores/socket'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import { cssUrlImageOr } from '@/utils/css'
-import { docPreview, docToHtml, isDocEmpty } from '@/utils/tiptap'
+import { docPreview } from '@/utils/tiptap'
+import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
+
+// Picked from the M3-ish palette used elsewhere in the app. Hex only —
+// y-tiptap's caret extension rejects hsl()/rgb() strings and won't render
+// the cursor at all, which is the difference between "guests see cursors"
+// and "guests see only text changes".
+const COLLAB_PALETTE = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+] as const
+function colorFromId(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return COLLAB_PALETTE[Math.abs(hash) % COLLAB_PALETTE.length]
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
 
 defineProps<{ slug?: string }>()
 
@@ -31,6 +57,8 @@ const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
+
+const socket = useSocketStore()
 
 const slug = computed(() => route.params.slug as string)
 const loading = ref(true)
@@ -90,7 +118,6 @@ const taskDialog = ref(false)
 const taskTarget = ref<Task | null>(null)
 const taskTargetId = ref<string | null>(null)
 const taskTitle = ref('')
-const taskBody = ref<TiptapDoc>({ type: 'doc', content: [] })
 const taskStartDate = ref<string | null>(null)
 const taskEndDate = ref<string | null>(null)
 const taskType = ref<string | null>(null)
@@ -104,11 +131,28 @@ let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
 let taskSavingStartedAt = 0
 let taskSaveQueued = false
 
+// Collaboration state for the open task. Y.Doc is the source of truth for
+// the description; provider relays updates / awareness through the
+// `task_doc:<id>` channel. Recreated per opened task.
+const taskYDoc = shallowRef<Y.Doc | null>(null)
+const taskAwareness = shallowRef<Awareness | null>(null)
+let taskProvider: PhoenixYProvider | null = null
+let taskDocChannel: Channel | null = null
+let taskDocTopic: string | null = null
+const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
+
 const editingDescription = ref(false)
-const descriptionHtml = computed(() => docToHtml(taskBody.value))
-const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
 const deleteSnackOpen = ref(false)
 const deleteSnackText = ref('')
+
+const collabUser = computed(() => {
+  const u = auth.user
+  if (!u) return null
+  return {
+    name: u.display_name || u.email?.split('@')[0] || 'Гость',
+    color: colorFromId(u.id),
+  }
+})
 
 const taskAttachments = computed<Attachment[]>(() => {
   return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
@@ -117,19 +161,6 @@ const taskViewers = computed(() => {
   if (!taskTarget.value) return []
   return board.viewersForTask(taskTarget.value.id).filter((user) => user.id !== auth.user?.id)
 })
-const taskEditors = computed(() => {
-  if (!taskTarget.value) return []
-  return board
-    .editorsForTask(taskTarget.value.id)
-    .filter((user) => user.id !== auth.user?.id)
-})
-const activeDescriptionEditor = computed(() => taskEditors.value[0] ?? null)
-const activeDescriptionEditorName = computed(
-  () =>
-    activeDescriptionEditor.value?.display_name ||
-    activeDescriptionEditor.value?.email?.split('@')[0] ||
-    'Пользователь',
-)
 const currentTask = computed<Task | null>(() => {
   if (!taskTargetId.value) return null
   return board.tasks.find((t) => t.id === taskTargetId.value) ?? null
@@ -137,7 +168,6 @@ const currentTask = computed<Task | null>(() => {
 
 type TaskFormState = {
   title: string
-  body_doc: TiptapDoc
   start_date: string | null
   end_date: string | null
   task_type_id: string | null
@@ -147,7 +177,6 @@ type TaskFormState = {
 function getTaskFormState(): TaskFormState {
   return {
     title: taskTitle.value.trim(),
-    body_doc: taskBody.value,
     start_date: taskStartDate.value,
     end_date: taskEndDate.value,
     task_type_id: taskType.value,
@@ -158,7 +187,6 @@ function getTaskFormState(): TaskFormState {
 function getTaskServerState(task: Task): TaskFormState {
   return {
     title: task.title,
-    body_doc: task.body_doc ?? { type: 'doc', content: [] },
     start_date: task.start_date ?? null,
     end_date: task.end_date ?? null,
     task_type_id: task.task_type_id ?? null,
@@ -174,8 +202,7 @@ function isFormSyncedWithTask(task: Task): boolean {
     form.start_date === server.start_date &&
     form.end_date === server.end_date &&
     form.task_type_id === server.task_type_id &&
-    form.assignee_id === server.assignee_id &&
-    JSON.stringify(form.body_doc) === JSON.stringify(server.body_doc)
+    form.assignee_id === server.assignee_id
   )
 }
 
@@ -391,9 +418,7 @@ onBeforeUnmount(() => {
   monitorCleanup?.()
   columnsMonitorCleanup?.()
   scrollCleanup?.()
-  if (auth.isAuthed) {
-    void board.setActiveTask(null, false).catch(() => {})
-  }
+  tearDownCollab()
   if (taskSaveTimer) clearTimeout(taskSaveTimer)
 })
 
@@ -502,29 +527,12 @@ watch(
 )
 
 watch(
-  () => editingDescription.value,
-  (editing) => {
-    if (!currentTask.value || !auth.isAuthed || !taskDialog.value) return
-    void board.setActiveTask(currentTask.value.id, editing).catch(() => {})
-  },
-)
-
-watch(
-  () => taskDialog.value,
-  (open) => {
-    if (open || !auth.isAuthed) return
-    void board.setActiveTask(null, false).catch(() => {})
-  },
-)
-
-watch(
   () => currentTask.value,
   (task) => {
     if (!task || !taskDialog.value) return
     taskSyncing.value = true
     taskTarget.value = task
     taskTitle.value = task.title
-    taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
     taskStartDate.value = task.start_date ?? null
     taskEndDate.value = task.end_date ?? null
     taskType.value = task.task_type_id ?? null
@@ -541,7 +549,6 @@ watch(
     taskDialog.value,
     taskTargetId.value,
     taskTitle.value,
-    JSON.stringify(taskBody.value),
     taskStartDate.value,
     taskEndDate.value,
     taskType.value,
@@ -555,16 +562,6 @@ watch(
     taskSaveTimer = setTimeout(() => {
       void saveTask()
     }, 450)
-  },
-)
-
-watch(
-  () => taskDialog.value,
-  (open) => {
-    if (open) return
-    if (auth.isAuthed) {
-      void board.setActiveTask(null, false).catch(() => {})
-    }
   },
 )
 
@@ -599,13 +596,12 @@ async function commitDelete() {
   }
 }
 
-function openTask(task: Task) {
+async function openTask(task: Task) {
   taskTargetId.value = task.id
   const actualTask = board.tasks.find((t) => t.id === task.id) ?? task
   taskTarget.value = actualTask
   taskSyncing.value = true
   taskTitle.value = actualTask.title
-  taskBody.value = actualTask.body_doc ?? { type: 'doc', content: [] }
   taskStartDate.value = actualTask.start_date ?? null
   taskEndDate.value = actualTask.end_date ?? null
   taskType.value = actualTask.task_type_id ?? null
@@ -613,9 +609,59 @@ function openTask(task: Task) {
   editingDescription.value = false
   taskSyncing.value = false
   taskDialog.value = true
-  if (auth.isAuthed) {
-    void board.setActiveTask(actualTask.id, editingDescription.value).catch(() => {})
+
+  await setupCollab(actualTask.id)
+}
+
+async function setupCollab(taskId: string) {
+  tearDownCollab()
+  const topic = `task_doc:${taskId}`
+  try {
+    const { channel, reply } = await socket.joinChannel<{ state?: string }>(topic)
+    // Bail if the user already moved on while we were joining.
+    if (taskTargetId.value !== taskId) {
+      socket.leaveChannel(topic)
+      return
+    }
+    const doc = new Y.Doc()
+    if (reply.state) {
+      const bytes = base64ToUint8(reply.state)
+      if (bytes.byteLength > 0) Y.applyUpdate(doc, bytes)
+    }
+    const aw = new Awareness(doc)
+    const provider = new PhoenixYProvider(channel, doc, aw, {
+      onLocalSettle: () => {
+        if (!auth.isAuthed) return
+        const docJson = richEditorRef.value?.getJSON()
+        if (!docJson) return
+        pushAsync(channel, 'materialize_body_doc', { doc: docJson }).catch((e) => {
+          console.warn('[board] materialize failed', e)
+        })
+      },
+    })
+
+    taskYDoc.value = doc
+    taskAwareness.value = aw
+    taskProvider = provider
+    taskDocChannel = channel
+    taskDocTopic = topic
+  } catch (e) {
+    console.warn('[board] task_doc join failed', e)
   }
+}
+
+function tearDownCollab() {
+  taskProvider?.destroy()
+  taskProvider = null
+  taskAwareness.value?.destroy()
+  taskAwareness.value = null
+  taskYDoc.value?.destroy()
+  taskYDoc.value = null
+  if (taskDocTopic) {
+    socket.leaveChannel(taskDocTopic)
+    taskDocTopic = null
+  }
+  taskDocChannel = null
 }
 
 async function saveTask() {
@@ -632,7 +678,6 @@ async function saveTask() {
   try {
     await board.updateTask(currentTask.value.id, {
       title: payload.title,
-      body_doc: payload.body_doc,
       start_date: payload.start_date,
       end_date: payload.end_date,
       task_type_id: payload.task_type_id,
@@ -733,9 +778,7 @@ function closeTaskDialog() {
   }
   taskDialog.value = false
   taskTargetId.value = null
-  if (auth.isAuthed) {
-    void board.setActiveTask(null, false).catch(() => {})
-  }
+  tearDownCollab()
 }
 
 function openTaskPage() {
@@ -1192,7 +1235,7 @@ const boardBackgroundStyle = computed(() => ({
               <div class="hh-desc__head mt-2 mb-2">
                 <div class="md-label-large">Описание</div>
                 <v-btn
-                  v-if="auth.isAuthed && !editingDescription && !activeDescriptionEditor"
+                  v-if="auth.isAuthed && !editingDescription"
                   variant="text"
                   size="small"
                   rounded="pill"
@@ -1200,16 +1243,6 @@ const boardBackgroundStyle = computed(() => ({
                   @click="editingDescription = true"
                 >
                   Редактировать
-                </v-btn>
-                <v-btn
-                  v-else-if="!editingDescription && activeDescriptionEditor"
-                  variant="text"
-                  size="small"
-                  rounded="pill"
-                  disabled
-                  class="hh-edit-lock-btn"
-                >
-                  {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
                 </v-btn>
                 <v-btn
                   v-else-if="auth.isAuthed && editingDescription"
@@ -1224,20 +1257,15 @@ const boardBackgroundStyle = computed(() => ({
               </div>
 
               <RichEditor
-                v-if="editingDescription"
-                v-model="taskBody"
-                :readonly="!auth.isAuthed || !editingDescription"
+                v-if="taskYDoc"
+                ref="richEditorRef"
+                :key="taskTargetId ?? ''"
+                :ydoc="taskYDoc"
+                :awareness="taskAwareness"
+                :user="collabUser"
+                :editable="auth.isAuthed && editingDescription"
                 placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
-                autofocus="end"
               />
-              <div
-                v-if="!editingDescription && !descriptionEmpty"
-                class="hh-desc__view"
-                v-html="descriptionHtml"
-              />
-              <div v-if="!editingDescription && descriptionEmpty" class="hh-desc__empty md-body-medium">
-                Описание не заполнено.
-              </div>
 
               <div class="hh-attach__head mt-5 mb-2">
                 <div class="md-label-large">Вложения</div>

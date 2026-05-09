@@ -9,6 +9,8 @@ defmodule Hardhat.Application do
       {DNSCluster, query: Application.get_env(:hardhat, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Hardhat.PubSub},
       HardhatWeb.Presence,
+      {Registry, keys: :unique, name: Hardhat.TaskDocs.Registry},
+      Hardhat.TaskDocs.Supervisor,
       HardhatWeb.Endpoint,
       Hardhat.Storage.Bootstrap,
       Hardhat.Themes.Seeder

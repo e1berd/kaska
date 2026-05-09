@@ -5,6 +5,10 @@ import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import type * as Y from 'yjs'
+import type { Awareness } from 'y-protocols/awareness'
 import {
   PhTextB as TextB,
   PhTextItalic as TextItalic,
@@ -20,17 +24,28 @@ import {
 
 import type { TiptapDoc } from '@/stores/board'
 
+type CollabUser = { name: string; color: string }
+
 const props = withDefaults(
   defineProps<{
-    modelValue: TiptapDoc | null | undefined
+    modelValue?: TiptapDoc | null
     placeholder?: string
     readonly?: boolean
+    editable?: boolean
     autofocus?: FocusPosition
+    ydoc?: Y.Doc | null
+    awareness?: Awareness | null
+    user?: CollabUser | null
   }>(),
   {
     placeholder: 'Начните писать…',
     autofocus: false,
     readonly: false,
+    editable: undefined,
+    modelValue: null,
+    ydoc: null,
+    awareness: null,
+    user: null,
   },
 )
 
@@ -38,10 +53,21 @@ const emit = defineEmits<{
   (e: 'update:modelValue', doc: TiptapDoc): void
 }>()
 
-const extensions: AnyExtension[] = [
+const collabMode = !!props.ydoc
+
+function resolveEditable(): boolean {
+  if (typeof props.editable === 'boolean') return props.editable
+  return !props.readonly
+}
+
+const baseExtensions: AnyExtension[] = [
   StarterKit.configure({
     link: false,
     heading: { levels: [2, 3] },
+    // Tiptap v3 ships UndoRedo (formerly History). Yjs owns undo in collab
+    // mode — both fighting over the same transactions throws inside
+    // dispatchTransaction, so disable the StarterKit one.
+    ...(collabMode ? { undoRedo: false as const } : {}),
   }),
   Placeholder.configure({ placeholder: props.placeholder }),
   Link.configure({
@@ -51,33 +77,66 @@ const extensions: AnyExtension[] = [
   }),
 ]
 
+const collabExtensions: AnyExtension[] = []
+if (collabMode && props.ydoc) {
+  collabExtensions.push(Collaboration.configure({ document: props.ydoc }))
+  if (props.awareness) {
+    // Guests still need this extension to *see* peers' carets. They never
+    // broadcast — the server rejects awareness pushes from unauthed sockets
+    // — so the placeholder user value is purely defensive.
+    collabExtensions.push(
+      CollaborationCaret.configure({
+        provider: { awareness: props.awareness },
+        user: props.user ?? { name: 'Гость', color: '#9ca3af' },
+      }),
+    )
+  }
+}
+
 const editor = new Editor({
-  editable: !props.readonly,
+  editable: resolveEditable(),
   autofocus: props.autofocus,
-  content: props.modelValue ?? { type: 'doc', content: [] },
-  extensions,
-  onUpdate: ({ editor: ed }) => {
-    emit('update:modelValue', ed.getJSON() as TiptapDoc)
-  },
+  // In collab mode `Collaboration` extension provides content from the Y.Doc,
+  // so we mustn't pass `content` (it would clobber the shared doc).
+  content: collabMode ? undefined : (props.modelValue ?? { type: 'doc', content: [] }),
+  extensions: [...baseExtensions, ...collabExtensions],
+  // Tiptap registers every `on*` option as an event listener. Passing
+  // `undefined` here would clobber the default no-op and crash the next
+  // time that event fires. Only attach the callback when we actually want
+  // it (non-collab mode); in collab the Y.Doc is the source of truth.
+  ...(collabMode
+    ? {}
+    : {
+        onUpdate: ({ editor: ed }: { editor: Editor }) => {
+          emit('update:modelValue', ed.getJSON() as TiptapDoc)
+        },
+      }),
 })
 
-watch(
-  () => props.modelValue,
-  (next) => {
-    const current = editor.getJSON()
-    if (JSON.stringify(current) === JSON.stringify(next ?? {})) return
-    editor.commands.setContent(next ?? { type: 'doc', content: [] }, { emitUpdate: false })
-  },
-)
+if (!collabMode) {
+  watch(
+    () => props.modelValue,
+    (next) => {
+      const current = editor.getJSON()
+      if (JSON.stringify(current) === JSON.stringify(next ?? {})) return
+      editor.commands.setContent(next ?? { type: 'doc', content: [] }, { emitUpdate: false })
+    },
+  )
+}
 
 watch(
-  () => props.readonly,
-  (ro) => {
-    editor.setEditable(!ro)
+  () => resolveEditable(),
+  (val) => {
+    editor.setEditable(val)
   },
 )
 
 onBeforeUnmount(() => editor.destroy())
+
+defineExpose({
+  getJSON: () => editor.getJSON() as TiptapDoc,
+  focus: (position: FocusPosition = 'end') => editor.commands.focus(position),
+})
 
 function isActive(name: string, attrs?: Record<string, unknown>) {
   return editor.isActive(name, attrs)
@@ -95,8 +154,8 @@ function toggleLink() {
 </script>
 
 <template>
-  <div class="hh-rich" :class="{ 'hh-rich--ro': readonly }">
-    <div v-if="!readonly" class="hh-rich__toolbar">
+  <div class="hh-rich" :class="{ 'hh-rich--ro': !resolveEditable() }">
+    <div v-if="resolveEditable()" class="hh-rich__toolbar">
       <button
         type="button"
         class="hh-rich__btn"
@@ -290,6 +349,31 @@ function toggleLink() {
       height: 0;
       float: left;
     }
+  }
+
+  :deep(.collaboration-carets__caret) {
+    border-left: 1px solid;
+    border-right: 1px solid;
+    margin-left: -1px;
+    margin-right: -1px;
+    pointer-events: none;
+    position: relative;
+    word-break: normal;
+  }
+
+  :deep(.collaboration-carets__label) {
+    border-radius: 4px 4px 4px 0;
+    color: white;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600;
+    left: -1px;
+    line-height: normal;
+    padding: 0.1rem 0.3rem;
+    position: absolute;
+    top: -1.2em;
+    user-select: none;
+    white-space: nowrap;
   }
 }
 

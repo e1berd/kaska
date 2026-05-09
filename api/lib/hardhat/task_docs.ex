@@ -39,6 +39,18 @@ defmodule Hardhat.TaskDocs do
   end
 
   @doc """
+  Returns the highest `seq` ever assigned to this task's update log, or `0`
+  if the task has no updates yet. Used at server boot to seed the watermark.
+  """
+  def max_seq(task_id) when is_binary(task_id) do
+    Repo.one(
+      from u in TaskDocUpdate,
+        where: u.task_id == ^task_id,
+        select: max(u.seq)
+    ) || 0
+  end
+
+  @doc """
   Appends a Y.Doc update binary to the task's log. Returns the assigned `seq`.
   """
   def append_update(task_id, update_bin, author_id)

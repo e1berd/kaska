@@ -1,0 +1,99 @@
+defmodule HardhatWeb.TaskDocChannel do
+  @moduledoc """
+  `task_doc:<task_id>` — public read, authed write.
+
+  Carries the collaborative editing protocol for a task description:
+    * On join, server sends the current Y.Doc state encoded as a single
+      update binary; the client applies it into a fresh local doc.
+    * `update` events relay Y.Doc updates between peers via a server-held
+      authoritative doc (`Hardhat.TaskDocs.Server`) that also persists them.
+    * `awareness` events relay cursor/selection state directly between
+      peers — they are ephemeral and not persisted.
+    * `materialize_body_doc` lets a client push a final ProseMirror JSON
+      version of the doc for use in previews / list view / search.
+
+  Anonymous viewers can join and receive `update` / `awareness` broadcasts
+  but cannot send any of them.
+  """
+
+  use Phoenix.Channel
+
+  alias Hardhat.Projects
+  alias Hardhat.Projects.Task
+  alias Hardhat.TaskDocs
+  alias HardhatWeb.Presence
+
+  @impl true
+  def join("task_doc:" <> task_id, _payload, socket) do
+    with %Task{} = task <- Projects.get_task(task_id),
+         {:ok, _pid} <- Hardhat.TaskDocs.Supervisor.lookup_or_start(task.id),
+         {:ok, state_bin} <- TaskDocs.Server.get_state(task.id) do
+      socket =
+        socket
+        |> assign(:task_id, task.id)
+        |> assign(:project_id, task.project_id)
+
+      send(self(), :after_join)
+
+      {:ok, %{state: Base.encode64(state_bin)}, socket}
+    else
+      nil -> {:error, %{reason: "not_found"}}
+      _ -> {:error, %{reason: "server_unavailable"}}
+    end
+  end
+
+  @impl true
+  def handle_info(:after_join, socket) do
+    if user = socket.assigns[:current_user] do
+      {:ok, _} =
+        Presence.track(socket, user.id, %{
+          online_at: inspect(System.system_time(:second))
+        })
+    end
+
+    push(socket, "presence_state", Presence.list(socket))
+    {:noreply, socket}
+  end
+
+  ## Auth gate ────────────────────────────────────────────────────────────
+
+  @impl true
+  def handle_in(_event, _payload, %{assigns: %{current_user: nil}} = socket) do
+    {:reply, {:error, %{message: "unauthorized"}}, socket}
+  end
+
+  ## Y.Doc updates ────────────────────────────────────────────────────────
+
+  def handle_in("update", %{"u" => b64}, socket) when is_binary(b64) do
+    with {:ok, bin} <- Base.decode64(b64),
+         author_id = socket.assigns.current_user.id,
+         :ok <- TaskDocs.Server.apply_update(socket.assigns.task_id, bin, author_id) do
+      broadcast_from!(socket, "update", %{u: b64})
+      {:reply, :ok, socket}
+    else
+      :error -> {:reply, {:error, %{message: "invalid_base64"}}, socket}
+      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+    end
+  end
+
+  ## Awareness (cursors, selections) ──────────────────────────────────────
+
+  def handle_in("awareness", %{"s" => b64}, socket) when is_binary(b64) do
+    user = socket.assigns.current_user
+    broadcast_from!(socket, "awareness", %{s: b64, from: user.id})
+    {:reply, :ok, socket}
+  end
+
+  ## Body_doc materialization ─────────────────────────────────────────────
+
+  def handle_in("materialize_body_doc", %{"doc" => %{"type" => "doc"} = doc}, socket) do
+    case TaskDocs.update_body_doc(socket.assigns.task_id, doc) do
+      :ok -> {:reply, :ok, socket}
+      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+    end
+  end
+
+  def handle_in("materialize_body_doc", _payload, socket) do
+    {:reply, {:error, %{message: "invalid_doc"}}, socket}
+  end
+end

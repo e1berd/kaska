@@ -1,12 +1,33 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as Y from 'yjs'
+import { Awareness } from 'y-protocols/awareness'
+import type { Channel } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '@/stores/board'
-import { docToHtml, isDocEmpty } from '@/utils/tiptap'
+import { useSocketStore, pushAsync } from '@/stores/socket'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
+import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
+
+const COLLAB_PALETTE = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+] as const
+function colorFromId(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return COLLAB_PALETTE[Math.abs(hash) % COLLAB_PALETTE.length]
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
 
 defineProps<{ slug?: string; taskId?: string }>()
 
@@ -14,6 +35,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const board = useBoardStore()
+const socket = useSocketStore()
 
 const slug = computed(() => route.params.slug as string)
 const taskId = computed(() => route.params.taskId as string)
@@ -22,7 +44,6 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 
 const taskTitle = ref('')
-const taskBody = ref<TiptapDoc>({ type: 'doc', content: [] })
 const taskStartDate = ref<string | null>(null)
 const taskEndDate = ref<string | null>(null)
 const taskType = ref<string | null>(null)
@@ -37,9 +58,23 @@ let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
 let taskSavingStartedAt = 0
 let taskSaveQueued = false
 
+const taskYDoc = shallowRef<Y.Doc | null>(null)
+const taskAwareness = shallowRef<Awareness | null>(null)
+let taskProvider: PhoenixYProvider | null = null
+let taskDocChannel: Channel | null = null
+let taskDocTopic: string | null = null
+const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
+
+const collabUser = computed(() => {
+  const u = auth.user
+  if (!u) return null
+  return {
+    name: u.display_name || u.email?.split('@')[0] || 'Гость',
+    color: colorFromId(u.id),
+  }
+})
+
 const currentTask = computed<Task | null>(() => board.tasks.find((t) => t.id === taskId.value) ?? null)
-const descriptionHtml = computed(() => docToHtml(taskBody.value))
-const descriptionEmpty = computed(() => isDocEmpty(taskBody.value))
 const taskAttachments = computed<Attachment[]>(() => {
   if (!currentTask.value) return []
   return board.attachmentsFor(currentTask.value.id)
@@ -47,20 +82,9 @@ const taskAttachments = computed<Attachment[]>(() => {
 const taskViewers = computed(() =>
   board.viewersForTask(taskId.value).filter((user) => user.id !== auth.user?.id),
 )
-const taskEditors = computed(() =>
-  board.editorsForTask(taskId.value).filter((user) => user.id !== auth.user?.id),
-)
-const activeDescriptionEditor = computed(() => taskEditors.value[0] ?? null)
-const activeDescriptionEditorName = computed(
-  () =>
-    activeDescriptionEditor.value?.display_name ||
-    activeDescriptionEditor.value?.email?.split('@')[0] ||
-    'Пользователь',
-)
 
 type TaskFormState = {
   title: string
-  body_doc: TiptapDoc
   start_date: string | null
   end_date: string | null
   task_type_id: string | null
@@ -70,7 +94,6 @@ type TaskFormState = {
 function getTaskFormState(): TaskFormState {
   return {
     title: taskTitle.value.trim(),
-    body_doc: taskBody.value,
     start_date: taskStartDate.value,
     end_date: taskEndDate.value,
     task_type_id: taskType.value,
@@ -81,7 +104,6 @@ function getTaskFormState(): TaskFormState {
 function getTaskServerState(task: Task): TaskFormState {
   return {
     title: task.title,
-    body_doc: task.body_doc ?? { type: 'doc', content: [] },
     start_date: task.start_date ?? null,
     end_date: task.end_date ?? null,
     task_type_id: task.task_type_id ?? null,
@@ -97,8 +119,7 @@ function isFormSyncedWithTask(task: Task): boolean {
     form.start_date === server.start_date &&
     form.end_date === server.end_date &&
     form.task_type_id === server.task_type_id &&
-    form.assignee_id === server.assignee_id &&
-    JSON.stringify(form.body_doc) === JSON.stringify(server.body_doc)
+    form.assignee_id === server.assignee_id
   )
 }
 
@@ -133,7 +154,6 @@ function formatIsoDate(date: Date): string {
 function syncFormFromTask(task: Task) {
   taskSyncing.value = true
   taskTitle.value = task.title
-  taskBody.value = task.body_doc ?? { type: 'doc', content: [] }
   taskStartDate.value = task.start_date ?? null
   taskEndDate.value = task.end_date ?? null
   taskType.value = task.task_type_id ?? null
@@ -143,6 +163,56 @@ function syncFormFromTask(task: Task) {
   }, 0)
 }
 
+async function setupCollab(id: string) {
+  tearDownCollab()
+  const topic = `task_doc:${id}`
+  try {
+    const { channel, reply } = await socket.joinChannel<{ state?: string }>(topic)
+    if (taskId.value !== id) {
+      socket.leaveChannel(topic)
+      return
+    }
+    const doc = new Y.Doc()
+    if (reply.state) {
+      const bytes = base64ToUint8(reply.state)
+      if (bytes.byteLength > 0) Y.applyUpdate(doc, bytes)
+    }
+    const aw = new Awareness(doc)
+    const provider = new PhoenixYProvider(channel, doc, aw, {
+      onLocalSettle: () => {
+        if (!auth.isAuthed) return
+        const docJson = richEditorRef.value?.getJSON()
+        if (!docJson) return
+        pushAsync(channel, 'materialize_body_doc', { doc: docJson }).catch((e) => {
+          console.warn('[task] materialize failed', e)
+        })
+      },
+    })
+
+    taskYDoc.value = doc
+    taskAwareness.value = aw
+    taskProvider = provider
+    taskDocChannel = channel
+    taskDocTopic = topic
+  } catch (e) {
+    console.warn('[task] task_doc join failed', e)
+  }
+}
+
+function tearDownCollab() {
+  taskProvider?.destroy()
+  taskProvider = null
+  taskAwareness.value?.destroy()
+  taskAwareness.value = null
+  taskYDoc.value?.destroy()
+  taskYDoc.value = null
+  if (taskDocTopic) {
+    socket.leaveChannel(taskDocTopic)
+    taskDocTopic = null
+  }
+  taskDocChannel = null
+}
+
 async function load() {
   loading.value = true
   error.value = null
@@ -150,9 +220,7 @@ async function load() {
     await board.joinBySlug(slug.value)
     if (currentTask.value) {
       syncFormFromTask(currentTask.value)
-      if (auth.isAuthed) {
-        await board.setActiveTask(currentTask.value.id, editingDescription.value)
-      }
+      await setupCollab(currentTask.value.id)
     }
   } catch (e: any) {
     error.value = e?.message || 'Не удалось открыть задачу'
@@ -166,9 +234,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (auth.isAuthed) {
-    void board.setActiveTask(null, false).catch(() => {})
-  }
+  tearDownCollab()
   if (taskSaveTimer) clearTimeout(taskSaveTimer)
 })
 
@@ -189,7 +255,6 @@ async function saveTask() {
   try {
     await board.updateTask(currentTask.value.id, {
       title: payload.title,
-      body_doc: payload.body_doc,
       start_date: payload.start_date,
       end_date: payload.end_date,
       task_type_id: payload.task_type_id,
@@ -269,14 +334,6 @@ async function copyTaskLink() {
 }
 
 watch(
-  () => editingDescription.value,
-  (editing) => {
-    if (!auth.isAuthed || !currentTask.value) return
-    void board.setActiveTask(currentTask.value.id, editing).catch(() => {})
-  },
-)
-
-watch(
   () => currentTask.value,
   (task) => {
     if (!task) {
@@ -325,7 +382,6 @@ watch(
   () => [
     currentTask.value?.id,
     taskTitle.value,
-    JSON.stringify(taskBody.value),
     taskStartDate.value,
     taskEndDate.value,
     taskType.value,
@@ -385,7 +441,7 @@ watch(
         <div class="d-flex align-center justify-space-between mb-2 mt-2">
           <div class="md-label-large">Описание</div>
           <v-btn
-            v-if="auth.isAuthed && !editingDescription && !activeDescriptionEditor"
+            v-if="auth.isAuthed && !editingDescription"
             variant="text"
             size="small"
             rounded="pill"
@@ -393,16 +449,6 @@ watch(
             @click="editingDescription = true"
           >
             Редактировать
-          </v-btn>
-          <v-btn
-            v-else-if="!editingDescription && activeDescriptionEditor"
-            variant="text"
-            size="small"
-            rounded="pill"
-            disabled
-            class="hh-edit-lock-btn"
-          >
-            {{ activeDescriptionEditorName }} сейчас редактирует<span class="hh-dots" />
           </v-btn>
           <v-btn
             v-else-if="auth.isAuthed && editingDescription"
@@ -416,19 +462,15 @@ watch(
           </v-btn>
         </div>
         <RichEditor
-          v-if="editingDescription"
-          v-model="taskBody"
-          :readonly="!auth.isAuthed"
+          v-if="taskYDoc"
+          ref="richEditorRef"
+          :key="taskId"
+          :ydoc="taskYDoc"
+          :awareness="taskAwareness"
+          :user="collabUser"
+          :editable="auth.isAuthed && editingDescription"
           placeholder="Опишите задачу"
         />
-        <div
-          v-else-if="!descriptionEmpty"
-          class="hh-task-page__description"
-          v-html="descriptionHtml"
-        />
-        <div v-else class="hh-task-page__description-empty md-body-medium">
-          Описание не заполнено.
-        </div>
         <div class="d-flex align-center justify-space-between mt-5 mb-2">
           <div class="md-label-large">Вложения</div>
           <v-btn
