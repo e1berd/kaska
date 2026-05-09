@@ -5,6 +5,18 @@ import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
+import {
+  TextB,
+  TextItalic,
+  TextStrikethrough,
+  H2,
+  H3,
+  ListBullets,
+  ListNumbers,
+  Quote,
+  Code,
+  Link as LinkIcon
+} from '@phosphoricons/vue'
 
 import type { TiptapDoc } from '../stores/board'
 
@@ -93,7 +105,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleBold().run()"
         title="Жирный (Ctrl+B)"
       >
-        <v-icon size="18">mdi-format-bold</v-icon>
+        <TextB :size="18" />
       </button>
       <button
         type="button"
@@ -102,7 +114,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleItalic().run()"
         title="Курсив (Ctrl+I)"
       >
-        <v-icon size="18">mdi-format-italic</v-icon>
+        <TextItalic :size="18" />
       </button>
       <button
         type="button"
@@ -111,7 +123,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleStrike().run()"
         title="Зачёркнутый"
       >
-        <v-icon size="18">mdi-format-strikethrough</v-icon>
+        <TextStrikethrough :size="18" />
       </button>
       <span class="hh-rich__sep" />
       <button
@@ -121,7 +133,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
         title="Заголовок"
       >
-        <v-icon size="18">mdi-format-header-2</v-icon>
+        <H2 :size="18" />
       </button>
       <button
         type="button"
@@ -130,7 +142,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
         title="Подзаголовок"
       >
-        <v-icon size="18">mdi-format-header-3</v-icon>
+        <H3 :size="18" />
       </button>
       <span class="hh-rich__sep" />
       <button
@@ -140,7 +152,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleBulletList().run()"
         title="Список"
       >
-        <v-icon size="18">mdi-format-list-bulleted</v-icon>
+        <ListBullets :size="18" />
       </button>
       <button
         type="button"
@@ -149,7 +161,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleOrderedList().run()"
         title="Нумерованный список"
       >
-        <v-icon size="18">mdi-format-list-numbered</v-icon>
+        <ListNumbers :size="18" />
       </button>
       <span class="hh-rich__sep" />
       <button
@@ -159,7 +171,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleBlockquote().run()"
         title="Цитата"
       >
-        <v-icon size="18">mdi-format-quote-close</v-icon>
+        <Quote :size="18" />
       </button>
       <button
         type="button"
@@ -168,7 +180,7 @@ function toggleLink() {
         @click="editor.chain().focus().toggleCodeBlock().run()"
         title="Блок кода"
       >
-        <v-icon size="18">mdi-code-tags</v-icon>
+        <Code :size="18" />
       </button>
       <button
         type="button"
@@ -177,7 +189,7 @@ function toggleLink() {
         @click="toggleLink"
         title="Ссылка"
       >
-        <v-icon size="18">mdi-link-variant</v-icon>
+        <LinkIcon :size="18" />
       </button>
     </div>
 
@@ -255,7 +267,6 @@ function toggleLink() {
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
 }
 
-/* tiptap puts its content inside an absolutely-classed `.tiptap` div. */
 .hh-rich :deep(.tiptap) {
   outline: none;
   color: rgb(var(--v-theme-on-surface));
@@ -312,7 +323,6 @@ function toggleLink() {
   text-decoration: underline;
 }
 
-/* Placeholder. */
 .hh-rich :deep(.tiptap p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
   color: rgba(var(--v-theme-on-surface), 0.45);
