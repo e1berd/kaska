@@ -56,7 +56,8 @@ defmodule Hardhat.MixProject do
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
       {:sweet_xml, "~> 0.7"},
-      {:cors_plug, "~> 3.0"}
+      {:cors_plug, "~> 3.0"},
+      {:y_ex, "~> 0.10"}
     ]
   end
 
