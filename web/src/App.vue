@@ -36,7 +36,7 @@ function hexToRgbTriplet(hex: string): string {
 function paletteToCssBlock(selector: string, palette: Record<string, string>): string {
   const lines: string[] = [`${selector} {`]
   for (const [k, v] of Object.entries(palette)) {
-    lines.push(`  --v-theme-${k}: ${hexToRgbTriplet(v)};`)
+    lines.push(`  --v-theme-${k}: ${hexToRgbTriplet(v)} !important;`)
   }
   lines.push('}')
   return lines.join('\n')
@@ -47,8 +47,8 @@ function ensureThemeStyleEl(): HTMLStyleElement {
   if (!el) {
     el = document.createElement('style')
     el.id = 'hh-theme-vars'
-    document.head.appendChild(el)
   }
+  document.head.appendChild(el)
   return el
 }
 
@@ -58,10 +58,17 @@ watchEffect(() => {
   vuetifyTheme.global.name.value = dark ? 'hardhatDark' : 'hardhatLight'
   if (!palette) return
   const css = [
-    paletteToCssBlock('.v-theme--hardhatLight', palette.palette_light),
-    paletteToCssBlock('.v-theme--hardhatDark', palette.palette_dark),
+    paletteToCssBlock(
+      '.v-theme--hardhatLight, .v-theme-provider--hardhatLight',
+      palette.palette_light,
+    ),
+    paletteToCssBlock(
+      '.v-theme--hardhatDark, .v-theme-provider--hardhatDark',
+      palette.palette_dark,
+    ),
   ].join('\n')
-  ensureThemeStyleEl().textContent = css
+  const el = ensureThemeStyleEl()
+  el.textContent = css
 })
 
 const showSidebar = ref(route.name !== 'home')
@@ -208,25 +215,37 @@ function logout() {
             />
             <v-menu v-if="auth.isAuthed">
               <template #activator="{ props }">
-                <button
+                <v-btn
                   v-bind="props"
-                  class="hh-bar__profile md-state-layer"
+                  variant="text"
+                  rounded="pill"
+                  size="default"
+                  density="comfortable"
+                  class="hh-bar__profile"
                   :title="auth.user?.email"
                 >
-                  <span class="hh-bar__avatar">
-                    <img
-                      v-if="auth.user?.avatar_url"
-                      :src="auth.user.avatar_url"
-                      alt=""
-                    />
-                    <span v-else>{{
-                      (auth.user?.display_name || auth.user?.email || '?').slice(0, 1).toUpperCase()
-                    }}</span>
-                  </span>
-                  <span class="hh-bar__profile-name">
+                  <template #prepend>
+                    <v-avatar
+                      size="32"
+                      class="bg-primary-container text-on-primary-container"
+                    >
+                      <v-img
+                        v-if="auth.user?.avatar_url"
+                        :src="auth.user.avatar_url"
+                        cover
+                        alt=""
+                      />
+                      <span v-else class="md-label-large">{{
+                        (auth.user?.display_name || auth.user?.email || '?')
+                          .slice(0, 1)
+                          .toUpperCase()
+                      }}</span>
+                    </v-avatar>
+                  </template>
+                  <span v-if="!mobile" class="hh-bar__profile-name md-label-large">
                     {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
                   </span>
-                </button>
+                </v-btn>
               </template>
               <v-list class="bg-surface elevation-3" :elevation="0" rounded="lg" density="compact">
                 <v-list-item
@@ -342,47 +361,18 @@ function logout() {
 }
 
 .hh-bar__profile {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px 4px 4px;
-  border-radius: var(--md-shape-full);
-  text-decoration: none;
-  color: inherit;
-  --md-state-color: rgb(var(--v-theme-on-surface));
-}
-.hh-bar__avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--md-shape-full);
-  background: rgb(var(--v-theme-primary-container));
-  color: rgb(var(--v-theme-on-primary-container));
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-.hh-bar__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  padding-inline-start: 4px !important;
+  padding-inline-end: 16px !important;
 }
 .hh-bar__profile-name {
-  font-weight: 500;
-  font-size: 14px;
   max-width: 160px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 600px) {
   .hh-brand__name {
-    display: none;
-  }
-  .hh-bar__profile-name {
     display: none;
   }
 }
