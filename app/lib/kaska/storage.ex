@@ -51,7 +51,10 @@ defmodule Kaska.Storage do
   """
   @spec presigned_put(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def presigned_put(key, opts \\ []) do
-    presign(:put, key, opts)
+    expires_in = Keyword.get(opts, :expires_in, 600)
+    content_type = Keyword.get(opts, :content_type) || "application/octet-stream"
+    headers = [{"content-type", content_type}]
+    presign(:put, key, expires_in: expires_in, headers: headers)
   end
 
   @doc """
@@ -98,8 +101,7 @@ defmodule Kaska.Storage do
         host: URI.parse(endpoint).host,
         port: URI.parse(endpoint).port,
         region: "us-east-1",
-        s3_bucket_as_host: false,
-        virtual_host: false
+        virtual_host: false,
     }
   end
 
