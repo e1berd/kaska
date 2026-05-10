@@ -34,10 +34,15 @@
 		format console
 	}
 
-	@socket path /socket /socket/*
-	handle @socket {
-		reverse_proxy api:4000
-	}
+  @socket path /socket /socket/*
+  handle @socket {
+      reverse_proxy api:4000 {
+          flush_interval -1
+          header_up Upgrade {http.request.header.Upgrade}
+          header_up Connection {http.request.header.Connection}
+          header_up X-Forwarded-Proto "https"
+      }
+  }
 
 	handle /health {
 		reverse_proxy api:4000
