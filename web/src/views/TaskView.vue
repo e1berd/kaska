@@ -187,10 +187,8 @@ async function setupCollab(id: string) {
     channel.on(
       'presence_diff',
       (diff: { joins: PresenceState; leaves: PresenceState }) => {
-        taskDocPresences.value = Presence.syncDiff(
-          taskDocPresences.value,
-          diff,
-        ) as PresenceState
+        Presence.syncDiff(taskDocPresences.value, diff)
+        taskDocPresences.value = { ...taskDocPresences.value }
       },
     )
 

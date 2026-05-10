@@ -162,9 +162,11 @@ git clone https://github.com/<your-org>/hardhat.git .
 Скопируй шаблон env и заполни:
 
 ```bash
-cp .env.production.example .env.production
-$EDITOR .env.production
+cp .env.example .env
+$EDITOR .env
 ```
+
+> В репозитории два шаблона env — `.env.example` для production (этот гайд) и `.env.dev.example` для локальной разработки. Compose в production режиме (`docker-compose.yml`) автоматически подхватывает `.env`; для dev — `docker compose --env-file .env.dev -f docker-compose.dev.yml up -d`.
 
 Сгенерируй секреты:
 
@@ -180,7 +182,7 @@ openssl rand -base64 32 | tr -d '\n'; echo
 openssl rand -base64 32 | tr -d '\n'; echo
 ```
 
-Подставь полученные значения в `.env.production`. **Не коммить этот файл в git.**
+Подставь полученные значения в `.env`. **Не коммить этот файл в git.**
 
 Минимум что нужно поменять относительно `*.example`:
 
@@ -194,7 +196,7 @@ openssl rand -base64 32 | tr -d '\n'; echo
 Защити файл от чужих глаз:
 
 ```bash
-chmod 600 .env.production
+chmod 600 .env
 ```
 
 ---
@@ -202,7 +204,7 @@ chmod 600 .env.production
 ## 7. Первый запуск
 
 ```bash
-docker compose --env-file .env.production up -d --build
+docker compose up -d --build
 ```
 
 Что произойдёт по шагам:
@@ -216,7 +218,7 @@ docker compose --env-file .env.production up -d --build
 Следи за логами:
 
 ```bash
-docker compose --env-file .env.production logs -f caddy
+docker compose logs -f caddy
 ```
 
 В логах Caddy ищи строки вида `certificate obtained successfully` для каждого из трёх доменов. Если видишь ошибки про DNS / `connection refused` — см. [Troubleshooting](#13-troubleshooting).
@@ -242,7 +244,7 @@ curl -I https://s3.example.com           # ответ от RustFS, обычно 
 Если нужно вручную повысить роль уже существующего пользователя:
 
 ```bash
-docker compose --env-file .env.production exec api \
+docker compose exec api \
   bin/hardhat eval 'Hardhat.Release.promote("user@example.com", "superadmin")'
 ```
 
@@ -276,23 +278,23 @@ LE считает «issuance» по top-level domain: 50 сертификато�
 Затем `docker compose restart caddy`. Когда конфиг устаканен — убери эту строку, удали тестовые сертификаты:
 
 ```bash
-docker compose --env-file .env.production exec caddy rm -rf /data/caddy/certificates/acme-staging-v02.api.letsencrypt.org-directory
+docker compose exec caddy rm -rf /data/caddy/certificates/acme-staging-v02.api.letsencrypt.org-directory
 docker compose restart caddy
 ```
 
 ### Принудительное продление / повторный выпуск
 
 ```bash
-docker compose --env-file .env.production exec caddy \
+docker compose exec caddy \
   caddy reload --config /etc/caddy/Caddyfile
 ```
 
 Полная очистка сертификатов (только в крайнем случае):
 
 ```bash
-docker compose --env-file .env.production down
+docker compose down
 docker volume rm hardhat_caddy-data
-docker compose --env-file .env.production up -d
+docker compose up -d
 ```
 
 ---
@@ -304,7 +306,7 @@ docker compose --env-file .env.production up -d
 Снэпшот:
 
 ```bash
-docker compose --env-file .env.production exec -T postgres \
+docker compose exec -T postgres \
   pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" \
   > /opt/hardhat/backups/db-$(date +%Y%m%d-%H%M%S).dump
 ```
@@ -312,7 +314,7 @@ docker compose --env-file .env.production exec -T postgres \
 Восстановление:
 
 ```bash
-cat backup.dump | docker compose --env-file .env.production exec -T postgres \
+cat backup.dump | docker compose exec -T postgres \
   pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists
 ```
 
@@ -332,7 +334,7 @@ docker run --rm \
 ### Cron на сервере
 
 ```cron
-0 3 * * * cd /opt/hardhat && docker compose --env-file .env.production exec -T postgres pg_dump -U hardhat -Fc hardhat | gzip > /opt/hardhat/backups/db-$(date +\%Y\%m\%d).dump.gz
+0 3 * * * cd /opt/hardhat && docker compose exec -T postgres pg_dump -U hardhat -Fc hardhat | gzip > /opt/hardhat/backups/db-$(date +\%Y\%m\%d).dump.gz
 15 3 * * 0 docker run --rm -v hardhat_rustfs-data:/data:ro -v /opt/hardhat/backups:/out alpine:3 tar czf /out/rustfs-$(date +\%Y\%m\%d).tar.gz -C /data .
 30 3 * * * find /opt/hardhat/backups -mtime +30 -delete
 ```
@@ -346,7 +348,7 @@ docker run --rm \
 ```bash
 cd /opt/hardhat
 git pull
-docker compose --env-file .env.production up -d --build
+docker compose up -d --build
 ```
 
 Что важно:
@@ -359,15 +361,15 @@ docker compose --env-file .env.production up -d --build
 Проверь после обновления:
 
 ```bash
-docker compose --env-file .env.production ps
-docker compose --env-file .env.production logs --tail 100 api caddy
+docker compose ps
+docker compose logs --tail 100 api caddy
 ```
 
 Откат:
 
 ```bash
 git checkout <previous-tag>
-docker compose --env-file .env.production up -d --build
+docker compose up -d --build
 ```
 
 (Если миграция была ломающая, откат БД — отдельный квест: восстанови дамп.)
@@ -378,13 +380,13 @@ docker compose --env-file .env.production up -d --build
 
 ```bash
 # Все сервисы (Ctrl+C чтобы выйти)
-docker compose --env-file .env.production logs -f
+docker compose logs -f
 
 # Только api
-docker compose --env-file .env.production logs -f api
+docker compose logs -f api
 
 # Последние 200 строк caddy
-docker compose --env-file .env.production logs --tail 200 caddy
+docker compose logs --tail 200 caddy
 ```
 
 Caddy access-логи по умолчанию не пишутся. Если хочешь — добавь в каждый блок `Caddyfile`:
@@ -433,13 +435,13 @@ WebSocket connection to 'wss://app.example.com/socket/websocket' failed: 403
 
 → Phoenix отклоняет origin. Проверь:
 
-- В `.env.production`: `WEB_BASE_URL=https://app.example.com` (точно тот же origin что у браузера).
+- В `.env`: `WEB_BASE_URL=https://app.example.com` (точно тот же origin что у браузера).
 - В сборке web использовался `VITE_API_WS_URL=wss://app.example.com/socket` (build-arg, фигурирует в bundled JS — значит надо пересобрать `web` если меняешь).
 
 После правки:
 
 ```bash
-docker compose --env-file .env.production up -d --build web caddy
+docker compose up -d --build web caddy
 ```
 
 ### S3 pre-signed URL отдаёт 403 / SignatureDoesNotMatch
@@ -453,7 +455,14 @@ Pre-signed URL содержит подпись host'а. Если `S3_PUBLIC_ENDP
 
 ### `api` падает с `DATABASE_URL is missing`
 
-`.env.production` не подгрузился. Точно использовал `--env-file .env.production`? Без флага compose читает только `.env`.
+`.env` либо не существует, либо лежит не в той директории. Compose автоматически читает `.env` из той же папки, где находится `docker-compose.yml`. Проверь:
+
+```bash
+ls -la .env
+docker compose config | grep DATABASE_URL   # должен показать собранный URL
+```
+
+Если `.env` есть, но переменные пустые — там не заполнены значения, переписанные с `*.example`.
 
 ### `web` контейнер постоянно перезапускается
 
@@ -466,7 +475,7 @@ grep -A1 'web:' docker-compose.yml | grep restart
 
 ### Caddy логирует «hostname not in Caddyfile»
 
-Запрос пришёл на домен, который не описан в `Caddyfile`. Если это «мусорный» трафик от ботов — игнорируй. Если это твой домен, который ты ожидаешь видеть — добавь в `Caddyfile` и `.env.production`.
+Запрос пришёл на домен, который не описан в `Caddyfile`. Если это «мусорный» трафик от ботов — игнорируй. Если это твой домен, который ты ожидаешь видеть — добавь в `Caddyfile` и `.env`.
 
 ---
 
@@ -477,7 +486,7 @@ grep -A1 'web:' docker-compose.yml | grep restart
 - Положи готовый билд (HTML/CSS/JS, или собранный Astro/Next/Hugo) в `landing/`.
 - Caddy монтирует `./landing:/srv/landing:ro` — никакой пересборки контейнера не нужно. Достаточно:
   ```bash
-  docker compose --env-file .env.production exec caddy caddy reload --config /etc/caddy/Caddyfile
+  docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
   ```
   (или вообще ничего, статика читается с диска при каждом запросе).
 

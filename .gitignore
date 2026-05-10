@@ -1,8 +1,8 @@
 .env
+.env.dev
 .env.local
-.env.production
 !.env.example
-!.env.production.example
+!.env.dev.example
 *.local
 
 # OS
