@@ -102,7 +102,7 @@ docker exec <container_id> mix users.promotion --email user@example.com --rank s
 
 ```text
 kaska/
-├── api/   # Phoenix backend
+├── app/   # Phoenix backend
 ├── web/   # Vue frontend
 └── docker-compose.yml
 ```

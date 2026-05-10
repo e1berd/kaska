@@ -40,7 +40,7 @@ services:
 
   api:
     build:
-      context: ./api
+      context: ./app
       dockerfile: Dockerfile.dev
     container_name: kaska-dev-api
     environment:
@@ -71,7 +71,7 @@ services:
     ports:
       - "${API_PORT:-4000}:4000"
     volumes:
-      - ./api:/app
+      - ./app:/app
       - api-deps:/app/deps
       - api-build:/app/_build
     depends_on:

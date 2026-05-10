@@ -43,7 +43,7 @@ services:
     networks:
       - default
     build:
-      context: ./api
+      context: ./app
       dockerfile: Dockerfile
     image: kaska-api:latest
     container_name: kaska-api

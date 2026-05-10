@@ -98,11 +98,11 @@ state layers, типографика). Доводим руками.
 
 ## 4. Где что лежит
 
-- Бэкенд: `api/` (Phoenix v1.8, Ecto, Guardian, Phoenix Channels). Свои
-  правила Phoenix v1.8 — в `api/AGENTS.md`.
+- Бэкенд: `app/` (Phoenix v1.8, Ecto, Guardian, Phoenix Channels). Свои
+  правила Phoenix v1.8 — в `app/AGENTS.md`.
 - Фронт: `web/` (Vue 3 `<script setup>` + TS, Vite, Pinia, Vuetify 4,
   tiptap 3 collab). Менеджер пакетов — pnpm.
 - M3-токены: `web/src/styles/m3-tokens.scss`.
 - Vuetify-конфиг с дефолтами: `web/src/plugins/vuetify.ts`.
-- Каналы: `api/lib/kaska_web/channels/`.
+- Каналы: `app/lib/kaska_web/channels/`.
 - Алиас импортов на фронте: `@/` → `web/src/`.
