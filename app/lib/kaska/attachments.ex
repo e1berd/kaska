@@ -56,6 +56,7 @@ defmodule Kaska.Attachments do
            {:ok, url} <-
              Storage.presigned_put(storage_key,
                expires_in: 600,
+               content_type: mime,
                headers: [{"content-type", mime}]
              ) do
         {:ok, %{attachment: attachment, put_url: url}}

@@ -52,8 +52,8 @@ defmodule Kaska.Storage do
   @spec presigned_put(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def presigned_put(key, opts \\ []) do
     expires_in = Keyword.get(opts, :expires_in, 600)
-    content_type = Keyword.get(opts, :content_type) || "application/octet-stream"
-    headers = [{"content-type", content_type}]
+    mime = Keyword.get(opts, :content_type) || "application/octet-stream"
+    headers = [{"content-type", mime}]
     presign(:put, key, expires_in: expires_in, headers: headers)
   end
 
@@ -79,9 +79,7 @@ defmodule Kaska.Storage do
   defp presign(method, key, opts) do
     expires_in = Keyword.get(opts, :expires_in, 3600)
     headers = Keyword.get(opts, :headers, [])
-
     config = public_aws_config()
-
     ExAws.S3.presigned_url(config, method, bucket(), key,
       expires_in: expires_in,
       virtual_host: false,
