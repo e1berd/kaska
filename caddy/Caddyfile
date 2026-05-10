@@ -87,7 +87,5 @@
 		Vary "Origin"
 	}
 
-	reverse_proxy rustfs:9000 {
-		header_up Host {upstream_hostport}
-	}
+	reverse_proxy rustfs:9000
 }
