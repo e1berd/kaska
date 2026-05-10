@@ -70,7 +70,7 @@ if internal = System.get_env("S3_INTERNAL_ENDPOINT") do
   uri = URI.parse(internal)
 
   config :ex_aws, :s3,
-    scheme: "#{uri.scheme}://",
+    scheme: uri.scheme,
     host: uri.host,
     port: uri.port
 end
