@@ -98,8 +98,7 @@ defmodule Kaska.Storage do
       | scheme: URI.parse(endpoint).scheme <> "://",
         host: URI.parse(endpoint).host,
         port: URI.parse(endpoint).port,
-        region: "us-east-1",
-        virtual_host: false,
+        region: "us-east-1"
     }
   end
 
