@@ -8,7 +8,7 @@ import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
-import { type Channel, Presence } from 'phoenix'
+import { Presence } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import {
   useBoardStore,
@@ -134,7 +134,6 @@ async function endSave() {
 const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
 let taskProvider: PhoenixYProvider | null = null
-let taskDocChannel: Channel | null = null
 let taskDocTopic: string | null = null
 const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
 
@@ -671,7 +670,6 @@ async function setupCollab(taskId: string) {
     taskYDoc.value = doc
     taskAwareness.value = aw
     taskProvider = provider
-    taskDocChannel = channel
     taskDocTopic = topic
   } catch (e) {
     console.warn('[board] task_doc join failed', e)
@@ -689,7 +687,6 @@ function tearDownCollab() {
     socket.leaveChannel(taskDocTopic)
     taskDocTopic = null
   }
-  taskDocChannel = null
   taskDocPresences.value = {}
 }
 

@@ -38,8 +38,6 @@ const displayedName = computed(() => {
 const avatarUrl = computed(() => auth.user?.avatar_url ?? null)
 const initial = computed(() => (displayedName.value ?? '?').slice(0, 1).toUpperCase())
 
-const projectCount = computed(() => projects.list.length)
-
 const pinnedProject = computed<Project | null>(() => {
   const first = pinned.list[0]
   if (!first) return null

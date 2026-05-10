@@ -23,6 +23,8 @@ export class PhoenixYProvider {
   private destroyed = false
   private settleTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onLocalSettle: (() => void) | null
+  private readonly updateRef: number
+  private readonly awarenessRef: number
 
   constructor(channel: Channel, doc: Y.Doc, awareness: Awareness, opts: Options = {}) {
     this.channel = channel
@@ -39,8 +41,8 @@ export class PhoenixYProvider {
 
     doc.on('update', this.handleDocUpdate)
     awareness.on('update', this.handleAwarenessUpdate)
-    channel.on('update', this.handleRemoteUpdate)
-    channel.on('awareness', this.handleRemoteAwareness)
+    this.updateRef = channel.on('update', this.handleRemoteUpdate)
+    this.awarenessRef = channel.on('awareness', this.handleRemoteAwareness)
   }
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown) => {
@@ -114,8 +116,8 @@ export class PhoenixYProvider {
 
     this.doc.off('update', this.handleDocUpdate)
     this.awareness.off('update', this.handleAwarenessUpdate)
-    this.channel.off('update', this.handleRemoteUpdate)
-    this.channel.off('awareness', this.handleRemoteAwareness)
+    this.channel.off('update', this.updateRef)
+    this.channel.off('awareness', this.awarenessRef)
   }
 }
 

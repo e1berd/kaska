@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { useRoute, useRouter } from 'vue-router'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
-import { type Channel, Presence } from 'phoenix'
+import { Presence } from 'phoenix'
 import { useAuthStore, type User } from '@/stores/auth'
 import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '@/stores/board'
 import { useSocketStore, pushAsync } from '@/stores/socket'
@@ -46,7 +46,6 @@ let taskSaveQueued = false
 const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
 let taskProvider: PhoenixYProvider | null = null
-let taskDocChannel: Channel | null = null
 let taskDocTopic: string | null = null
 const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
 
@@ -195,7 +194,6 @@ async function setupCollab(id: string) {
     taskYDoc.value = doc
     taskAwareness.value = aw
     taskProvider = provider
-    taskDocChannel = channel
     taskDocTopic = topic
   } catch (e) {
     console.warn('[task] task_doc join failed', e)
@@ -213,7 +211,6 @@ function tearDownCollab() {
     socket.leaveChannel(taskDocTopic)
     taskDocTopic = null
   }
-  taskDocChannel = null
   taskDocPresences.value = {}
 }
 

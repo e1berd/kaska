@@ -149,7 +149,7 @@ const editor = new Editor({
   ...(collabMode
     ? {}
     : {
-        onUpdate: ({ editor: ed }: { editor: Editor }) => {
+        onUpdate: ({ editor: ed }) => {
           emit('update:modelValue', ed.getJSON() as TiptapDoc)
         },
       }),
