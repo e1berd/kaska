@@ -1,5 +1,6 @@
 defmodule Kaska.Accounts.UserNotifier do
   import Swoosh.Email
+  require Logger
 
   alias Kaska.Mailer
 
@@ -50,6 +51,14 @@ defmodule Kaska.Accounts.UserNotifier do
       |> subject(subject)
       |> text_body(body)
 
-    with {:ok, _meta} <- Mailer.deliver(email), do: {:ok, email}
+    case Mailer.deliver(email) do
+      {:ok, meta} ->
+        Logger.info("[mail] sent to=#{to} subject=#{inspect(subject)} meta=#{inspect(meta)}")
+        {:ok, email}
+
+      {:error, reason} ->
+        Logger.error("[mail] FAILED to=#{to} subject=#{inspect(subject)} reason=#{inspect(reason)}")
+        {:error, reason}
+    end
   end
 end

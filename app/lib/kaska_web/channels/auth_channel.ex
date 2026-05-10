@@ -104,6 +104,15 @@ defmodule KaskaWeb.AuthChannel do
     end
   end
 
+  def handle_in("resend_verification", %{"email" => email}, socket) do
+    case Accounts.get_user_by_email(email) do
+      %{confirmed_at: nil} = user -> Accounts.deliver_verify_email_instructions(user)
+      _ -> :ok
+    end
+
+    {:reply, {:ok, %{message: "if account exists and is unverified, verification email sent"}}, socket}
+  end
+
   def handle_in("forgot_password", %{"email" => email}, socket) do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_reset_password_instructions(user)
@@ -166,8 +175,8 @@ defmodule KaskaWeb.AuthChannel do
 
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
       end)
     end)
   end

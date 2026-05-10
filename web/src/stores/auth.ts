@@ -91,6 +91,11 @@ export const useAuthStore = defineStore('auth', () => {
     return pushAsync<{ message: string; user: User }>(ch, 'verify_email', { token })
   }
 
+  async function resendVerification(email: string) {
+    const ch = await authChannel()
+    return pushAsync<{ message: string }>(ch, 'resend_verification', { email })
+  }
+
   async function forgotPassword(email: string) {
     const ch = await authChannel()
     return pushAsync<{ message: string }>(ch, 'forgot_password', { email })
@@ -204,6 +209,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     login,
     verifyEmail,
+    resendVerification,
     forgotPassword,
     resetPassword,
     refreshTokens,

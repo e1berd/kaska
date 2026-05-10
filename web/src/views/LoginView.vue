@@ -11,9 +11,14 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
+const errorCode = ref<string | null>(null)
+const resending = ref(false)
+const resendNotice = ref<string | null>(null)
 
 async function submit() {
   error.value = null
+  errorCode.value = null
+  resendNotice.value = null
   loading.value = true
   try {
     await auth.login(email.value, password.value)
@@ -21,8 +26,23 @@ async function submit() {
     router.push(next)
   } catch (e: any) {
     error.value = e?.message ?? 'Не удалось войти'
+    errorCode.value = e?.code ?? null
   } finally {
     loading.value = false
+  }
+}
+
+async function resendVerification() {
+  if (!email.value || resending.value) return
+  resending.value = true
+  resendNotice.value = null
+  try {
+    await auth.resendVerification(email.value)
+    resendNotice.value = 'Письмо отправлено. Проверьте почту.'
+  } catch (e: any) {
+    resendNotice.value = e?.message ?? 'Не удалось отправить письмо'
+  } finally {
+    resending.value = false
   }
 }
 </script>
@@ -62,7 +82,29 @@ async function submit() {
           variant="tonal"
           rounded="lg"
           class="mt-4"
-          :text="error"
+        >
+          <div>{{ error }}</div>
+          <div v-if="errorCode === 'email_not_verified'" class="mt-2">
+            <v-btn
+              size="small"
+              variant="tonal"
+              rounded="pill"
+              :loading="resending"
+              :disabled="!email"
+              @click="resendVerification"
+            >
+              Отправить письмо ещё раз
+            </v-btn>
+          </div>
+        </v-alert>
+
+        <v-alert
+          v-if="resendNotice"
+          type="info"
+          variant="tonal"
+          rounded="lg"
+          class="mt-3"
+          :text="resendNotice"
         />
 
         <v-btn
