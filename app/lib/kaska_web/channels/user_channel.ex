@@ -73,6 +73,7 @@ defmodule KaskaWeb.UserChannel do
           %{
             attachment_id: attachment.id,
             put_url: url,
+            content_type: attrs.mime,
             storage_key: attachment.storage_key
           }}, socket}
 

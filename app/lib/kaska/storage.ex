@@ -51,7 +51,11 @@ defmodule Kaska.Storage do
   """
   @spec presigned_put(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def presigned_put(key, opts \\ []) do
-    presign(:put, key, opts)
+    expires_in = Keyword.get(opts, :expires_in, 600)
+    headers = Keyword.get(opts, :headers, []) ++ [
+      {"content-type", Keyword.get(opts, :content_type, "application/octet-stream")}
+    ]
+    presign(:put, key, expires_in: expires_in, headers: headers)
   end
 
   @doc """
