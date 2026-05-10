@@ -29,6 +29,11 @@
 	import common_security
 	encode zstd gzip
 
+	log {
+		output stdout
+		format console
+	}
+
 	@socket path /socket /socket/*
 	handle @socket {
 		reverse_proxy api:4000
