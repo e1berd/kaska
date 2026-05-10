@@ -1,0 +1,66 @@
+{
+	email {$ACME_EMAIL}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+(common_security) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+{$LANDING_DOMAIN} {
+	import common_security
+	encode zstd gzip
+
+	root * /srv/landing
+	file_server
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
+{$APP_DOMAIN} {
+	import common_security
+	encode zstd gzip
+
+	@socket path /socket /socket/*
+	handle @socket {
+		reverse_proxy api:4000
+	}
+
+	handle /health {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		root * /srv/app
+
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		@index path /index.html
+		header @index Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$S3_DOMAIN} {
+	import common_security
+	encode zstd gzip
+
+	request_body {
+		max_size {$S3_MAX_UPLOAD_SIZE:100MB}
+	}
+
+	reverse_proxy rustfs:9000 {
+		header_up Host {upstream_hostport}
+	}
+}

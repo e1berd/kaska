@@ -31,9 +31,6 @@ services:
       RUSTFS_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:?}
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_VOLUMES: /data
-    ports:
-      - "${RUSTFS_API_PORT:-9000}:9000"
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
       - rustfs-data:/data
     healthcheck:
@@ -72,8 +69,6 @@ services:
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?}
       S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:?}
       S3_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:?}
-    ports:
-      - "${API_PORT:-4000}:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,15 +85,46 @@ services:
         VITE_API_WS_URL: ${VITE_API_WS_URL:?}
     image: hardhat-web:latest
     container_name: hardhat-web
+    restart: "no"
+    volumes:
+      - web-dist:/export
+
+  caddy:
+    networks:
+      - default
+    image: caddy:2-alpine
+    container_name: hardhat-caddy
     restart: unless-stopped
+    environment:
+      LANDING_DOMAIN: ${LANDING_DOMAIN:?}
+      APP_DOMAIN: ${APP_DOMAIN:?}
+      S3_DOMAIN: ${S3_DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      S3_MAX_UPLOAD_SIZE: ${S3_MAX_UPLOAD_SIZE:-100MB}
     ports:
-      - "${WEB_PORT:-80}:80"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./landing:/srv/landing:ro
+      - web-dist:/srv/app:ro
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
-      - api
+      web:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+      rustfs:
+        condition: service_started
 
 volumes:
   postgres-data:
   rustfs-data:
+  web-dist:
+  caddy-data:
+  caddy-config:
 
 networks:
   default:

@@ -16,8 +16,8 @@ ENV VITE_API_WS_URL=$VITE_API_WS_URL
 RUN pnpm build
 
 
-FROM nginx:1.27-alpine AS runner
+FROM alpine:3 AS dist
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /dist
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+CMD ["sh", "-c", "set -e; find /export -mindepth 1 -delete 2>/dev/null || true; cp -a /dist/. /export/; echo 'web assets published to /export'"]

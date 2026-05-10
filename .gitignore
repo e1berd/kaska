@@ -1,5 +1,8 @@
 .env
 .env.local
+.env.production
+!.env.example
+!.env.production.example
 *.local
 
 # OS
