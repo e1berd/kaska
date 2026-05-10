@@ -79,9 +79,6 @@ watchEffect(() => {
   el.textContent = css
 })
 
-const showSidebar = ref(route.name !== 'home')
-watch(() => route.name, (name) => { showSidebar.value = name !== 'home' })
-
 const drawer = ref(!mobile.value)
 watch(mobile, (m) => {
   drawer.value = !m
@@ -173,7 +170,7 @@ function logout() {
       <v-app-bar flat color="surface" class="hh-bar" height="64">
         <template #prepend>
           <v-app-bar-nav-icon
-            v-if="showSidebar && mobile"
+            v-if="mobile"
             aria-label="Открыть меню"
             @click="drawer = !drawer"
           />
@@ -274,7 +271,6 @@ function logout() {
       </v-app-bar>
 
       <v-navigation-drawer
-        v-if="showSidebar"
         v-model="drawer"
         :permanent="!mobile"
         :temporary="mobile"
