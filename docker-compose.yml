@@ -51,6 +51,7 @@ services:
     environment:
       MIX_ENV: prod
       PHX_SERVER: "true"
+      BIND_ALL: "true"
       DATABASE_URL: ecto://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-kaska}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:?}
