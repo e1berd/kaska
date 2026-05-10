@@ -90,13 +90,15 @@ defmodule Kaska.Storage do
   # struct. Override them with the public endpoint so the browser can reach
   # the signed URL.
   defp public_aws_config do
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(config(:public_endpoint))
+
+    base = ExAws.Config.new(:s3)
+
     %{
-      access_key_id: "kaska",
-      secret_access_key: "mX9qL2pR7gV4nB8wK1tC5hJ3",
-      region: "us-east-1",
-      scheme: "https",
-      host: "s3.kaska.space",
-      port: 443
+      base
+      | scheme: scheme,
+        host: host,
+        port: port
     }
   end
 
