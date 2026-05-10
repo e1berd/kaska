@@ -60,6 +60,23 @@
 		max_size {$S3_MAX_UPLOAD_SIZE:100MB}
 	}
 
+	@cors_preflight method OPTIONS
+	handle @cors_preflight {
+		header {
+			Access-Control-Allow-Origin "https://{$APP_DOMAIN}"
+			Access-Control-Allow-Methods "GET, PUT, POST, DELETE, HEAD"
+			Access-Control-Allow-Headers "Content-Type, Content-MD5, Content-Disposition, Cache-Control"
+			Access-Control-Max-Age "3600"
+		}
+		respond 204
+	}
+
+	header {
+		Access-Control-Allow-Origin "https://{$APP_DOMAIN}"
+		Access-Control-Expose-Headers "ETag, Content-Length, Content-Type"
+		Vary "Origin"
+	}
+
 	reverse_proxy rustfs:9000 {
 		header_up Host {upstream_hostport}
 	}
