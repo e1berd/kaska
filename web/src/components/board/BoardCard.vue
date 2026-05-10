@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 import {
   draggable,
   dropTargetForElements,
@@ -53,16 +53,12 @@ const assignee = computed(() => {
   return board.users.find(u => u.id === props.task.assignee_id) || null
 })
 
-const root = ref<HTMLElement | null>(null)
+const root = useTemplateRef<HTMLElement>('root')
 const dragging = ref(false)
 const closestEdge = ref<Edge | null>(null)
 
 let cleanup: (() => void) | null = null
 
-// We bypass the browser's rasterised drag image entirely (it always looks
-// blurry on hi-DPI screens) and instead show a live cloned DOM node that
-// follows the cursor via `dragover` events. Crisp text, real shadows,
-// no canvas snapshots involved.
 let ghost: HTMLElement | null = null
 let grabOffsetX = 0
 let grabOffsetY = 0
@@ -82,8 +78,6 @@ onMounted(() => {
       getInitialData: () => ({ type: 'task', task: props.task }),
 
       onGenerateDragPreview: ({ nativeSetDragImage }) => {
-        // Make the native drag image transparent so only our DOM follower
-        // is visible while dragging.
         disableNativeDragPreview({ nativeSetDragImage })
       },
 
@@ -159,7 +153,6 @@ onBeforeUnmount(() => {
       <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
     </div>
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
-    <div v-if="preview" class="hh-card__desc md-body-small">{{ preview }}</div>
     <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="hh-card__meta">
       <span v-if="taskType" class="hh-card__chip" :style="taskTypeChipStyle">
         {{ taskType.name }}
@@ -252,14 +245,6 @@ onBeforeUnmount(() => {
   font-weight: 500;
   line-height: 1.35;
   word-break: break-word;
-}
-.hh-card__desc {
-  margin-top: 6px;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .hh-card__edge {
   position: absolute;
