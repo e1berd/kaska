@@ -12,6 +12,8 @@ export function uploadToPresignedUrl(
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    console.log('Starting upload to:', url)          // ← добавь
+    console.log('File type:', file.type, 'size:', file.size)
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', url)
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')

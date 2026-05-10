@@ -154,6 +154,9 @@ export const useAuthStore = defineStore('auth', () => {
         size: file.size,
       },
     )
+    console.log('=== PUT_URL RECEIVED ===', meta.put_url)   // ← добавь
+    console.log('Full meta:', meta)
+
     await uploadToPresignedUrl(meta.put_url, file, onProgress)
     const me = await pushAsync<User>(ch, 'confirm_avatar_upload', {
       attachment_id: meta.attachment_id,
