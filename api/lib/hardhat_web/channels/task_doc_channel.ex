@@ -4,19 +4,21 @@ defmodule HardhatWeb.TaskDocChannel do
   use Phoenix.Channel
 
   alias Hardhat.Projects
-  alias Hardhat.Projects.Task
+  alias Hardhat.Projects.{Project, Task}
   alias Hardhat.TaskDocs
   alias HardhatWeb.Presence
 
   @impl true
   def join("task_doc:" <> task_id, _payload, socket) do
     with %Task{} = task <- Projects.get_task(task_id),
+         %Project{} = project <- Projects.get_project(task.project_id),
          {:ok, _pid} <- Hardhat.TaskDocs.Supervisor.lookup_or_start(task.id),
          {:ok, state_bin} <- TaskDocs.Server.get_state(task.id) do
       socket =
         socket
         |> assign(:task_id, task.id)
         |> assign(:project_id, task.project_id)
+        |> assign(:project_slug, project.slug)
 
       send(self(), :after_join)
 
@@ -65,12 +67,36 @@ defmodule HardhatWeb.TaskDocChannel do
 
   def handle_in("materialize_body_doc", %{"doc" => %{"type" => "doc"} = doc}, socket) do
     case TaskDocs.update_body_doc(socket.assigns.task_id, doc) do
-      :ok -> {:reply, :ok, socket}
-      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+      :ok ->
+        broadcast_task_update(socket)
+        {:reply, :ok, socket}
+
+      {:error, reason} ->
+        {:reply, {:error, %{message: to_string(reason)}}, socket}
     end
   end
 
   def handle_in("materialize_body_doc", _payload, socket) do
     {:reply, {:error, %{message: "invalid_doc"}}, socket}
+  end
+
+  defp broadcast_task_update(socket) do
+    case Projects.get_task(socket.assigns.task_id) do
+      %Task{} = task ->
+        view = HardhatWeb.BoardChannel.task_view(task)
+
+        HardhatWeb.Endpoint.broadcast!(
+          "board:#{socket.assigns.project_id}",
+          "task_updated",
+          view
+        )
+
+        if slug = socket.assigns[:project_slug] do
+          HardhatWeb.Endpoint.broadcast!("board_slug:#{slug}", "task_updated", view)
+        end
+
+      _ ->
+        :ok
+    end
   end
 end

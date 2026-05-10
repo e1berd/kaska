@@ -455,7 +455,7 @@ defmodule HardhatWeb.BoardChannel do
     %{id: c.id, project_id: c.project_id, name: c.name, rank: c.rank}
   end
 
-  defp task_view(%Task{} = t) do
+  def task_view(%Task{} = t) do
     %{
       id: t.id,
       project_id: t.project_id,

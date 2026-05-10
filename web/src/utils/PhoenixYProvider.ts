@@ -8,7 +8,7 @@ import {
 import type { Channel } from 'phoenix'
 
 const REMOTE_ORIGIN = '__phoenix_y_remote__'
-const SETTLE_DELAY_MS = 5_000
+const SETTLE_DELAY_MS = 1_500
 
 type Options = {
   initialStateB64?: string
@@ -92,14 +92,23 @@ export class PhoenixYProvider {
     }, SETTLE_DELAY_MS)
   }
 
+  flush() {
+    if (this.destroyed) return
+    if (!this.settleTimer) return
+    clearTimeout(this.settleTimer)
+    this.settleTimer = null
+    try {
+      this.onLocalSettle?.()
+    } catch (err) {
+      console.warn('[phoenix-y] onLocalSettle threw', err)
+    }
+  }
+
   destroy() {
     if (this.destroyed) return
-    this.destroyed = true
 
-    if (this.settleTimer) {
-      clearTimeout(this.settleTimer)
-      this.settleTimer = null
-    }
+    this.flush()
+    this.destroyed = true
 
     removeAwarenessStates(this.awareness, [this.doc.clientID], 'local')
 

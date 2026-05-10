@@ -21,7 +21,7 @@ const board = useBoardStore()
 const props = defineProps<{ task: Task }>()
 defineEmits<{ (e: 'open', task: Task): void }>()
 
-const preview = computed(() => docPreview(props.task.body_doc, 140))
+const preview = computed(() => docPreview(props.task.body_doc, 220))
 const attachmentCount = computed(() => board.attachmentsFor(props.task.id).length)
 const firstImageUrl = computed(() => {
   const first = board.attachmentsFor(props.task.id).find((a) => a.kind === 'image')
@@ -153,6 +153,7 @@ onBeforeUnmount(() => {
       <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
     </div>
     <div class="hh-card__title md-body-large">{{ task.title }}</div>
+    <div v-if="preview" class="hh-card__preview md-body-small">{{ preview }}</div>
     <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="hh-card__meta">
       <span v-if="taskType" class="hh-card__chip" :style="taskTypeChipStyle">
         {{ taskType.name }}
@@ -245,6 +246,17 @@ onBeforeUnmount(() => {
   font-weight: 500;
   line-height: 1.35;
   word-break: break-word;
+}
+.hh-card__preview {
+  margin-top: 4px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  line-height: 1.4;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .hh-card__edge {
   position: absolute;

@@ -52,6 +52,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:modelValue', doc: TiptapDoc): void
+  (e: 'blur'): void
 }>()
 
 const collabMode = !!props.ydoc
@@ -144,6 +145,7 @@ const editor = new Editor({
   autofocus: props.autofocus,
   content: collabMode ? undefined : (props.modelValue ?? { type: 'doc', content: [] }),
   extensions: [...baseExtensions, ...collabExtensions],
+  onBlur: () => emit('blur'),
   ...(collabMode
     ? {}
     : {

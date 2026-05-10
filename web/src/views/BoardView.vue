@@ -111,8 +111,25 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const taskSaving = ref(false)
 const taskSyncing = ref(false)
 let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
-let taskSavingStartedAt = 0
+let formSaving = false
 let taskSaveQueued = false
+let savingCount = 0
+let savingStartedAt = 0
+
+function beginSave() {
+  if (savingCount === 0) savingStartedAt = Date.now()
+  savingCount++
+  taskSaving.value = true
+}
+
+async function endSave() {
+  savingCount--
+  if (savingCount > 0) return
+  const elapsed = Date.now() - savingStartedAt
+  const remaining = Math.max(0, 1600 - elapsed)
+  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
+  if (savingCount === 0) taskSaving.value = false
+}
 
 const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
@@ -418,6 +435,12 @@ watch(slug, () => {
   load()
 })
 
+watch(taskDialog, (open) => {
+  if (open) return
+  if (!taskTargetId.value && !taskProvider) return
+  closeTaskDialog()
+})
+
 watch(
   () => board.lastTaskDeleted,
   (evt) => {
@@ -625,9 +648,12 @@ async function setupCollab(taskId: string) {
         if (!auth.isAuthed) return
         const docJson = richEditorRef.value?.getJSON()
         if (!docJson) return
-        pushAsync(channel, 'materialize_body_doc', { doc: docJson }).catch((e) => {
-          console.warn('[board] materialize failed', e)
-        })
+        beginSave()
+        pushAsync(channel, 'materialize_body_doc', { doc: docJson })
+          .catch((e) => console.warn('[board] materialize failed', e))
+          .finally(() => {
+            void endSave()
+          })
       },
     })
 
@@ -671,15 +697,15 @@ function tearDownCollab() {
 
 async function saveTask() {
   if (!currentTask.value) return
-  if (taskSaving.value) {
+  if (formSaving) {
     taskSaveQueued = true
     return
   }
   if (isFormSyncedWithTask(currentTask.value)) return
 
   const payload = getTaskFormState()
-  taskSaving.value = true
-  taskSavingStartedAt = Date.now()
+  formSaving = true
+  beginSave()
   try {
     await board.updateTask(currentTask.value.id, {
       title: payload.title,
@@ -691,10 +717,8 @@ async function saveTask() {
   } catch (err: any) {
     alert(err?.message || 'Ошибка сохранения задачи')
   } finally {
-    const elapsed = Date.now() - taskSavingStartedAt
-    const remaining = Math.max(0, 1600 - elapsed)
-    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
-    taskSaving.value = false
+    formSaving = false
+    void endSave()
     if (taskSaveQueued) {
       taskSaveQueued = false
       if (taskDialog.value && currentTask.value && auth.isAuthed) {
@@ -784,6 +808,10 @@ function closeTaskDialog() {
   taskDialog.value = false
   taskTargetId.value = null
   tearDownCollab()
+}
+
+function onDescriptionBlur() {
+  taskProvider?.flush()
 }
 
 function openTaskPage() {
@@ -1286,6 +1314,7 @@ const boardBackgroundStyle = computed(() => ({
                 :user="collabUser"
                 :editable="auth.isAuthed && editingDescription"
                 placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
+                @blur="onDescriptionBlur"
               />
 
               <div class="hh-attach__head mt-5 mb-2">
