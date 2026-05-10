@@ -9,7 +9,7 @@ export type PinnedProject = {
   avatar_url: string | null
 }
 
-const KEY_PREFIX = 'hardhat.sidebar.pinned_projects'
+const KEY_PREFIX = 'kaska.sidebar.pinned_projects'
 
 function storageKey(userId: string | null | undefined): string {
   return `${KEY_PREFIX}:${userId ?? 'guest'}`

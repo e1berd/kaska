@@ -120,8 +120,8 @@ function colorStyle(hex: string) {
 </script>
 
 <template>
-  <div class="hh-types">
-    <header class="hh-types__bar">
+  <div class="ks-types">
+    <header class="ks-types__bar">
       <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <div>
         <div class="md-headline-small">Типы задач</div>
@@ -142,13 +142,13 @@ function colorStyle(hex: string) {
       </v-btn>
     </header>
 
-    <div v-if="loading" class="hh-types__state">
+    <div v-if="loading" class="ks-types__state">
       <v-progress-circular indeterminate color="primary" />
     </div>
 
     <v-alert v-else-if="error" type="error" variant="tonal" class="mx-4">{{ error }}</v-alert>
 
-    <div v-else-if="board.task_types.length === 0" class="hh-types__empty">
+    <div v-else-if="board.task_types.length === 0" class="ks-types__empty">
       <v-icon size="44" color="medium-emphasis">mdi-tag-outline</v-icon>
       <div class="md-title-medium mt-3">Пока нет типов задач</div>
       <div class="md-body-medium text-medium-emphasis mt-1">Добавьте типы, чтобы удобнее фильтровать и различать задачи.</div>
@@ -164,19 +164,19 @@ function colorStyle(hex: string) {
       </v-btn>
     </div>
 
-    <section v-else class="hh-types__grid">
-      <article v-for="type in board.task_types" :key="type.id" class="hh-type-card">
-        <div class="hh-type-card__head">
+    <section v-else class="ks-types__grid">
+      <article v-for="type in board.task_types" :key="type.id" class="ks-type-card">
+        <div class="ks-type-card__head">
           <span
-            class="hh-type-card__chip"
+            class="ks-type-card__chip"
             :style="{ background: cssColorOr(type.color, '#E0E0E0'), color: cssColorOr(type.text_color, '#FFFFFF') }"
           >{{ type.name }}</span>
-          <div class="hh-type-card__title-wrap">
-            <p v-if="type.description" class="hh-type-card__desc">{{ type.description }}</p>
-            <p v-else class="hh-type-card__desc hh-type-card__desc--muted">Описание не указано</p>
+          <div class="ks-type-card__title-wrap">
+            <p v-if="type.description" class="ks-type-card__desc">{{ type.description }}</p>
+            <p v-else class="ks-type-card__desc ks-type-card__desc--muted">Описание не указано</p>
           </div>
         </div>
-        <div v-if="auth.isAuthed" class="hh-type-card__actions">
+        <div v-if="auth.isAuthed" class="ks-type-card__actions">
           <v-btn variant="text" size="small" rounded="pill" @click="openEditTaskType(type)">Редактировать</v-btn>
           <v-btn color="error" variant="text" size="small" rounded="pill" @click="deleteTaskType(type)">Удалить</v-btn>
         </div>
@@ -206,41 +206,41 @@ function colorStyle(hex: string) {
           />
 
           <div class="md-label-large mb-2">Цвет фона</div>
-          <div class="hh-colors mb-3">
+          <div class="ks-colors mb-3">
             <button
               v-for="color in predefinedColors"
               :key="color"
               type="button"
-              class="hh-colors__item"
+              class="ks-colors__item"
               :class="{ 'is-active': typeColor === color }"
               :style="colorStyle(color)"
               @click="typeColor = color"
             />
           </div>
           <div class="d-flex align-center ga-3 mb-4">
-            <input v-model="typeColor" type="color" class="hh-color-input" />
+            <input v-model="typeColor" type="color" class="ks-color-input" />
             <v-text-field v-model="typeColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
           </div>
 
           <div class="md-label-large mb-2">Цвет текста</div>
-          <div class="hh-colors mb-3">
+          <div class="ks-colors mb-3">
             <button
               v-for="color in predefinedTextColors"
               :key="color"
               type="button"
-              class="hh-colors__item"
+              class="ks-colors__item"
               :class="{ 'is-active': typeTextColor === color }"
               :style="colorStyle(color)"
               @click="typeTextColor = color"
             />
           </div>
           <div class="d-flex align-center ga-3 mb-4">
-            <input v-model="typeTextColor" type="color" class="hh-color-input" />
+            <input v-model="typeTextColor" type="color" class="ks-color-input" />
             <v-text-field v-model="typeTextColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
           </div>
 
           <div class="md-label-large mb-2">Превью</div>
-          <span class="hh-type-preview" :style="previewStyle">
+          <span class="ks-type-preview" :style="previewStyle">
             {{ typeName.trim() || 'Тип задачи' }}
           </span>
         </v-card-text>
@@ -264,24 +264,24 @@ function colorStyle(hex: string) {
 </template>
 
 <style scoped>
-.hh-types {
+.ks-types {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.hh-types__bar {
+.ks-types__bar {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.2);
 }
-.hh-types__state {
+.ks-types__state {
   display: flex;
   justify-content: center;
   padding: 80px 0;
 }
-.hh-types__empty {
+.ks-types__empty {
   margin: 20px 16px;
   padding: 32px;
   border-radius: var(--md-shape-l);
@@ -289,13 +289,13 @@ function colorStyle(hex: string) {
   text-align: center;
   background: rgb(var(--v-theme-surface-container-low));
 }
-.hh-types__grid {
+.ks-types__grid {
   padding: 16px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
 }
-.hh-type-card {
+.ks-type-card {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.65);
   border-radius: var(--md-shape-l);
   background: rgb(var(--v-theme-surface-container-low));
@@ -303,12 +303,12 @@ function colorStyle(hex: string) {
   display: grid;
   gap: 10px;
 }
-.hh-type-card__head {
+.ks-type-card__head {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
-.hh-type-card__chip {
+.ks-type-card__chip {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
@@ -318,7 +318,7 @@ function colorStyle(hex: string) {
   flex: 0 0 auto;
   white-space: nowrap;
 }
-.hh-type-preview {
+.ks-type-preview {
   display: inline-flex;
   align-items: center;
   padding: 6px 14px;
@@ -326,45 +326,45 @@ function colorStyle(hex: string) {
   font-size: 14px;
   font-weight: 500;
 }
-.hh-type-card__title-wrap {
+.ks-type-card__title-wrap {
   min-width: 0;
 }
-.hh-type-card__title {
+.ks-type-card__title {
   margin: 0;
   font-size: 16px;
   line-height: 1.35;
 }
-.hh-type-card__desc {
+.ks-type-card__desc {
   margin: 4px 0 0;
   font-size: 13px;
   line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.75);
   white-space: pre-wrap;
 }
-.hh-type-card__desc--muted {
+.ks-type-card__desc--muted {
   color: rgba(var(--v-theme-on-surface), 0.52);
 }
-.hh-type-card__actions {
+.ks-type-card__actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
 }
-.hh-colors {
+.ks-colors {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.hh-colors__item {
+.ks-colors__item {
   width: 24px;
   height: 24px;
   border-radius: 999px;
   border: 2px solid transparent;
   cursor: pointer;
 }
-.hh-colors__item.is-active {
+.ks-colors__item.is-active {
   box-shadow: 0 0 0 2px rgb(var(--v-theme-primary));
 }
-.hh-color-input {
+.ks-color-input {
   width: 44px;
   height: 32px;
   padding: 0;

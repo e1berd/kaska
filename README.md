@@ -1,10 +1,10 @@
-# HardHat
+# Kaska
 
-HardHat — open source трекер задач с realtime-обновлениями на Phoenix Channels.
+Kaska — open source трекер задач с realtime-обновлениями на Phoenix Channels.
 
 ## Что это
 
-HardHat — kanban/board-система с публичным чтением и авторизованной записью:
+Kaska — kanban/board-система с публичным чтением и авторизованной записью:
 - любой посетитель может смотреть проекты, доски и задачи;
 - писать/редактировать могут только авторизованные пользователи;
 - все изменения синхронизируются в реальном времени через Phoenix Channels.
@@ -101,7 +101,7 @@ docker exec <container_id> mix users.promotion --email user@example.com --rank s
 ## Структура репозитория
 
 ```text
-hardhat/
+kaska/
 ├── api/   # Phoenix backend
 ├── web/   # Vue frontend
 └── docker-compose.yml

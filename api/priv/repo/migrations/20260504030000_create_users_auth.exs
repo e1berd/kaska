@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.CreateUsersAuth do
+defmodule Kaska.Repo.Migrations.CreateUsersAuth do
   use Ecto.Migration
 
   def change do

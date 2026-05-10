@@ -52,8 +52,8 @@ let columnsMonitorCleanup: (() => void) | null = null
 let scrollCleanup: (() => void) | null = null
 
 const viewMode = ref<'columns' | 'list'>('columns')
-const VIEW_MODE_KEY_PREFIX = 'hardhat.board.view_mode'
-const FILTERS_EXPANDED_KEY_PREFIX = 'hardhat.board.filters_expanded'
+const VIEW_MODE_KEY_PREFIX = 'kaska.board.view_mode'
+const FILTERS_EXPANDED_KEY_PREFIX = 'kaska.board.filters_expanded'
 const filtersExpanded = ref(false)
 const filterQuery = ref('')
 const filterTaskType = ref<string | null>(null)
@@ -335,11 +335,11 @@ async function load() {
 
 onMounted(async () => {
   await load()
-  const flash = sessionStorage.getItem('hardhat.flash.task_deleted')
+  const flash = sessionStorage.getItem('kaska.flash.task_deleted')
   if (flash) {
     deleteSnackText.value = flash
     deleteSnackOpen.value = true
-    sessionStorage.removeItem('hardhat.flash.task_deleted')
+    sessionStorage.removeItem('kaska.flash.task_deleted')
   }
 
   if (colsScroll.value) {
@@ -856,25 +856,25 @@ const boardBackgroundStyle = computed(() => ({
 </script>
 
 <template>
-  <div class="hh-board" :class="{ 'hh-board--bg': !!board.project?.background_url }">
+  <div class="ks-board" :class="{ 'ks-board--bg': !!board.project?.background_url }">
     <div
       v-if="board.project?.background_url"
-      class="hh-board__bg"
+      class="ks-board__bg"
       :style="boardBackgroundStyle"
     />
-    <div v-if="board.project?.background_url" class="hh-board__bg-scrim" />
-    <header class="hh-board__bar">
+    <div v-if="board.project?.background_url" class="ks-board__bg-scrim" />
+    <header class="ks-board__bar">
       <v-btn
         icon="mdi-arrow-left"
         variant="text"
         density="comfortable"
         @click="backToProjects"
       />
-      <div class="hh-board__title">
+      <div class="ks-board__title">
         <v-avatar
           v-if="board.project"
           size="32"
-          class="hh-board__logo"
+          class="ks-board__logo"
           color="primary-container"
         >
           <v-img
@@ -888,10 +888,10 @@ const boardBackgroundStyle = computed(() => ({
           </span>
         </v-avatar>
         <span class="md-title-large">{{ board.project?.name ?? '…' }}</span>
-        <code v-if="board.project" class="hh-board__slug">/{{ board.project.slug }}</code>
+        <code v-if="board.project" class="ks-board__slug">/{{ board.project.slug }}</code>
       </div>
       <v-spacer />
-      <div class="hh-board__view-group mr-4" role="group" aria-label="Режим отображения доски">
+      <div class="ks-board__view-group mr-4" role="group" aria-label="Режим отображения доски">
         <v-tooltip text="Колонки" location="bottom">
           <template #activator="{ props }">
             <v-btn
@@ -942,7 +942,7 @@ const boardBackgroundStyle = computed(() => ({
     </header>
 
     <v-expand-transition>
-      <div v-if="filtersExpanded" class="hh-board__filters">
+      <div v-if="filtersExpanded" class="ks-board__filters">
         <v-text-field
           v-model="filterQuery"
           label="Поиск по названию и описанию"
@@ -997,7 +997,7 @@ const boardBackgroundStyle = computed(() => ({
             </v-list-item>
           </template>
           <template #selection="{ item }">
-            <div class="hh-filter-user">
+            <div class="ks-filter-user">
               <v-avatar
                 :image="userAvatar(item)"
                 size="20"
@@ -1012,7 +1012,7 @@ const boardBackgroundStyle = computed(() => ({
                   {{ userInitial(item) }}
                 </span>
               </v-avatar>
-              <span class="hh-filter-user__label">
+              <span class="ks-filter-user__label">
                 {{ userLabel(item) }}
               </span>
             </div>
@@ -1042,7 +1042,7 @@ const boardBackgroundStyle = computed(() => ({
       </div>
     </v-expand-transition>
 
-    <div v-if="loading" class="hh-board__state">
+    <div v-if="loading" class="ks-board__state">
       <v-progress-circular indeterminate color="primary" />
     </div>
     <v-alert
@@ -1055,7 +1055,7 @@ const boardBackgroundStyle = computed(() => ({
       {{ error }}
     </v-alert>
 
-    <div v-else-if="viewMode === 'columns'" ref="colsScroll" class="hh-board__cols">
+    <div v-else-if="viewMode === 'columns'" ref="colsScroll" class="ks-board__cols">
       <BoardColumn
         v-for="(column, idx) in board.orderedColumns"
         :key="column.id"
@@ -1068,8 +1068,8 @@ const boardBackgroundStyle = computed(() => ({
       />
     </div>
 
-    <div v-else-if="viewMode === 'list'" class="hh-board__list">
-      <v-card class="hh-board__table" rounded="lg" variant="elevated" :elevation="1">
+    <div v-else-if="viewMode === 'list'" class="ks-board__list">
+      <v-card class="ks-board__table" rounded="lg" variant="elevated" :elevation="1">
         <v-data-table
           :headers="listHeaders"
           :items="filteredTasks"
@@ -1078,7 +1078,7 @@ const boardBackgroundStyle = computed(() => ({
           density="comfortable"
           hover
           fixed-header
-          class="hh-table"
+          class="ks-table"
           @click:row="(_: unknown, ctx: { item: Task }) => openTask(ctx.item)"
         >
           <template #no-data>
@@ -1090,7 +1090,7 @@ const boardBackgroundStyle = computed(() => ({
           <template #bottom />
 
           <template #item.title="{ item }">
-            <span class="hh-table__title md-body-medium">{{ item.title }}</span>
+            <span class="ks-table__title md-body-medium">{{ item.title }}</span>
           </template>
 
           <template #item.task_type_id="{ item }">
@@ -1119,14 +1119,14 @@ const boardBackgroundStyle = computed(() => ({
               rounded="pill"
               :menu-props="{ closeOnContentClick: true }"
               :readonly="!auth.isAuthed"
-              class="hh-table__col-select"
+              class="ks-table__col-select"
               @click.stop
               @update:model-value="(v: unknown) => changeColumn(item, v)"
             />
           </template>
 
           <template #item.assignee_id="{ item }">
-            <div v-if="userFor(item.assignee_id)" class="hh-table__assignee">
+            <div v-if="userFor(item.assignee_id)" class="ks-table__assignee">
               <v-avatar
                 :image="userFor(item.assignee_id)?.avatar_url || ''"
                 size="24"
@@ -1156,7 +1156,7 @@ const boardBackgroundStyle = computed(() => ({
           </template>
 
           <template #item.dates="{ item }">
-            <span v-if="item.start_date || item.end_date" class="hh-table__dates md-body-small">
+            <span v-if="item.start_date || item.end_date" class="ks-table__dates md-body-small">
               <v-icon size="14" class="mr-1">mdi-calendar</v-icon>
               {{ fmtDate(item.start_date) || '—' }} → {{ fmtDate(item.end_date) || '—' }}
             </span>
@@ -1269,8 +1269,8 @@ const boardBackgroundStyle = computed(() => ({
           </v-tooltip>
         </v-card-title>
         <v-card-text class="px-6 pt-2">
-          <div class="hh-task-layout">
-            <section class="hh-task-main">
+          <div class="ks-task-layout">
+            <section class="ks-task-main">
               <v-text-field
                 v-model="taskTitle"
                 label="Название"
@@ -1279,7 +1279,7 @@ const boardBackgroundStyle = computed(() => ({
                 :readonly="!auth.isAuthed"
               />
 
-              <div class="hh-desc__head mt-2 mb-2">
+              <div class="ks-desc__head mt-2 mb-2">
                 <div class="md-label-large">Описание</div>
                 <v-btn
                   v-if="auth.isAuthed && !editingDescription"
@@ -1315,7 +1315,7 @@ const boardBackgroundStyle = computed(() => ({
                 @blur="onDescriptionBlur"
               />
 
-              <div class="hh-attach__head mt-5 mb-2">
+              <div class="ks-attach__head mt-5 mb-2">
                 <div class="md-label-large">Вложения</div>
                 <v-btn
                   v-if="auth.isAuthed"
@@ -1342,22 +1342,22 @@ const boardBackgroundStyle = computed(() => ({
             type="file"
             multiple
             accept="image/*,video/*,.pdf,.zip,.txt,.md"
-            class="hh-attach__input"
+            class="ks-attach__input"
             @change="onAttachmentPicked"
           />
 
-          <div v-if="taskAttachments.length === 0" class="hh-attach__empty md-body-small">
+          <div v-if="taskAttachments.length === 0" class="ks-attach__empty md-body-small">
             Пока вложений нет.
           </div>
 
-          <div v-else class="hh-attach__grid">
+          <div v-else class="ks-attach__grid">
             <div
               v-for="a in taskAttachments"
               :key="a.id"
-              class="hh-attach"
-              :class="`hh-attach--${a.kind}`"
+              class="ks-attach"
+              :class="`ks-attach--${a.kind}`"
             >
-              <div class="hh-attach__media">
+              <div class="ks-attach__media">
                 <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
                 <video
                   v-else-if="a.kind === 'video' && a.url"
@@ -1365,22 +1365,22 @@ const boardBackgroundStyle = computed(() => ({
                   controls
                   preload="metadata"
                 />
-                <div v-else class="hh-attach__file">
+                <div v-else class="ks-attach__file">
                   <v-icon size="32">mdi-file-outline</v-icon>
                 </div>
               </div>
-              <div class="hh-attach__meta">
+              <div class="ks-attach__meta">
                 <a
                   v-if="a.url"
-                  class="hh-attach__name md-body-medium"
+                  class="ks-attach__name md-body-medium"
                   :href="a.url"
                   target="_blank"
                   rel="noopener"
                 >
                   {{ a.filename }}
                 </a>
-                <span v-else class="hh-attach__name md-body-medium">{{ a.filename }}</span>
-                <span class="hh-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
+                <span v-else class="ks-attach__name md-body-medium">{{ a.filename }}</span>
+                <span class="ks-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
               </div>
               <v-btn
                 v-if="auth.isAuthed"
@@ -1388,16 +1388,16 @@ const boardBackgroundStyle = computed(() => ({
                 variant="text"
                 density="comfortable"
                 size="small"
-                class="hh-attach__remove"
+                class="ks-attach__remove"
                 @click="removeAttachmentClick(a)"
               />
             </div>
           </div>
             </section>
 
-            <aside class="hh-task-side">
-              <v-card variant="flat" color="surface-container-high" rounded="lg" class="hh-task-meta-card">
-                <div class="hh-task-meta-grid">
+            <aside class="ks-task-side">
+              <v-card variant="flat" color="surface-container-high" rounded="lg" class="ks-task-meta-card">
+                <div class="ks-task-meta-grid">
                   <v-date-input
                     v-model="taskStartDateModel"
                     label="Дата начала"
@@ -1511,7 +1511,7 @@ const boardBackgroundStyle = computed(() => ({
               <TaskCommentsSection
                 v-if="taskTarget"
                 :task-id="taskTarget.id"
-                class="hh-task-comments-side mt-3"
+                class="ks-task-comments-side mt-3"
               />
             </aside>
           </div>
@@ -1569,7 +1569,7 @@ const boardBackgroundStyle = computed(() => ({
   }
 }
 
-.hh-board {
+.ks-board {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1582,56 +1582,56 @@ const boardBackgroundStyle = computed(() => ({
     radial-gradient(1200px 600px at 100% 100%, rgba(var(--v-theme-tertiary), 0.05), transparent 60%),
     rgb(var(--v-theme-surface));
 }
-.hh-board--bg {
+.ks-board--bg {
   background: rgb(var(--v-theme-surface));
 }
-.hh-board__bg,
-.hh-board__bg-scrim {
+.ks-board__bg,
+.ks-board__bg-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
 }
-.hh-board__bg {
+.ks-board__bg {
   background-position: center;
   background-size: cover;
   filter: blur(20px) saturate(115%);
   transform: scale(1.08);
   opacity: 0.4;
 }
-.hh-board__bg-scrim {
+.ks-board__bg-scrim {
   background: linear-gradient(
     180deg,
     rgba(var(--v-theme-surface), 0.55) 0%,
     rgba(var(--v-theme-surface), 0.85) 100%
   );
 }
-.hh-board > *:not(.hh-board__bg):not(.hh-board__bg-scrim) {
+.ks-board > *:not(.ks-board__bg):not(.ks-board__bg-scrim) {
   position: relative;
   z-index: 1;
 }
-.hh-board__bar {
+.ks-board__bar {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
   flex-wrap: wrap;
 }
-.hh-board__title {
+.ks-board__title {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   color: rgb(var(--v-theme-on-surface));
 }
-.hh-board__logo {
+.ks-board__logo {
   flex: 0 0 auto;
 }
-.hh-board__slug {
+.ks-board__slug {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 13px;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.hh-board__view-group {
+.ks-board__view-group {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1640,33 +1640,33 @@ const boardBackgroundStyle = computed(() => ({
   background: rgb(var(--v-theme-surface-container));
   border: 1px solid rgba(var(--v-theme-outline), 0.24);
 }
-.hh-board__filters {
+.ks-board__filters {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   padding: 0 16px 12px;
 }
-.hh-board__filters :deep(.v-input) {
+.ks-board__filters :deep(.v-input) {
   min-width: 0;
 }
-.hh-filter-user {
+.ks-filter-user {
   display: inline-flex;
   align-items: center;
   min-width: 0;
   max-width: 100%;
 }
-.hh-filter-user__label {
+.ks-filter-user__label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hh-board__state {
+.ks-board__state {
   display: flex;
   justify-content: center;
   padding: 80px 0;
 }
-.hh-board__cols {
+.ks-board__cols {
   flex: 1;
   min-height: 0;
   height: 0;
@@ -1678,125 +1678,125 @@ const boardBackgroundStyle = computed(() => ({
   align-items: stretch;
 }
 
-.hh-board__list {
+.ks-board__list {
   flex: 1;
   padding: 8px 16px 20px;
   overflow: auto;
 }
-.hh-board__table {
+.ks-board__table {
   background: rgb(var(--v-theme-surface-container-low));
   overflow: hidden;
 }
-.hh-board__table :deep(.v-table__wrapper) {
+.ks-board__table :deep(.v-table__wrapper) {
   overflow-x: auto;
 }
-.hh-table :deep(thead th) {
+.ks-table :deep(thead th) {
   background: rgb(var(--v-theme-surface-container)) !important;
   color: rgba(var(--v-theme-on-surface), 0.7);
   font-weight: 500;
   letter-spacing: 0.1px;
 }
-.hh-table :deep(tbody tr) {
+.ks-table :deep(tbody tr) {
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-table :deep(tbody tr:hover td) {
+.ks-table :deep(tbody tr:hover td) {
   background: rgba(var(--v-theme-on-surface), 0.04) !important;
 }
-.hh-table :deep(tbody tr) {
+.ks-table :deep(tbody tr) {
   cursor: pointer;
 }
-.hh-table__title {
+.ks-table__title {
   color: rgb(var(--v-theme-on-surface));
   font-weight: 500;
 }
-.hh-table__col-select {
+.ks-table__col-select {
   max-width: 180px;
 }
-.hh-table__col-select :deep(.v-field) {
+.ks-table__col-select :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-high));
   border-radius: var(--md-shape-full);
 }
-.hh-table__assignee {
+.ks-table__assignee {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-.hh-table__dates {
+.ks-table__dates {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
 
-.hh-task-layout {
+.ks-task-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
 }
-.hh-task-main {
+.ks-task-main {
   min-width: 0;
 }
-.hh-task-side {
+.ks-task-side {
   min-width: 0;
   position: sticky;
   top: 0;
 }
-.hh-task-comments-side {
+.ks-task-comments-side {
   border-radius: var(--md-shape-l);
 }
-.hh-task-meta-card {
+.ks-task-meta-card {
   padding: 12px;
   border: 1px solid rgba(var(--v-theme-outline), 0.45);
   box-shadow: var(--md-elev-1);
 }
-.hh-task-meta-grid {
+.ks-task-meta-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
 }
-.hh-task-meta-grid :deep(.v-field) {
+.ks-task-meta-grid :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
-.hh-task__row {
+.ks-task__row {
   display: flex;
   gap: 16px;
   margin-top: 4px;
   flex-wrap: wrap;
 }
-.hh-task__row > * {
+.ks-task__row > * {
   flex: 1 1 220px;
   min-width: 0;
 }
 
 @media (max-width: 960px) {
-  .hh-board__filters {
+  .ks-board__filters {
     grid-template-columns: 1fr 1fr;
   }
 }
 
 @media (max-width: 600px) {
-  .hh-board__filters {
+  .ks-board__filters {
     grid-template-columns: 1fr;
   }
-  .hh-task-layout {
+  .ks-task-layout {
     grid-template-columns: 1fr;
   }
-  .hh-task-side {
+  .ks-task-side {
     position: static;
   }
-  .hh-board__cols {
+  .ks-board__cols {
     padding: 8px 12px 16px;
   }
 }
 
-.hh-desc__head {
+.ks-desc__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.hh-desc__view {
+.ks-desc__view {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
   border-radius: var(--md-shape-m);
   padding: 12px 16px;
@@ -1805,37 +1805,37 @@ const boardBackgroundStyle = computed(() => ({
   min-height: 170px;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
 }
-.hh-desc__view :deep(p) {
+.ks-desc__view :deep(p) {
   margin: 0 0 8px;
   line-height: 1.5;
 }
-.hh-desc__view :deep(p:last-child) {
+.ks-desc__view :deep(p:last-child) {
   margin-bottom: 0;
 }
-.hh-desc__view :deep(h2) {
+.ks-desc__view :deep(h2) {
   font-size: var(--md-type-title-large);
   line-height: 1.25;
   font-weight: 500;
   margin: 16px 0 8px;
 }
-.hh-desc__view :deep(h3) {
+.ks-desc__view :deep(h3) {
   font-size: var(--md-type-title-medium);
   line-height: 1.3;
   font-weight: 500;
   margin: 12px 0 6px;
 }
-.hh-desc__view :deep(ul),
-.hh-desc__view :deep(ol) {
+.ks-desc__view :deep(ul),
+.ks-desc__view :deep(ol) {
   padding-left: 22px;
   margin: 4px 0;
 }
-.hh-desc__view :deep(blockquote) {
+.ks-desc__view :deep(blockquote) {
   border-left: 3px solid rgb(var(--v-theme-primary));
   padding: 2px 12px;
   margin: 8px 0;
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
-.hh-desc__view :deep(pre) {
+.ks-desc__view :deep(pre) {
   background: rgb(var(--v-theme-surface-container-high));
   border-radius: var(--md-shape-s);
   padding: 10px 12px;
@@ -1843,31 +1843,31 @@ const boardBackgroundStyle = computed(() => ({
   font-size: 13px;
   overflow-x: auto;
 }
-.hh-desc__view :deep(code) {
+.ks-desc__view :deep(code) {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 0.92em;
   background: rgb(var(--v-theme-surface-container-high));
   border-radius: 4px;
   padding: 1px 4px;
 }
-.hh-desc__view :deep(a) {
+.ks-desc__view :deep(a) {
   color: rgb(var(--v-theme-primary));
   text-decoration: underline;
 }
-.hh-desc__empty {
+.ks-desc__empty {
   border: 1px dashed rgba(var(--v-theme-outline-variant), 0.6);
   border-radius: var(--md-shape-m);
   padding: 18px;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.hh-desc__editing-note {
+.ks-desc__editing-note {
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
-.hh-edit-lock-btn {
+.ks-edit-lock-btn {
   opacity: 0.9;
 }
-.hh-attach__size {
+.ks-attach__size {
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

@@ -111,11 +111,11 @@ export default createVuetify({
     defaultTheme:
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'hardhatDark'
-        : 'hardhatLight',
+        ? 'kaskaDark'
+        : 'kaskaLight',
     themes: {
-      hardhatLight: { dark: false, colors: lightColors },
-      hardhatDark: { dark: true, colors: darkColors },
+      kaskaLight: { dark: false, colors: lightColors },
+      kaskaDark: { dark: true, colors: darkColors },
     },
   },
   icons: {

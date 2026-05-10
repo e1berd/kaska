@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddAuthorAssigneeTypeToTasks do
+defmodule Kaska.Repo.Migrations.AddAuthorAssigneeTypeToTasks do
   use Ecto.Migration
 
   def change do

@@ -1,13 +1,13 @@
-name: hardhat-dev
+name: kaska-dev
 
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: hardhat-dev-postgres
+    container_name: kaska-dev-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
-      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-kaska}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kaska}
+      POSTGRES_DB: ${POSTGRES_DB:-kaska_dev}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -20,7 +20,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: hardhat-dev-rustfs
+    container_name: kaska-dev-rustfs
     user: "10001:10001"
     environment:
       RUSTFS_ROOT_USER: ${RUSTFS_ROOT_USER:-rustfsadmin}
@@ -42,10 +42,10 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile.dev
-    container_name: hardhat-dev-api
+    container_name: kaska-dev-api
     environment:
       MIX_ENV: dev
-      DATABASE_URL: ecto://${POSTGRES_USER:-hardhat}:${POSTGRES_PASSWORD:-hardhat}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-hardhat_dev}
+      DATABASE_URL: ecto://${POSTGRES_USER:-kaska}:${POSTGRES_PASSWORD:-kaska}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-kaska_dev}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_min_64_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:-dev_guardian_secret}
       MAIL_HOST: ${MAIL_HOST:-}
@@ -53,17 +53,17 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_SSL: ${MAIL_SSL:-true}
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@hardhat.local}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-HardHat}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@kaska.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Kaska}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-hardhat_dev}
-      POSTGRES_USER: ${POSTGRES_USER:-hardhat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hardhat}
+      POSTGRES_DB: ${POSTGRES_DB:-kaska_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-kaska}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kaska}
       WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:5173}
       PHX_HOST: ${PHX_HOST:-localhost}
       PORT: 4000
-      S3_BUCKET: ${S3_BUCKET:-hardhat}
+      S3_BUCKET: ${S3_BUCKET:-kaska}
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://rustfs:9000}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:-rustfsadmin}
@@ -84,7 +84,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile.dev
-    container_name: hardhat-dev-web
+    container_name: kaska-dev-web
     environment:
       VITE_API_WS_URL: ${VITE_API_WS_URL:-ws://localhost:4000/socket}
       CI: "true"

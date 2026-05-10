@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddTextColorToTaskTypes do
+defmodule Kaska.Repo.Migrations.AddTextColorToTaskTypes do
   use Ecto.Migration
 
   def change do

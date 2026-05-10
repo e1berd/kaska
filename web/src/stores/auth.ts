@@ -30,9 +30,9 @@ interface RegisterReply {
   first_user_bootstrap?: boolean
 }
 
-const ACCESS_KEY = 'hardhat.access'
-const REFRESH_KEY = 'hardhat.refresh'
-const USER_KEY = 'hardhat.user'
+const ACCESS_KEY = 'kaska.access'
+const REFRESH_KEY = 'kaska.refresh'
+const USER_KEY = 'kaska.user'
 
 function readUser(): User | null {
   const raw = localStorage.getItem(USER_KEY)

@@ -12,25 +12,25 @@ import Config
 # If you use `mix release`, you need to explicitly enable the server
 # by passing the PHX_SERVER=true when you start it:
 #
-#     PHX_SERVER=true bin/hardhat start
+#     PHX_SERVER=true bin/kaska start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :hardhat, HardhatWeb.Endpoint, server: true
+  config :kaska, KaskaWeb.Endpoint, server: true
 end
 
-config :hardhat, HardhatWeb.Endpoint,
+config :kaska, KaskaWeb.Endpoint,
   http: [port: System.get_env("PORT", "4000") |> String.to_integer()]
 
 # --- Cross-env overrides (apply in dev too, so docker-compose can drive everything) ---
 
 if database_url = System.get_env("DATABASE_URL") do
-  config :hardhat, Hardhat.Repo, url: database_url
+  config :kaska, Kaska.Repo, url: database_url
 end
 
 if System.get_env("BIND_ALL") in ["1", "true"] or System.get_env("DATABASE_URL") do
-  config :hardhat, HardhatWeb.Endpoint,
+  config :kaska, KaskaWeb.Endpoint,
     http: [ip: {0, 0, 0, 0}, port: System.get_env("PORT", "4000") |> String.to_integer()]
 end
 
@@ -41,9 +41,9 @@ web_base_url = System.get_env("WEB_BASE_URL")
 # different ports (5173 vs 4000), so Phoenix's origin check would reject every
 # WebSocket upgrade. We disable it for non-prod environments.
 if web_base_url && config_env() == :prod do
-  config :hardhat, HardhatWeb.Endpoint, check_origin: [web_base_url]
+  config :kaska, KaskaWeb.Endpoint, check_origin: [web_base_url]
 else
-  config :hardhat, HardhatWeb.Endpoint, check_origin: false
+  config :kaska, KaskaWeb.Endpoint, check_origin: false
 end
 
 guardian_secret =
@@ -54,11 +54,11 @@ guardian_secret =
       "dev_only_guardian_secret_key_replace_via_env_DO_NOT_USE_IN_PROD"
     end
 
-config :hardhat, Hardhat.Guardian, secret_key: guardian_secret
+config :kaska, Kaska.Guardian, secret_key: guardian_secret
 
 # --- S3 / RustFS ---
-config :hardhat, :s3,
-  bucket: System.get_env("S3_BUCKET", "hardhat"),
+config :kaska, :s3,
+  bucket: System.get_env("S3_BUCKET", "kaska"),
   internal_endpoint: System.get_env("S3_INTERNAL_ENDPOINT", "http://rustfs:9000"),
   public_endpoint: System.get_env("S3_PUBLIC_ENDPOINT", "http://localhost:9000")
 
@@ -97,7 +97,7 @@ if (mail_host = System.get_env("MAIL_HOST")) && mail_host != "" do
       [auth: :never]
     end
 
-  config :hardhat, Hardhat.Mailer, base ++ auth
+  config :kaska, Kaska.Mailer, base ++ auth
 end
 
 if config_env() == :prod do
@@ -110,7 +110,7 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :hardhat, Hardhat.Repo,
+  config :kaska, Kaska.Repo,
     # ssl: true,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
@@ -132,9 +132,9 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  config :hardhat, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :kaska, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  config :hardhat, HardhatWeb.Endpoint,
+  config :kaska, KaskaWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -150,7 +150,7 @@ if config_env() == :prod do
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:
   #
-  #     config :hardhat, HardhatWeb.Endpoint,
+  #     config :kaska, KaskaWeb.Endpoint,
   #       https: [
   #         ...,
   #         port: 443,
@@ -172,7 +172,7 @@ if config_env() == :prod do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  #     config :hardhat, HardhatWeb.Endpoint,
+  #     config :kaska, KaskaWeb.Endpoint,
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
@@ -182,7 +182,7 @@ if config_env() == :prod do
   # In production you need to configure the mailer to use a different adapter.
   # Here is an example configuration for Mailgun:
   #
-  #     config :hardhat, Hardhat.Mailer,
+  #     config :kaska, Kaska.Mailer,
   #       adapter: Swoosh.Adapters.Mailgun,
   #       api_key: System.get_env("MAILGUN_API_KEY"),
   #       domain: System.get_env("MAILGUN_DOMAIN")

@@ -21,15 +21,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="hh-auth">
-    <v-card class="hh-auth__card text-center" rounded="xl" elevation="0">
+  <div class="ks-auth">
+    <v-card class="ks-auth__card text-center" rounded="xl" elevation="0">
       <template v-if="status === 'pending'">
         <v-progress-circular indeterminate color="primary" size="48" class="mb-4" />
         <h2 class="md-title-large mb-1">Подтверждаем почту…</h2>
       </template>
 
       <template v-else-if="status === 'success'">
-        <div class="hh-verify__icon hh-verify__icon--ok">
+        <div class="ks-verify__icon ks-verify__icon--ok">
           <v-icon size="40">mdi-check</v-icon>
         </div>
         <h2 class="md-headline-small mt-4 mb-2">Почта подтверждена</h2>
@@ -48,7 +48,7 @@ onMounted(async () => {
       </template>
 
       <template v-else>
-        <div class="hh-verify__icon hh-verify__icon--err">
+        <div class="ks-verify__icon ks-verify__icon--err">
           <v-icon size="40">mdi-alert-circle-outline</v-icon>
         </div>
         <h2 class="md-headline-small mt-4 mb-2">Ошибка</h2>
@@ -60,10 +60,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.hh-auth__card {
-  --hh-auth-card-padding: 40px 32px;
+.ks-auth__card {
+  --ks-auth-card-padding: 40px 32px;
 }
-.hh-verify__icon {
+.ks-verify__icon {
   inline-size: 72px;
   block-size: 72px;
   margin: 0 auto;
@@ -71,11 +71,11 @@ onMounted(async () => {
   display: inline-grid;
   place-items: center;
 }
-.hh-verify__icon--ok {
+.ks-verify__icon--ok {
   background: rgb(var(--v-theme-primary-container));
   color: rgb(var(--v-theme-on-primary-container));
 }
-.hh-verify__icon--err {
+.ks-verify__icon--err {
   background: rgb(var(--v-theme-error-container));
   color: rgb(var(--v-theme-on-error-container));
 }

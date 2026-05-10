@@ -149,13 +149,13 @@ watch(
 </script>
 
 <template>
-  <section class="hh-comments">
-    <header class="hh-comments__head">
+  <section class="ks-comments">
+    <header class="ks-comments__head">
       <h3 class="md-title-small">Комментарии</h3>
       <span class="md-label-medium text-medium-emphasis">{{ comments.length }}</span>
     </header>
 
-    <div class="hh-comments__form">
+    <div class="ks-comments__form">
       <v-text-field
         v-if="!auth.isAuthed && canGuestComment"
         v-model="guestName"
@@ -183,7 +183,7 @@ watch(
         "
         :persistent-hint="!canSend || !auth.isAuthed"
       />
-      <div class="hh-comments__actions">
+      <div class="ks-comments__actions">
         <v-btn
           color="primary"
           variant="flat"
@@ -198,21 +198,21 @@ watch(
       </div>
     </div>
 
-    <div v-if="comments.length === 0" class="hh-comments__empty md-body-small">
+    <div v-if="comments.length === 0" class="ks-comments__empty md-body-small">
       Пока комментариев нет.
     </div>
     <div
       v-else
       v-auto-animate
-      class="hh-comments__list"
+      class="ks-comments__list"
       @scroll.passive="onCommentsScroll"
     >
       <article
         v-for="comment in visibleComments"
         :key="comment.id"
-        class="hh-comments__item"
+        class="ks-comments__item"
       >
-        <v-avatar size="30" color="secondary-container" class="hh-comments__avatar">
+        <v-avatar size="30" color="secondary-container" class="ks-comments__avatar">
           <PhDetective
             v-if="isGuestComment(comment)"
             :size="16"
@@ -228,14 +228,14 @@ watch(
           <span v-else class="md-label-medium">{{ authorInitial(comment) }}</span>
         </v-avatar>
 
-        <div class="hh-comments__content">
-          <div class="hh-comments__meta-row">
-            <span class="hh-comments__author md-label-medium">{{ authorLabel(comment) }}</span>
-            <time class="hh-comments__meta md-label-small">
+        <div class="ks-comments__content">
+          <div class="ks-comments__meta-row">
+            <span class="ks-comments__author md-label-medium">{{ authorLabel(comment) }}</span>
+            <time class="ks-comments__meta md-label-small">
               {{ formatCommentDate(comment.inserted_at) }}
             </time>
           </div>
-          <p class="hh-comments__body md-body-small">
+          <p class="ks-comments__body md-body-small">
             {{ comment.body }}
           </p>
         </div>
@@ -247,11 +247,11 @@ watch(
           color="error"
           density="comfortable"
           size="x-small"
-          class="hh-comments__delete"
+          class="ks-comments__delete"
           @click="removeComment(comment)"
         />
       </article>
-      <div v-if="hasMoreComments" class="hh-comments__more md-label-small">
+      <div v-if="hasMoreComments" class="ks-comments__more md-label-small">
         Прокрутите вниз, чтобы загрузить ещё
       </div>
     </div>
@@ -259,7 +259,7 @@ watch(
 </template>
 
 <style scoped>
-.hh-comments {
+.ks-comments {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.55);
   border-radius: var(--md-shape-l);
   background: rgb(var(--v-theme-surface-container-low));
@@ -268,28 +268,28 @@ watch(
   gap: 10px;
   max-height: min(62vh, 740px);
 }
-.hh-comments__head {
+.ks-comments__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.hh-comments__head h3 {
+.ks-comments__head h3 {
   margin: 0;
 }
-.hh-comments__form {
+.ks-comments__form {
   display: grid;
   gap: 10px;
 }
-.hh-comments__actions {
+.ks-comments__actions {
   display: flex;
   justify-content: flex-end;
 }
-.hh-comments__empty {
+.ks-comments__empty {
   color: rgba(var(--v-theme-on-surface), 0.65);
   text-align: center;
   padding: 10px 0;
 }
-.hh-comments__list {
+.ks-comments__list {
   background: rgb(var(--v-theme-surface-container-lowest));
   padding: 6px;
   border-radius: var(--md-shape-m);
@@ -298,7 +298,7 @@ watch(
   overscroll-behavior: contain;
   max-height: 31dvh;
 }
-.hh-comments__item {
+.ks-comments__item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px;
@@ -306,43 +306,43 @@ watch(
   padding: 8px;
   border-radius: var(--md-shape-s);
 }
-.hh-comments__item + .hh-comments__item {
+.ks-comments__item + .ks-comments__item {
   margin-top: 4px;
 }
-.hh-comments__item:hover {
+.ks-comments__item:hover {
   background: rgba(var(--v-theme-primary), 0.04);
 }
-.hh-comments__avatar {
+.ks-comments__avatar {
   margin-top: 2px;
 }
-.hh-comments__content {
+.ks-comments__content {
   min-width: 0;
 }
-.hh-comments__meta-row {
+.ks-comments__meta-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
 }
-.hh-comments__author {
+.ks-comments__author {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hh-comments__meta {
+.ks-comments__meta {
   color: rgba(var(--v-theme-on-surface), 0.62);
   flex-shrink: 0;
 }
-.hh-comments__body {
+.ks-comments__body {
   margin: 4px 0 0;
   white-space: pre-wrap;
   color: rgba(var(--v-theme-on-surface), 0.88);
 }
-.hh-comments__delete {
+.ks-comments__delete {
   margin-top: 1px;
 }
-.hh-comments__more {
+.ks-comments__more {
   padding: 6px 8px 4px;
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.55);

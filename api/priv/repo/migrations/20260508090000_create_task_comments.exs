@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.CreateTaskComments do
+defmodule Kaska.Repo.Migrations.CreateTaskComments do
   use Ecto.Migration
 
   def change do

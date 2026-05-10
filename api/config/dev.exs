@@ -1,11 +1,11 @@
 import Config
 
 # Configure your database
-config :hardhat, Hardhat.Repo,
-  username: System.get_env("POSTGRES_USER", "hardhat"),
-  password: System.get_env("POSTGRES_PASSWORD", "hardhat"),
+config :kaska, Kaska.Repo,
+  username: System.get_env("POSTGRES_USER", "kaska"),
+  password: System.get_env("POSTGRES_PASSWORD", "kaska"),
   hostname: System.get_env("POSTGRES_HOST", "postgres"),
-  database: System.get_env("POSTGRES_DB", "hardhat_dev"),
+  database: System.get_env("POSTGRES_DB", "kaska_dev"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -16,7 +16,7 @@ config :hardhat, Hardhat.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :hardhat, HardhatWeb.Endpoint,
+config :kaska, KaskaWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {0, 0, 0, 0}],
@@ -50,7 +50,7 @@ config :hardhat, HardhatWeb.Endpoint,
 # different ports.
 
 # Enable dev routes for dashboard and mailbox
-config :hardhat, dev_routes: true
+config :kaska, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

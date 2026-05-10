@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.CreateGuardianTokens do
+defmodule Kaska.Repo.Migrations.CreateGuardianTokens do
   use Ecto.Migration
 
   def change do

@@ -1,4 +1,4 @@
-// End-to-end IAM smoke test for HardHat.
+// End-to-end IAM smoke test for Kaska.
 // 1) anonymous socket  -> register
 // 2) poll mailpit, extract verify token
 // 3) verify_email      -> success
@@ -12,7 +12,7 @@ import { Socket } from 'phoenix'
 
 const SOCKET_URL = 'ws://localhost:4000/socket'
 const MAILPIT_URL = 'http://localhost:8025'
-const EMAIL = `smoke+${Date.now()}@hardhat.local`
+const EMAIL = `smoke+${Date.now()}@kaska.local`
 const PW1 = 'password-one-1'
 const PW2 = 'password-two-2'
 

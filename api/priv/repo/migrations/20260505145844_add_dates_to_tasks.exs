@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddDatesToTasks do
+defmodule Kaska.Repo.Migrations.AddDatesToTasks do
   use Ecto.Migration
 
   def change do

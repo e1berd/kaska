@@ -183,10 +183,10 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="hh-projects">
-    <header class="hh-projects__hero">
-      <div class="hh-projects__intro">
-        <span class="hh-projects__eyebrow md-label-large">Workspace</span>
+  <div class="ks-projects">
+    <header class="ks-projects__hero">
+      <div class="ks-projects__intro">
+        <span class="ks-projects__eyebrow md-label-large">Workspace</span>
         <h1 class="md-display-small">Проекты</h1>
         <p class="md-body-large text-medium-emphasis mt-2 mb-0">
           Выберите проект, чтобы перейти к доске задач, или создайте новый.
@@ -195,9 +195,9 @@ async function confirmDelete() {
           Войдите, чтобы создавать проекты. Просматривать можно без аккаунта.
         </p>
       </div>
-      <div class="hh-projects__panel">
-        <div class="hh-projects__meta">
-          <div class="hh-projects__meta-item">
+      <div class="ks-projects__panel">
+        <div class="ks-projects__meta">
+          <div class="ks-projects__meta-item">
             <span class="md-label-medium text-medium-emphasis">Всего проектов</span>
             <strong class="md-headline-small">{{ projects.list.length }}</strong>
           </div>
@@ -212,7 +212,7 @@ async function confirmDelete() {
           prepend-inner-icon="mdi-magnify"
           placeholder="Поиск"
           clearable
-          class="hh-projects__filter"
+          class="ks-projects__filter"
         />
         <v-btn
           v-if="auth.isAuthed"
@@ -228,22 +228,22 @@ async function confirmDelete() {
       </div>
     </header>
 
-    <div v-if="loading" class="hh-projects__grid">
-      <div v-for="i in 6" :key="i" class="hh-project-skeleton">
-        <div class="hh-project-skeleton__head">
-          <div class="hh-skeleton hh-project-skeleton__avatar" />
-          <div class="hh-project-skeleton__title">
-            <div class="hh-skeleton hh-project-skeleton__name" />
-            <div class="hh-skeleton hh-project-skeleton__slug" />
+    <div v-if="loading" class="ks-projects__grid">
+      <div v-for="i in 6" :key="i" class="ks-project-skeleton">
+        <div class="ks-project-skeleton__head">
+          <div class="ks-skeleton ks-project-skeleton__avatar" />
+          <div class="ks-project-skeleton__title">
+            <div class="ks-skeleton ks-project-skeleton__name" />
+            <div class="ks-skeleton ks-project-skeleton__slug" />
           </div>
         </div>
-        <div class="hh-skeleton hh-project-skeleton__desc" />
-        <div class="hh-skeleton hh-project-skeleton__desc hh-project-skeleton__desc--short" />
+        <div class="ks-skeleton ks-project-skeleton__desc" />
+        <div class="ks-skeleton ks-project-skeleton__desc ks-project-skeleton__desc--short" />
       </div>
     </div>
 
-    <div v-else-if="projects.list.length === 0" class="hh-projects__empty">
-      <div class="hh-projects__empty-icon">
+    <div v-else-if="projects.list.length === 0" class="ks-projects__empty">
+      <div class="ks-projects__empty-icon">
         <v-icon size="40">mdi-folder-open-outline</v-icon>
       </div>
       <h2 class="md-title-large mt-4">Пока ни одного проекта</h2>
@@ -268,9 +268,9 @@ async function confirmDelete() {
 
     <div
       v-else-if="filtered.length === 0"
-      class="hh-projects__empty hh-projects__empty--soft"
+      class="ks-projects__empty ks-projects__empty--soft"
     >
-      <div class="hh-projects__empty-icon">
+      <div class="ks-projects__empty-icon">
         <v-icon size="36">mdi-magnify</v-icon>
       </div>
       <h2 class="md-title-medium mt-4">Ничего не найдено</h2>
@@ -279,12 +279,12 @@ async function confirmDelete() {
       </p>
     </div>
 
-    <div v-else class="hh-projects__grid">
+    <div v-else class="ks-projects__grid">
       <router-link
         v-for="p in filtered"
         :key="p.id"
         :to="{ name: 'board', params: { slug: p.slug } }"
-        class="hh-project md-state-layer"
+        class="ks-project md-state-layer"
       >
         <v-btn
           v-if="auth.isAuthed"
@@ -293,31 +293,31 @@ async function confirmDelete() {
           variant="text"
           density="comfortable"
           rounded="pill"
-          class="hh-project__edit"
+          class="ks-project__edit"
           aria-label="Редактировать проект"
           @click.stop.prevent="openEdit(p)"
         />
-        <div class="hh-project__head">
+        <div class="ks-project__head">
           <v-avatar
             :color="p.avatar_url ? undefined : accent(p.id)"
             size="48"
             rounded="lg"
-            class="hh-project__badge"
+            class="ks-project__badge"
           >
             <v-img v-if="p.avatar_url" :src="p.avatar_url" cover alt="" />
             <span v-else class="text-white md-title-medium">
               {{ p.name.slice(0, 1).toUpperCase() }}
             </span>
           </v-avatar>
-          <div class="hh-project__title">
+          <div class="ks-project__title">
             <span class="md-title-medium">{{ p.name }}</span>
-            <code class="hh-project__slug md-label-medium">/{{ p.slug }}</code>
+            <code class="ks-project__slug md-label-medium">/{{ p.slug }}</code>
           </div>
         </div>
-        <p v-if="p.description" class="hh-project__desc md-body-medium">
+        <p v-if="p.description" class="ks-project__desc md-body-medium">
           {{ p.description }}
         </p>
-        <div class="hh-project__cta">
+        <div class="ks-project__cta">
           <span class="md-label-large">Открыть</span>
           <v-icon size="18">mdi-arrow-right</v-icon>
         </div>
@@ -342,10 +342,10 @@ async function confirmDelete() {
     <v-dialog v-model="editDialog" max-width="640" @after-leave="editing = null">
       <v-card v-if="editing" rounded="xl">
         <div
-          class="hh-edit__cover"
+          class="ks-edit__cover"
           :style="editCoverStyle"
         >
-          <div class="hh-edit__cover-actions">
+          <div class="ks-edit__cover-actions">
             <v-btn
               size="small"
               variant="flat"
@@ -366,19 +366,19 @@ async function confirmDelete() {
               @click="clearMedia('background')"
             />
           </div>
-          <div class="hh-edit__avatar-wrap">
+          <div class="ks-edit__avatar-wrap">
             <v-avatar
               :color="editing.avatar_url ? undefined : accent(editing.id)"
               size="80"
               rounded="lg"
-              class="hh-edit__avatar"
+              class="ks-edit__avatar"
             >
               <v-img v-if="editing.avatar_url" :src="editing.avatar_url" cover alt="" />
               <span v-else class="text-white md-headline-small">
                 {{ editing.name.slice(0, 1).toUpperCase() }}
               </span>
             </v-avatar>
-            <div class="hh-edit__avatar-buttons">
+            <div class="ks-edit__avatar-buttons">
               <v-btn
                 size="x-small"
                 variant="flat"
@@ -543,19 +543,19 @@ async function confirmDelete() {
 </template>
 
 <style scoped>
-.hh-projects {
+.ks-projects {
   max-width: 1320px;
   margin: 0 auto;
   padding: 36px 24px 80px;
 }
-.hh-projects__hero {
+.ks-projects__hero {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   align-items: stretch;
   gap: 20px;
   margin-bottom: 32px;
 }
-.hh-projects__intro {
+.ks-projects__intro {
   padding: 28px 32px;
   border-radius: var(--md-shape-xl);
   background:
@@ -563,18 +563,18 @@ async function confirmDelete() {
     rgb(var(--v-theme-surface-container-low));
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.55);
 }
-.hh-projects__intro h1 {
+.ks-projects__intro h1 {
   letter-spacing: -0.02em;
   margin-bottom: 0;
 }
-.hh-projects__eyebrow {
+.ks-projects__eyebrow {
   display: inline-block;
   text-transform: uppercase;
   color: rgb(var(--v-theme-primary));
   letter-spacing: 0.08em;
   margin-bottom: 10px;
 }
-.hh-projects__panel {
+.ks-projects__panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -583,78 +583,78 @@ async function confirmDelete() {
   background: rgb(var(--v-theme-surface-container));
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
 }
-.hh-projects__meta {
+.ks-projects__meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
-.hh-projects__meta-item {
+.ks-projects__meta-item {
   border-radius: var(--md-shape-l);
   background: rgba(var(--v-theme-primary), 0.08);
   border: 1px solid rgba(var(--v-theme-primary), 0.2);
   padding: 12px;
 }
-.hh-projects__meta-item strong {
+.ks-projects__meta-item strong {
   display: block;
   margin-top: 4px;
 }
-.hh-projects__actions {
+.ks-projects__actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-.hh-projects__filter {
+.ks-projects__filter {
   min-width: 0;
   width: 100%;
 }
 
 @media (max-width: 1024px) {
-  .hh-projects__hero {
+  .ks-projects__hero {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 680px) {
-  .hh-projects {
+  .ks-projects {
     padding: 24px 16px 64px;
   }
-  .hh-projects__intro {
+  .ks-projects__intro {
     padding: 20px;
   }
-  .hh-projects__intro h1 {
+  .ks-projects__intro h1 {
     font-size: var(--md-type-headline-medium);
     line-height: 36px;
   }
-  .hh-projects__panel {
+  .ks-projects__panel {
     padding: 14px;
   }
-  .hh-projects__meta {
+  .ks-projects__meta {
     grid-template-columns: 1fr 1fr;
   }
-  .hh-projects__actions {
+  .ks-projects__actions {
     width: 100%;
   }
-  .hh-projects__filter {
+  .ks-projects__filter {
     min-width: 0;
     width: 100%;
   }
 }
-.hh-projects__filter :deep(.v-field) {
+.ks-projects__filter :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container)) !important;
 }
 
-.hh-projects__empty {
+.ks-projects__empty {
   text-align: center;
   padding: 96px 24px;
   border-radius: var(--md-shape-xl);
   background: rgb(var(--v-theme-surface-container-low));
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
-.hh-projects__empty--soft {
+.ks-projects__empty--soft {
   padding: 56px 24px;
 }
-.hh-projects__empty-icon {
+.ks-projects__empty-icon {
   width: 80px;
   height: 80px;
   border-radius: var(--md-shape-full);
@@ -665,14 +665,14 @@ async function confirmDelete() {
   justify-content: center;
 }
 
-.hh-projects__grid {
+.ks-projects__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
 }
 
 /* M3 filled card with primary state-layer overlay on hover/focus. */
-.hh-project {
+.ks-project {
   --md-state-color: rgb(var(--v-theme-primary));
   position: relative;
   display: flex;
@@ -689,7 +689,7 @@ async function confirmDelete() {
     box-shadow var(--md-duration-short4) var(--md-easing-emphasized),
     border-color var(--md-duration-short4) var(--md-easing-emphasized);
 }
-.hh-project__edit {
+.ks-project__edit {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -697,45 +697,45 @@ async function confirmDelete() {
   opacity: 0;
   transition: opacity var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-project:hover .hh-project__edit,
-.hh-project:focus-within .hh-project__edit {
+.ks-project:hover .ks-project__edit,
+.ks-project:focus-within .ks-project__edit {
   opacity: 1;
 }
-.hh-project:hover {
+.ks-project:hover {
   transform: translateY(-2px);
   box-shadow: var(--md-elev-2);
   border-color: rgba(var(--v-theme-primary), 0.4);
 }
-.hh-project:focus-visible {
+.ks-project:focus-visible {
   outline: none;
   border-color: rgb(var(--v-theme-primary));
 }
 
-.hh-project__head {
+.ks-project__head {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.hh-project__badge {
+.ks-project__badge {
   flex-shrink: 0;
 }
-.hh-project__title {
+.ks-project__title {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.hh-project__title > span:first-child {
+.ks-project__title > span:first-child {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hh-project__slug {
+.ks-project__slug {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
-.hh-project__desc {
+.ks-project__desc {
   color: rgba(var(--v-theme-on-surface), 0.78);
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -745,7 +745,7 @@ async function confirmDelete() {
   flex: 1;
 }
 
-.hh-project__cta {
+.ks-project__cta {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -757,18 +757,18 @@ async function confirmDelete() {
     opacity var(--md-duration-short4) var(--md-easing-emphasized),
     transform var(--md-duration-short4) var(--md-easing-emphasized);
 }
-.hh-project:hover .hh-project__cta,
-.hh-project:focus-visible .hh-project__cta {
+.ks-project:hover .ks-project__cta,
+.ks-project:focus-visible .ks-project__cta {
   opacity: 1;
   transform: translateX(0);
 }
 
-@keyframes hh-shimmer {
+@keyframes ks-shimmer {
   from { background-position: -400px 0; }
   to   { background-position:  400px 0; }
 }
 
-.hh-skeleton {
+.ks-skeleton {
   border-radius: var(--md-shape-s);
   background:
     linear-gradient(
@@ -778,10 +778,10 @@ async function confirmDelete() {
       rgb(var(--v-theme-surface-container)) 75%
     );
   background-size: 800px 100%;
-  animation: hh-shimmer 1.4s ease-in-out infinite;
+  animation: ks-shimmer 1.4s ease-in-out infinite;
 }
 
-.hh-project-skeleton {
+.ks-project-skeleton {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -791,20 +791,20 @@ async function confirmDelete() {
   border-radius: var(--md-shape-l);
 }
 
-.hh-project-skeleton__head {
+.ks-project-skeleton__head {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-.hh-project-skeleton__avatar {
+.ks-project-skeleton__avatar {
   width: 48px;
   height: 48px;
   border-radius: var(--md-shape-s);
   flex-shrink: 0;
 }
 
-.hh-project-skeleton__title {
+.ks-project-skeleton__title {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -812,26 +812,26 @@ async function confirmDelete() {
   min-width: 0;
 }
 
-.hh-project-skeleton__name {
+.ks-project-skeleton__name {
   height: 16px;
   width: 60%;
 }
 
-.hh-project-skeleton__slug {
+.ks-project-skeleton__slug {
   height: 11px;
   width: 40%;
 }
 
-.hh-project-skeleton__desc {
+.ks-project-skeleton__desc {
   height: 14px;
   width: 100%;
 }
 
-.hh-project-skeleton__desc--short {
+.ks-project-skeleton__desc--short {
   width: 70%;
 }
 
-.hh-edit__cover {
+.ks-edit__cover {
   position: relative;
   height: 160px;
   margin-bottom: 40px;
@@ -846,14 +846,14 @@ async function confirmDelete() {
   border-top-left-radius: var(--md-shape-xl);
   border-top-right-radius: var(--md-shape-xl);
 }
-.hh-edit__cover::after {
+.ks-edit__cover::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.35) 100%);
   pointer-events: none;
 }
-.hh-edit__cover-actions {
+.ks-edit__cover-actions {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -861,7 +861,7 @@ async function confirmDelete() {
   gap: 6px;
   z-index: 2;
 }
-.hh-edit__avatar-wrap {
+.ks-edit__avatar-wrap {
   position: absolute;
   left: 24px;
   bottom: -32px;
@@ -870,11 +870,11 @@ async function confirmDelete() {
   gap: 8px;
   z-index: 2;
 }
-.hh-edit__avatar {
+.ks-edit__avatar {
   border: 4px solid rgb(var(--v-theme-surface));
   box-shadow: var(--md-elev-2);
 }
-.hh-edit__avatar-buttons {
+.ks-edit__avatar-buttons {
   display: inline-flex;
   flex-direction: column;
   gap: 4px;

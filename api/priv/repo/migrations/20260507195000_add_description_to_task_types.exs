@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddDescriptionToTaskTypes do
+defmodule Kaska.Repo.Migrations.AddDescriptionToTaskTypes do
   use Ecto.Migration
 
   def change do

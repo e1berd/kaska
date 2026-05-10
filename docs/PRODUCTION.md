@@ -1,6 +1,6 @@
-# Деплой HardHat в production
+# Деплой Kaska в production
 
-Полный гайд по разворачиванию HardHat на одном сервере с автоматическим SSL
+Полный гайд по разворачиванию Kaska на одном сервере с автоматическим SSL
 через Caddy + Let's Encrypt. Всё крутится в Docker Compose, никаких
 ручных правок конфигов на хосте.
 
@@ -42,7 +42,7 @@
 - `web` — **publisher**: собирает SPA, кладёт `dist/` в named volume `web-dist` и завершается с кодом 0. Caddy монтирует этот volume read-only.
 - `caddy` — реверс-прокси и TLS-терминатор. Единственный сервис, который слушает 80/443.
 
-Внутри docker-сети `hardhat-net` сервисы общаются по именам контейнеров. Снаружи доступ только через Caddy.
+Внутри docker-сети `kaska-net` сервисы общаются по именам контейнеров. Снаружи доступ только через Caddy.
 
 ```
                 ┌─────────────────────────────────────┐
@@ -51,7 +51,7 @@
                 │  ├─ app.example.com  → SPA + api    │
                 │  └─ s3.example.com   → rustfs:9000  │
                 └──────┬──────────────────────────────┘
-                       │  hardhat-net (docker)
+                       │  kaska-net (docker)
        ┌───────────────┼─────────────────┐
        ▼               ▼                 ▼
    ┌────────┐     ┌─────────┐      ┌──────────┐
@@ -153,10 +153,10 @@ Postgres (`5432`), RustFS (`9000`/`9001`) и Phoenix (`4000`) **не публи�
 ## 6. Клонирование и секреты
 
 ```bash
-sudo mkdir -p /opt/hardhat
-sudo chown $USER:$USER /opt/hardhat
-cd /opt/hardhat
-git clone https://github.com/<your-org>/hardhat.git .
+sudo mkdir -p /opt/kaska
+sudo chown $USER:$USER /opt/kaska
+cd /opt/kaska
+git clone https://github.com/<your-org>/kaska.git .
 ```
 
 Скопируй шаблон env и заполни:
@@ -209,9 +209,9 @@ docker compose up -d --build
 
 Что произойдёт по шагам:
 
-1. Соберутся образы `hardhat-api` и `hardhat-web` (это долго — 5–15 минут на первом проходе).
+1. Соберутся образы `kaska-api` и `kaska-web` (это долго — 5–15 минут на первом проходе).
 2. Запустятся `postgres` и `rustfs`, дождутся healthcheck.
-3. Запустится `api`, выполнит `Hardhat.Release.migrate()` (накатит миграции БД), запустит Phoenix release.
+3. Запустится `api`, выполнит `Kaska.Release.migrate()` (накатит миграции БД), запустит Phoenix release.
 4. Запустится `web` (publisher), скопирует собранные SPA-файлы в named volume `web-dist` и завершится с кодом 0.
 5. Запустится `caddy`, увидит SPA в `/srv/app`, лендинг в `/srv/landing`, поднимет три HTTPS-сайта и запросит сертификаты у Let's Encrypt.
 
@@ -245,7 +245,7 @@ curl -I https://s3.example.com           # ответ от RustFS, обычно 
 
 ```bash
 docker compose exec api \
-  bin/hardhat eval 'Hardhat.Release.promote("user@example.com", "superadmin")'
+  bin/kaska eval 'Kaska.Release.promote("user@example.com", "superadmin")'
 ```
 
 (Если такого release-helper нет, используй mix-таску из контейнера с MIX_ENV=prod, как описано в `README.md` → `mix users.promotion`.)
@@ -293,7 +293,7 @@ docker compose exec caddy \
 
 ```bash
 docker compose down
-docker volume rm hardhat_caddy-data
+docker volume rm kaska_caddy-data
 docker compose up -d
 ```
 
@@ -308,7 +308,7 @@ docker compose up -d
 ```bash
 docker compose exec -T postgres \
   pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" \
-  > /opt/hardhat/backups/db-$(date +%Y%m%d-%H%M%S).dump
+  > /opt/kaska/backups/db-$(date +%Y%m%d-%H%M%S).dump
 ```
 
 Восстановление:
@@ -324,8 +324,8 @@ cat backup.dump | docker compose exec -T postgres \
 
 ```bash
 docker run --rm \
-  -v hardhat_rustfs-data:/data:ro \
-  -v /opt/hardhat/backups:/out \
+  -v kaska_rustfs-data:/data:ro \
+  -v /opt/kaska/backups:/out \
   alpine:3 tar czf /out/rustfs-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
 ```
 
@@ -334,19 +334,19 @@ docker run --rm \
 ### Cron на сервере
 
 ```cron
-0 3 * * * cd /opt/hardhat && docker compose exec -T postgres pg_dump -U hardhat -Fc hardhat | gzip > /opt/hardhat/backups/db-$(date +\%Y\%m\%d).dump.gz
-15 3 * * 0 docker run --rm -v hardhat_rustfs-data:/data:ro -v /opt/hardhat/backups:/out alpine:3 tar czf /out/rustfs-$(date +\%Y\%m\%d).tar.gz -C /data .
-30 3 * * * find /opt/hardhat/backups -mtime +30 -delete
+0 3 * * * cd /opt/kaska && docker compose exec -T postgres pg_dump -U kaska -Fc kaska | gzip > /opt/kaska/backups/db-$(date +\%Y\%m\%d).dump.gz
+15 3 * * 0 docker run --rm -v kaska_rustfs-data:/data:ro -v /opt/kaska/backups:/out alpine:3 tar czf /out/rustfs-$(date +\%Y\%m\%d).tar.gz -C /data .
+30 3 * * * find /opt/kaska/backups -mtime +30 -delete
 ```
 
-Обязательно копируй `/opt/hardhat/backups/` куда-то наружу (S3, второй сервер, NAS).
+Обязательно копируй `/opt/kaska/backups/` куда-то наружу (S3, второй сервер, NAS).
 
 ---
 
 ## 11. Обновление приложения
 
 ```bash
-cd /opt/hardhat
+cd /opt/kaska
 git pull
 docker compose up -d --build
 ```
@@ -354,7 +354,7 @@ docker compose up -d --build
 Что важно:
 
 - `web` — пересоберётся, заново запустится publisher, новый `dist/` положит в `web-dist` (старые файлы удаляются `find /export -mindepth 1 -delete`).
-- `api` — пересоберётся, при старте контейнер выполнит `Hardhat.Release.migrate()`. Миграции должны быть обратно совместимыми (forward-only); если ломаешь схему — сделай blue/green вручную.
+- `api` — пересоберётся, при старте контейнер выполнит `Kaska.Release.migrate()`. Миграции должны быть обратно совместимыми (forward-only); если ломаешь схему — сделай blue/green вручную.
 - `caddy` — перезапустится только если поменялся образ/конфиг. Сертификаты остаются в `caddy-data`.
 - `postgres`, `rustfs` — не пересобираются, работают как есть.
 
@@ -508,7 +508,7 @@ grep -A1 'web:' docker-compose.yml | grep restart
      ports:
        - "127.0.0.1:9000:9000"
    ```
-3. Также понадобится отдать SPA-статику. Простейший вариант — добавить ещё одну publisher-цель в Caddy на хосте через bind mount, либо положить `dist/` куда-то на хост (например, `/var/www/hardhat/dist`) и указать в host-Caddyfile `root * /var/www/hardhat/dist`.
+3. Также понадобится отдать SPA-статику. Простейший вариант — добавить ещё одну publisher-цель в Caddy на хосте через bind mount, либо положить `dist/` куда-то на хост (например, `/var/www/kaska/dist`) и указать в host-Caddyfile `root * /var/www/kaska/dist`.
 4. Установи Caddy системно (`apt install caddy`), скопируй `caddy/Caddyfile` в `/etc/caddy/Caddyfile`, поправь `reverse_proxy api:4000` → `reverse_proxy 127.0.0.1:4000` и `rustfs:9000` → `127.0.0.1:9000`.
 5. `systemctl restart caddy`.
 

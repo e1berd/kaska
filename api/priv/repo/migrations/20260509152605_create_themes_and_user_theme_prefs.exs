@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.CreateThemesAndUserThemePrefs do
+defmodule Kaska.Repo.Migrations.CreateThemesAndUserThemePrefs do
   use Ecto.Migration
 
   def change do

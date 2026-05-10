@@ -91,17 +91,17 @@ function logout() {
 </script>
 
 <template>
-  <div class="hh-me">
-    <v-card class="hh-me__card" rounded="xl" elevation="0">
-      <header class="hh-me__head">
-        <div class="hh-me__avatar-wrap">
-          <div class="hh-me__avatar">
+  <div class="ks-me">
+    <v-card class="ks-me__card" rounded="xl" elevation="0">
+      <header class="ks-me__head">
+        <div class="ks-me__avatar-wrap">
+          <div class="ks-me__avatar">
             <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="avatar" />
-            <span v-else class="hh-me__initials">{{ initials }}</span>
+            <span v-else class="ks-me__initials">{{ initials }}</span>
           </div>
           <button
             type="button"
-            class="hh-me__avatar-edit"
+            class="ks-me__avatar-edit"
             :disabled="avatarUploading"
             title="Сменить аватар"
             @click="pickAvatar"
@@ -112,14 +112,14 @@ function logout() {
             ref="avatarInput"
             type="file"
             accept="image/*"
-            class="hh-me__file"
+            class="ks-me__file"
             @change="onAvatarPicked"
           />
         </div>
 
-        <div class="hh-me__name-block">
+        <div class="ks-me__name-block">
           <template v-if="!editingName">
-            <h1 class="md-headline-small mb-0 hh-me__name">
+            <h1 class="md-headline-small mb-0 ks-me__name">
               {{ displayedName }}
               <v-btn
                 icon="mdi-pencil-outline"
@@ -197,16 +197,16 @@ function logout() {
 
       <v-divider class="my-4" />
 
-      <ul v-if="auth.user" class="hh-me__list">
-        <li class="hh-me__row">
-          <v-icon class="hh-me__icon">mdi-shield-account-outline</v-icon>
+      <ul v-if="auth.user" class="ks-me__list">
+        <li class="ks-me__row">
+          <v-icon class="ks-me__icon">mdi-shield-account-outline</v-icon>
           <div>
             <div class="md-label-medium text-medium-emphasis">Роль</div>
             <div class="md-body-large">{{ auth.user.role }}</div>
           </div>
         </li>
-        <li class="hh-me__row">
-          <v-icon class="hh-me__icon" :color="auth.user.confirmed_at ? 'primary' : undefined">
+        <li class="ks-me__row">
+          <v-icon class="ks-me__icon" :color="auth.user.confirmed_at ? 'primary' : undefined">
             {{ auth.user.confirmed_at ? 'mdi-check-decagram' : 'mdi-email-alert-outline' }}
           </v-icon>
           <div>
@@ -230,24 +230,24 @@ function logout() {
 </template>
 
 <style scoped>
-.hh-me {
+.ks-me {
   max-width: 640px;
   margin: 32px auto;
   padding: 0 16px;
 }
-.hh-me__card {
+.ks-me__card {
   padding: 32px;
   background: rgb(var(--v-theme-surface-container-low)) !important;
 }
-.hh-me__head {
+.ks-me__head {
   display: flex;
   align-items: center;
   gap: 20px;
 }
-.hh-me__avatar-wrap {
+.ks-me__avatar-wrap {
   position: relative;
 }
-.hh-me__avatar {
+.ks-me__avatar {
   width: 88px;
   height: 88px;
   border-radius: var(--md-shape-full);
@@ -260,13 +260,13 @@ function logout() {
   font-size: 32px;
   font-weight: 500;
 }
-.hh-me__avatar img {
+.ks-me__avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.hh-me__avatar-edit {
+.ks-me__avatar-edit {
   position: absolute;
   right: -4px;
   bottom: -4px;
@@ -282,39 +282,39 @@ function logout() {
   cursor: pointer;
   transition: transform var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-me__avatar-edit:hover:not(:disabled) {
+.ks-me__avatar-edit:hover:not(:disabled) {
   transform: scale(1.06);
 }
-.hh-me__avatar-edit:disabled {
+.ks-me__avatar-edit:disabled {
   opacity: 0.5;
   cursor: progress;
 }
-.hh-me__file {
+.ks-me__file {
   display: none;
 }
-.hh-me__name-block {
+.ks-me__name-block {
   flex: 1;
   min-width: 0;
 }
-.hh-me__name {
+.ks-me__name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.hh-me__list {
+.ks-me__list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
   gap: 12px;
 }
-.hh-me__row {
+.ks-me__row {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 8px 4px;
 }
-.hh-me__icon {
+.ks-me__icon {
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
 </style>

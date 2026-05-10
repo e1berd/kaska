@@ -78,12 +78,12 @@ const baseExtensions: AnyExtension[] = [
 
 function buildCaret(user: CollabUser): HTMLElement {
   const cursor = document.createElement('span')
-  cursor.className = 'hh-collab-caret'
+  cursor.className = 'ks-collab-caret'
   cursor.style.borderColor = user.color
   cursor.appendChild(document.createTextNode('⁠'))
 
   const label = document.createElement('div')
-  label.className = 'hh-collab-caret__label'
+  label.className = 'ks-collab-caret__label'
   label.style.background = user.color
   label.textContent = user.name
   cursor.appendChild(label)
@@ -196,11 +196,11 @@ function toggleLink() {
 </script>
 
 <template>
-  <div class="hh-rich" :class="{ 'hh-rich--ro': !resolveEditable() }">
-    <div v-if="resolveEditable()" class="hh-rich__toolbar">
+  <div class="ks-rich" :class="{ 'ks-rich--ro': !resolveEditable() }">
+    <div v-if="resolveEditable()" class="ks-rich__toolbar">
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('bold') }"
         :disabled="!editor.can().chain().focus().toggleBold().run()"
         @click="editor.chain().focus().toggleBold().run()"
@@ -210,7 +210,7 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('italic') }"
         @click="editor.chain().focus().toggleItalic().run()"
         title="Курсив (Ctrl+I)"
@@ -219,17 +219,17 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('strike') }"
         @click="editor.chain().focus().toggleStrike().run()"
         title="Зачёркнутый"
       >
         <TextStrikethrough :size="18" />
       </button>
-      <span class="hh-rich__sep" />
+      <span class="ks-rich__sep" />
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('heading', { level: 2 }) }"
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
         title="Заголовок"
@@ -238,17 +238,17 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('heading', { level: 3 }) }"
         @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
         title="Подзаголовок"
       >
         <H3 :size="18" />
       </button>
-      <span class="hh-rich__sep" />
+      <span class="ks-rich__sep" />
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('bulletList') }"
         @click="editor.chain().focus().toggleBulletList().run()"
         title="Список"
@@ -257,17 +257,17 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('orderedList') }"
         @click="editor.chain().focus().toggleOrderedList().run()"
         title="Нумерованный список"
       >
         <ListNumbers :size="18" />
       </button>
-      <span class="hh-rich__sep" />
+      <span class="ks-rich__sep" />
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('blockquote') }"
         @click="editor.chain().focus().toggleBlockquote().run()"
         title="Цитата"
@@ -276,7 +276,7 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('codeBlock') }"
         @click="editor.chain().focus().toggleCodeBlock().run()"
         title="Блок кода"
@@ -285,7 +285,7 @@ function toggleLink() {
       </button>
       <button
         type="button"
-        class="hh-rich__btn"
+        class="ks-rich__btn"
         :class="{ 'is-active': isActive('link') }"
         @click="toggleLink"
         title="Ссылка"
@@ -294,12 +294,12 @@ function toggleLink() {
       </button>
     </div>
 
-    <EditorContent :editor="editor" class="hh-rich__content" />
+    <EditorContent :editor="editor" class="ks-rich__content" />
   </div>
 </template>
 
 <style scoped>
-.hh-rich {
+.ks-rich {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.7);
   border-radius: var(--md-shape-m);
   background: rgb(var(--v-theme-surface-container-lowest));
@@ -393,7 +393,7 @@ function toggleLink() {
     }
   }
 
-  :deep(.hh-collab-caret) {
+  :deep(.ks-collab-caret) {
     border-left: 1px solid;
     border-right: 1px solid;
     margin-left: -1px;
@@ -403,7 +403,7 @@ function toggleLink() {
     word-break: normal;
   }
 
-  :deep(.hh-collab-caret__label) {
+  :deep(.ks-collab-caret__label) {
     border-radius: 4px;
     color: white;
     font-size: 11px;
@@ -427,7 +427,7 @@ function toggleLink() {
   }
 }
 
-.hh-rich__toolbar {
+.ks-rich__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -437,7 +437,7 @@ function toggleLink() {
   border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
 
-.hh-rich__btn {
+.ks-rich__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -469,14 +469,14 @@ function toggleLink() {
   }
 }
 
-.hh-rich__sep {
+.ks-rich__sep {
   width: 1px;
   height: 20px;
   background: rgba(var(--v-theme-outline-variant), 0.7);
   margin: 0 4px;
 }
 
-.hh-rich__content {
+.ks-rich__content {
   padding: 12px 16px;
   min-height: 170px;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;

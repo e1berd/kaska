@@ -19,8 +19,8 @@ export interface ThemePalettes {
   updated_at: string
 }
 
-const PALETTE_CACHE_PREFIX = 'hardhat.theme.palette.'
-const DEFAULT_SLUG = 'hardhat'
+const PALETTE_CACHE_PREFIX = 'kaska.theme.palette.'
+const DEFAULT_SLUG = 'kaska'
 
 function readCachedPalette(slug: string): ThemePalettes | null {
   try {

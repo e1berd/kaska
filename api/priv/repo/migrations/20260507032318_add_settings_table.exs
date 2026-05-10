@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddSettingsTable do
+defmodule Kaska.Repo.Migrations.AddSettingsTable do
   use Ecto.Migration
 
   def change do

@@ -83,18 +83,18 @@ onMounted(() => {
 
       onDragStart: ({ location }) => {
         dragging.value = true
-        document.body.classList.add('hh-dragging')
+        document.body.classList.add('ks-dragging')
 
         const rect = el.getBoundingClientRect()
         grabOffsetX = location.current.input.clientX - rect.left
         grabOffsetY = location.current.input.clientY - rect.top
 
         const clone = el.cloneNode(true) as HTMLElement
-        clone.classList.add('hh-card--ghost')
+        clone.classList.add('ks-card--ghost')
         clone.style.width = `${rect.width}px`
         clone.style.height = `${rect.height}px`
         clone
-          .querySelectorAll('.hh-card__edge')
+          .querySelectorAll('.ks-card__edge')
           .forEach((node) => node.remove())
         document.body.appendChild(clone)
         ghost = clone
@@ -108,7 +108,7 @@ onMounted(() => {
 
       onDrop: () => {
         dragging.value = false
-        document.body.classList.remove('hh-dragging')
+        document.body.classList.remove('ks-dragging')
         ghost?.remove()
         ghost = null
       },
@@ -144,25 +144,25 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="root"
-    class="hh-card md-state-layer"
-    :class="{ 'hh-card--dragging': dragging }"
+    class="ks-card md-state-layer"
+    :class="{ 'ks-card--dragging': dragging }"
     :data-task-id="task.id"
     @click="$emit('open', task)"
   >
-    <div v-if="firstImageUrl" class="hh-card__cover">
+    <div v-if="firstImageUrl" class="ks-card__cover">
       <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
     </div>
-    <div class="hh-card__title md-body-large">{{ task.title }}</div>
-    <div v-if="preview" class="hh-card__preview md-body-small">{{ preview }}</div>
-    <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="hh-card__meta">
-      <span v-if="taskType" class="hh-card__chip" :style="taskTypeChipStyle">
+    <div class="ks-card__title md-body-large">{{ task.title }}</div>
+    <div v-if="preview" class="ks-card__preview md-body-small">{{ preview }}</div>
+    <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="ks-card__meta">
+      <span v-if="taskType" class="ks-card__chip" :style="taskTypeChipStyle">
         {{ taskType.name }}
       </span>
-      <span v-if="attachmentCount > 0" class="hh-card__chip">
+      <span v-if="attachmentCount > 0" class="ks-card__chip">
         <v-icon size="14">mdi-paperclip</v-icon>
         {{ attachmentCount }}
       </span>
-      <span v-if="startDate || endDate" class="hh-card__chip hh-card__dates">
+      <span v-if="startDate || endDate" class="ks-card__chip ks-card__dates">
         <v-icon size="14">mdi-calendar</v-icon>
         {{ startDate || '??' }} - {{ endDate || '??' }}
       </span>
@@ -175,13 +175,13 @@ onBeforeUnmount(() => {
       {{ assignee.display_name || assignee.email }}
     </div>
 
-    <div class="hh-card__edge hh-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
-    <div class="hh-card__edge hh-card__edge--bottom" :class="{ 'is-on': closestEdge === 'bottom' }" />
+    <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
+    <div class="ks-card__edge ks-card__edge--bottom" :class="{ 'is-on': closestEdge === 'bottom' }" />
   </div>
 </template>
 
 <style scoped>
-.hh-card {
+.ks-card {
   position: relative;
   background: rgb(var(--v-theme-surface-container-lowest));
   color: rgb(var(--v-theme-on-surface));
@@ -201,23 +201,23 @@ onBeforeUnmount(() => {
     opacity var(--md-duration-short3) var(--md-easing-standard);
   box-shadow: var(--md-elev-1);
 }
-.hh-card:hover {
+.ks-card:hover {
   box-shadow: var(--md-elev-2);
 }
-.hh-card:active {
+.ks-card:active {
   cursor: grabbing;
 }
 
-.hh-card--dragging {
+.ks-card--dragging {
   background: transparent !important;
   border: 1.5px dashed rgba(var(--v-theme-primary), 0.5) !important;
   box-shadow: none !important;
 }
-.hh-card--dragging > *:not(.hh-card__edge) {
+.ks-card--dragging > *:not(.ks-card__edge) {
   visibility: hidden;
 }
 
-:global(.hh-card.hh-card--ghost) {
+:global(.ks-card.ks-card--ghost) {
   position: fixed !important;
   left: 0;
   top: 0;
@@ -233,21 +233,21 @@ onBeforeUnmount(() => {
   transform-origin: 16px 16px;
   will-change: transform;
 }
-:global(.hh-card--ghost .md-state-layer::after) {
+:global(.ks-card--ghost .md-state-layer::after) {
   display: none;
 }
 
-:global(body.hh-dragging),
-:global(body.hh-dragging *) {
+:global(body.ks-dragging),
+:global(body.ks-dragging *) {
   cursor: grabbing !important;
   user-select: none !important;
 }
-.hh-card__title {
+.ks-card__title {
   font-weight: 500;
   line-height: 1.35;
   word-break: break-word;
 }
-.hh-card__preview {
+.ks-card__preview {
   margin-top: 4px;
   color: rgba(var(--v-theme-on-surface), 0.7);
   line-height: 1.4;
@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.hh-card__edge {
+.ks-card__edge {
   position: absolute;
   left: 4px;
   right: 4px;
@@ -273,7 +273,7 @@ onBeforeUnmount(() => {
     transform var(--md-duration-short3) var(--md-easing-standard);
   pointer-events: none;
 }
-.hh-card__edge::before {
+.ks-card__edge::before {
   content: '';
   position: absolute;
   left: -3px;
@@ -285,34 +285,34 @@ onBeforeUnmount(() => {
   background: rgb(var(--v-theme-primary));
   box-shadow: 0 0 0 2px rgb(var(--v-theme-surface-container));
 }
-.hh-card__edge.is-on {
+.ks-card__edge.is-on {
   opacity: 1;
   transform: scaleX(1);
 }
-.hh-card__edge--top {
+.ks-card__edge--top {
   top: -7px;
 }
-.hh-card__edge--bottom {
+.ks-card__edge--bottom {
   bottom: -7px;
 }
-.hh-card__cover {
+.ks-card__cover {
   margin: -12px -14px 10px;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: rgb(var(--v-theme-surface-container-high));
 }
-.hh-card__cover img {
+.ks-card__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.hh-card__meta {
+.ks-card__meta {
   margin-top: 8px;
   display: flex;
   gap: 6px;
 }
-.hh-card__chip {
+.ks-card__chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -322,7 +322,7 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.78);
   font-size: 12px;
   font-weight: 500;
-  &:not(.hh-card__dates) {
+  &:not(.ks-card__dates) {
     max-height: 22px;
   }
 }

@@ -27,7 +27,7 @@ RUN adduser -u 1000 -D app
 
 WORKDIR /app
 
-COPY --from=builder --chown=app:app /app/_build/prod/rel/hardhat ./
+COPY --from=builder --chown=app:app /app/_build/prod/rel/kaska ./
 
 USER app
 
@@ -35,4 +35,4 @@ ENV PHX_SERVER=true
 
 EXPOSE 4000
 
-ENTRYPOINT ["sh", "-c", "bin/hardhat eval \"Hardhat.Release.migrate()\" && bin/hardhat start"]
+ENTRYPOINT ["sh", "-c", "bin/kaska eval \"Kaska.Release.migrate()\" && bin/kaska start"]

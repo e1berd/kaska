@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddProfilesAttachmentsBodyDoc do
+defmodule Kaska.Repo.Migrations.AddProfilesAttachmentsBodyDoc do
   use Ecto.Migration
 
   def up do

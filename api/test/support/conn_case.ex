@@ -1,4 +1,4 @@
-defmodule HardhatWeb.ConnCase do
+defmodule KaskaWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule HardhatWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use HardhatWeb.ConnCase, async: true`, although
+  by setting `use KaskaWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,19 +20,19 @@ defmodule HardhatWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint HardhatWeb.Endpoint
+      @endpoint KaskaWeb.Endpoint
 
-      use HardhatWeb, :verified_routes
+      use KaskaWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import HardhatWeb.ConnCase
+      import KaskaWeb.ConnCase
     end
   end
 
   setup tags do
-    Hardhat.DataCase.setup_sandbox(tags)
+    Kaska.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

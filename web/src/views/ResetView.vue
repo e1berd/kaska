@@ -28,8 +28,8 @@ async function submit() {
 </script>
 
 <template>
-  <div class="hh-auth">
-    <v-card class="hh-auth__card" rounded="xl" elevation="0">
+  <div class="ks-auth">
+    <v-card class="ks-auth__card" rounded="xl" elevation="0">
       <h1 class="md-headline-medium mb-6">Новый пароль</h1>
 
       <template v-if="!success">

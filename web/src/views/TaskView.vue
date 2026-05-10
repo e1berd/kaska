@@ -375,7 +375,7 @@ watch(
     const actor = evt.deleted_by_display_name || evt.deleted_by_email?.split('@')[0] || 'Пользователь'
     const title = evt.title || 'без названия'
     if (evt.deleted_by_id !== auth.user?.id) {
-      sessionStorage.setItem('hardhat.flash.task_deleted', `${actor} удалил задачу ${title}`)
+      sessionStorage.setItem('kaska.flash.task_deleted', `${actor} удалил задачу ${title}`)
     }
     void router.push({ name: 'board', params: { slug: slug.value } })
   },
@@ -404,8 +404,8 @@ watch(
 </script>
 
 <template>
-  <div class="hh-task-page">
-    <header class="hh-task-page__bar">
+  <div class="ks-task-page">
+    <header class="ks-task-page__bar">
       <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <span class="md-title-large">Задача</span>
       <PresenceGroup
@@ -430,12 +430,12 @@ watch(
       />
     </header>
 
-    <div v-if="loading" class="hh-task-page__state">
+    <div v-if="loading" class="ks-task-page__state">
       <v-progress-circular indeterminate color="primary" />
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal" class="ma-4">{{ error }}</v-alert>
-    <div v-else class="hh-task-page__content">
-      <div class="hh-task-page__main">
+    <div v-else class="ks-task-page__content">
+      <div class="ks-task-page__main">
         <v-text-field
           v-model="taskTitle"
           label="Название"
@@ -502,20 +502,20 @@ watch(
           type="file"
           multiple
           accept="image/*,video/*,.pdf,.zip,.txt,.md"
-          class="hh-attach__input"
+          class="ks-attach__input"
           @change="onAttachmentPicked"
         />
-        <div v-if="taskAttachments.length === 0" class="hh-attach__empty md-body-small">
+        <div v-if="taskAttachments.length === 0" class="ks-attach__empty md-body-small">
           Пока вложений нет.
         </div>
-        <div v-else class="hh-attach__grid">
+        <div v-else class="ks-attach__grid">
           <div
             v-for="a in taskAttachments"
             :key="a.id"
-            class="hh-attach"
-            :class="`hh-attach--${a.kind}`"
+            class="ks-attach"
+            :class="`ks-attach--${a.kind}`"
           >
-            <div class="hh-attach__media">
+            <div class="ks-attach__media">
               <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
               <video
                 v-else-if="a.kind === 'video' && a.url"
@@ -523,22 +523,22 @@ watch(
                 controls
                 preload="metadata"
               />
-              <div v-else class="hh-attach__file">
+              <div v-else class="ks-attach__file">
                 <v-icon size="32">mdi-file-outline</v-icon>
               </div>
             </div>
-            <div class="hh-attach__meta">
+            <div class="ks-attach__meta">
               <a
                 v-if="a.url"
-                class="hh-attach__name md-body-medium"
+                class="ks-attach__name md-body-medium"
                 :href="a.url"
                 target="_blank"
                 rel="noopener"
               >
                 {{ a.filename }}
               </a>
-              <span v-else class="hh-attach__name md-body-medium">{{ a.filename }}</span>
-              <span class="hh-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
+              <span v-else class="ks-attach__name md-body-medium">{{ a.filename }}</span>
+              <span class="ks-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
             </div>
             <v-btn
               v-if="auth.isAuthed"
@@ -546,14 +546,14 @@ watch(
               variant="text"
               density="comfortable"
               size="small"
-              class="hh-attach__remove"
+              class="ks-attach__remove"
               @click="removeAttachmentClick(a)"
             />
           </div>
         </div>
       </div>
-      <aside class="hh-task-page__side">
-        <v-card variant="flat" color="surface-container-high" class="hh-task-page__meta">
+      <aside class="ks-task-page__side">
+        <v-card variant="flat" color="surface-container-high" class="ks-task-page__meta">
           <v-date-input
             v-model="taskStartDateModel"
             label="Дата начала"
@@ -605,7 +605,7 @@ watch(
         <TaskCommentsSection
           v-if="currentTask"
           :task-id="currentTask.id"
-          class="hh-task-page__comments mt-3"
+          class="ks-task-page__comments mt-3"
         />
       </aside>
     </div>
@@ -613,68 +613,68 @@ watch(
 </template>
 
 <style scoped>
-.hh-task-page {
+.ks-task-page {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.hh-task-page__bar {
+.ks-task-page__bar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
 }
-.hh-task-page__state {
+.ks-task-page__state {
   display: flex;
   justify-content: center;
   padding: 80px 0;
 }
-.hh-task-page__content {
+.ks-task-page__content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   padding: 0 16px 16px;
 }
-.hh-task-page__description {
+.ks-task-page__description {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
   border-radius: var(--md-shape-m);
   padding: 12px 16px;
   background: rgb(var(--v-theme-surface-container-lowest));
 }
-.hh-task-page__description-empty {
+.ks-task-page__description-empty {
   border: 1px dashed rgba(var(--v-theme-outline-variant), 0.6);
   border-radius: var(--md-shape-m);
   padding: 18px;
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
-.hh-attach__media {
+.ks-attach__media {
   background: rgb(var(--v-theme-surface-container));
 }
-.hh-attach__remove {
-  --hh-attach-remove-bg: rgba(var(--v-theme-surface), 0.7);
-  --hh-attach-remove-color: currentColor;
+.ks-attach__remove {
+  --ks-attach-remove-bg: rgba(var(--v-theme-surface), 0.7);
+  --ks-attach-remove-color: currentColor;
 }
-.hh-task-page__editing-note {
+.ks-task-page__editing-note {
   color: rgba(var(--v-theme-on-surface), 0.65);
 }
-.hh-edit-lock-btn {
+.ks-edit-lock-btn {
   opacity: 0.9;
 }
-.hh-task-page__meta {
+.ks-task-page__meta {
   padding: 12px;
   border: 1px solid rgba(var(--v-theme-outline), 0.45);
   box-shadow: var(--md-elev-1);
   display: grid;
   gap: 8px;
 }
-.hh-task-page__meta :deep(.v-field) {
+.ks-task-page__meta :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
-.hh-task-page__comments {
+.ks-task-page__comments {
   border-radius: var(--md-shape-l);
 }
 @media (max-width: 900px) {
-  .hh-task-page__content {
+  .ks-task-page__content {
     grid-template-columns: 1fr;
   }
 }

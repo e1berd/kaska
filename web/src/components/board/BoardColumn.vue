@@ -105,14 +105,14 @@ onMounted(() => {
       onDragStart: ({ location }) => {
         const rect = rootEl.getBoundingClientRect()
         dragging.value = true
-        document.body.classList.add('hh-dragging-column')
+        document.body.classList.add('ks-dragging-column')
         grabOffsetX = location.current.input.clientX - rect.left
         grabOffsetY = location.current.input.clientY - rect.top
         const clone = rootEl.cloneNode(true) as HTMLElement
-        clone.classList.add('hh-col--ghost')
+        clone.classList.add('ks-col--ghost')
         clone.style.width = `${rect.width}px`
         clone.style.height = `${rect.height}px`
-        clone.querySelectorAll('.hh-col__edge').forEach((node) => node.remove())
+        clone.querySelectorAll('.ks-col__edge').forEach((node) => node.remove())
         document.body.appendChild(clone)
         ghost = clone
         ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0)`
@@ -123,7 +123,7 @@ onMounted(() => {
       },
       onDrop: () => {
         dragging.value = false
-        document.body.classList.remove('hh-dragging-column')
+        document.body.classList.remove('ks-dragging-column')
         ghost?.remove()
         ghost = null
       },
@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
   closestEdge.value = null
   isOver.value = false
   dragging.value = false
-  document.body.classList.remove('hh-dragging-column')
+  document.body.classList.remove('ks-dragging-column')
   ghost?.remove()
   ghost = null
 })
@@ -213,18 +213,18 @@ function cancelAdd() {
 <template>
   <section
     ref="root"
-    class="hh-col"
-    :class="{ 'hh-col--over': isOver, 'hh-col--dragging': dragging }"
+    class="ks-col"
+    :class="{ 'ks-col--over': isOver, 'ks-col--dragging': dragging }"
     :data-accent="accent"
   >
-    <header class="hh-col__head">
-      <div class="hh-col__title">
-        <button ref="handle" class="hh-col__drag-handle md-state-layer" type="button" aria-label="Перетащить колонку">
+    <header class="ks-col__head">
+      <div class="ks-col__title">
+        <button ref="handle" class="ks-col__drag-handle md-state-layer" type="button" aria-label="Перетащить колонку">
           <PhDotsSix />
         </button>
-        <span class="hh-col__dot" />
+        <span class="ks-col__dot" />
         <span class="md-title-medium">{{ column.name }}</span>
-        <span class="hh-col__count md-label-medium">{{ tasksInColumn.length }}</span>
+        <span class="ks-col__count md-label-medium">{{ tasksInColumn.length }}</span>
       </div>
       <v-menu v-if="auth.isAuthed">
         <template #activator="{ props: act }">
@@ -234,7 +234,7 @@ function cancelAdd() {
             variant="text"
             density="comfortable"
             size="small"
-            class="hh-col__menu"
+            class="ks-col__menu"
           />
         </template>
         <v-list density="compact" rounded="lg">
@@ -248,7 +248,7 @@ function cancelAdd() {
       </v-menu>
     </header>
 
-    <div ref="cardsScroll" class="hh-col__cards">
+    <div ref="cardsScroll" class="ks-col__cards">
       <BoardCard
         v-for="task in visibleTasks"
         :key="task.id"
@@ -256,18 +256,18 @@ function cancelAdd() {
         @open="$emit('open-task', $event)"
       />
 
-      <div v-if="hasMore" ref="sentinel" class="hh-col__sentinel">
+      <div v-if="hasMore" ref="sentinel" class="ks-col__sentinel">
         <v-progress-circular indeterminate size="20" width="2" color="primary" />
       </div>
 
-      <div v-if="!tasksInColumn.length" class="hh-col__empty md-body-small">
+      <div v-if="!tasksInColumn.length" class="ks-col__empty md-body-small">
         Перетащите карточку сюда
       </div>
     </div>
 
-    <div v-if="auth.isAuthed" class="hh-col__add">
+    <div v-if="auth.isAuthed" class="ks-col__add">
       <template v-if="!adding">
-        <button class="hh-col__addbtn md-state-layer" type="button" @click="startAdd">
+        <button class="ks-col__addbtn md-state-layer" type="button" @click="startAdd">
           <v-icon size="18">mdi-plus</v-icon>
           <span class="md-label-large">Добавить карточку</span>
         </button>
@@ -310,13 +310,13 @@ function cancelAdd() {
         </div>
       </template>
     </div>
-    <div class="hh-col__edge hh-col__edge--left" :class="{ 'is-on': closestEdge === 'left' }" />
-    <div class="hh-col__edge hh-col__edge--right" :class="{ 'is-on': closestEdge === 'right' }" />
+    <div class="ks-col__edge ks-col__edge--left" :class="{ 'is-on': closestEdge === 'left' }" />
+    <div class="ks-col__edge ks-col__edge--right" :class="{ 'is-on': closestEdge === 'right' }" />
   </section>
 </template>
 
 <style scoped>
-.hh-col {
+.ks-col {
   --col-accent: var(--v-theme-primary);
   --col-accent-container: var(--v-theme-primary-container);
   --col-accent-on-container: var(--v-theme-on-primary-container);
@@ -335,25 +335,25 @@ function cancelAdd() {
     box-shadow var(--md-duration-short4) var(--md-easing-standard),
     opacity var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-col[data-accent='secondary'] {
+.ks-col[data-accent='secondary'] {
   --col-accent: var(--v-theme-secondary);
   --col-accent-container: var(--v-theme-secondary-container);
   --col-accent-on-container: var(--v-theme-on-secondary-container);
 }
-.hh-col[data-accent='tertiary'] {
+.ks-col[data-accent='tertiary'] {
   --col-accent: var(--v-theme-tertiary);
   --col-accent-container: var(--v-theme-tertiary-container);
   --col-accent-on-container: var(--v-theme-on-tertiary-container);
 }
-.hh-col--over {
+.ks-col--over {
   background: rgb(var(--v-theme-surface-container-high));
   box-shadow: inset 0 0 0 1.5px rgba(var(--col-accent), 0.55);
 }
-.hh-col--dragging {
+.ks-col--dragging {
   opacity: 0.52;
 }
 
-.hh-col__head {
+.ks-col__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -361,13 +361,13 @@ function cancelAdd() {
   flex-shrink: 0;
 }
 
-.hh-col__title {
+.ks-col__title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   color: rgb(var(--v-theme-on-surface));
 }
-.hh-col__drag-handle {
+.ks-col__drag-handle {
   width: 28px;
   height: 28px;
   border: none;
@@ -384,20 +384,20 @@ function cancelAdd() {
     background-color var(--md-duration-short3) var(--md-easing-standard),
     color var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-col__drag-handle:hover {
+.ks-col__drag-handle:hover {
   background: rgba(var(--v-theme-on-surface), 0.12);
   color: rgb(var(--v-theme-on-surface));
 }
-.hh-col__drag-handle:active {
+.ks-col__drag-handle:active {
   cursor: grabbing;
 }
-.hh-col__dot {
+.ks-col__dot {
   width: 10px;
   height: 10px;
   border-radius: var(--md-shape-full);
   background: rgb(var(--col-accent));
 }
-.hh-col__count {
+.ks-col__count {
   margin-left: 6px;
   padding: 2px 8px;
   border-radius: var(--md-shape-full);
@@ -405,7 +405,7 @@ function cancelAdd() {
   color: rgb(var(--col-accent-on-container));
 }
 
-.hh-col__cards {
+.ks-col__cards {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -416,21 +416,21 @@ function cancelAdd() {
   scrollbar-color: rgba(var(--v-theme-on-surface), 0.18) transparent;
   padding: 4px 4px 8px;
 }
-.hh-col__cards::-webkit-scrollbar {
+.ks-col__cards::-webkit-scrollbar {
   width: 5px;
 }
-.hh-col__cards::-webkit-scrollbar-thumb {
+.ks-col__cards::-webkit-scrollbar-thumb {
   border-radius: 99px;
   background: rgba(var(--v-theme-on-surface), 0.18);
 }
 
-.hh-col__sentinel {
+.ks-col__sentinel {
   display: flex;
   justify-content: center;
   padding: 8px 0 4px;
 }
 
-.hh-col__empty {
+.ks-col__empty {
   text-align: center;
   padding: 24px 8px;
   color: rgba(var(--v-theme-on-surface), 0.45);
@@ -441,17 +441,17 @@ function cancelAdd() {
     background-color var(--md-duration-short3) var(--md-easing-standard),
     color var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-col--over .hh-col__empty {
+.ks-col--over .ks-col__empty {
   border-color: rgb(var(--col-accent));
   background: rgba(var(--col-accent), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-.hh-col__add {
+.ks-col__add {
   margin-top: 4px;
   flex-shrink: 0;
 }
-.hh-col__addbtn {
+.ks-col__addbtn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -465,10 +465,10 @@ function cancelAdd() {
   --md-state-color: rgb(var(--v-theme-on-surface));
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-col__addbtn:hover {
+.ks-col__addbtn:hover {
   background: rgba(var(--v-theme-on-surface), 0.04);
 }
-.hh-col__edge {
+.ks-col__edge {
   position: absolute;
   top: 14px;
   bottom: 14px;
@@ -482,17 +482,17 @@ function cancelAdd() {
     transform var(--md-duration-short3) var(--md-easing-standard);
   pointer-events: none;
 }
-.hh-col__edge--left {
+.ks-col__edge--left {
   left: -8px;
 }
-.hh-col__edge--right {
+.ks-col__edge--right {
   right: -8px;
 }
-.hh-col__edge.is-on {
+.ks-col__edge.is-on {
   opacity: 1;
   transform: scaleY(1);
 }
-:global(.hh-col.hh-col--ghost) {
+:global(.ks-col.ks-col--ghost) {
   position: fixed !important;
   left: 0;
   top: 0;
@@ -503,7 +503,7 @@ function cancelAdd() {
   transition: none !important;
   will-change: transform;
 }
-:global(body.hh-dragging-column) {
+:global(body.ks-dragging-column) {
   cursor: grabbing;
 }
 </style>

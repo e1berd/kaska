@@ -1,4 +1,4 @@
-// End-to-end board smoke test for HardHat.
+// End-to-end board smoke test for Kaska.
 // 1) anonymous guest joins projects:lobby (must succeed without token)
 // 2) registered+verified user logs in and creates a project
 // 3) guest sees project_created broadcast
@@ -12,7 +12,7 @@ import { Socket } from 'phoenix'
 
 const SOCKET_URL = 'ws://localhost:4000/socket'
 const MAILPIT_URL = 'http://localhost:8025'
-const EMAIL = `board+${Date.now()}@hardhat.local`
+const EMAIL = `board+${Date.now()}@kaska.local`
 const PW = 'password-one-1'
 const SLUG = `smoke-${Date.now()}`
 

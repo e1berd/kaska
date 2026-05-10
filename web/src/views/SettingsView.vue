@@ -156,28 +156,28 @@ watch(
           />
         </div>
 
-        <div v-if="userOverridesTheme" class="hh-themes mb-4">
+        <div v-if="userOverridesTheme" class="ks-themes mb-4">
           <button
             v-for="t in theme.themesIndex"
             :key="t.slug"
             type="button"
-            class="hh-theme md-state-layer"
-            :class="{ 'hh-theme--active': userSelectedSlug === t.slug }"
+            class="ks-theme md-state-layer"
+            :class="{ 'ks-theme--active': userSelectedSlug === t.slug }"
             @click="userSelectedSlug = t.slug"
           >
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.primary)"
             />
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.['secondary-container'])"
             />
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.tertiary)"
             />
-            <span class="hh-theme__name md-label-large">{{ t.name }}</span>
+            <span class="ks-theme__name md-label-large">{{ t.name }}</span>
           </button>
         </div>
 
@@ -210,28 +210,28 @@ watch(
           Меняется в реальном времени.
         </div>
 
-        <div class="hh-themes mb-4">
+        <div class="ks-themes mb-4">
           <button
             v-for="t in theme.themesIndex"
             :key="t.slug"
             type="button"
-            class="hh-theme md-state-layer"
-            :class="{ 'hh-theme--active': globalSlug === t.slug }"
+            class="ks-theme md-state-layer"
+            :class="{ 'ks-theme--active': globalSlug === t.slug }"
             @click="globalSlug = t.slug"
           >
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.primary)"
             />
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.['secondary-container'])"
             />
             <span
-              class="hh-theme__swatch"
+              class="ks-theme__swatch"
               :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.tertiary)"
             />
-            <span class="hh-theme__name md-label-large">{{ t.name }}</span>
+            <span class="ks-theme__name md-label-large">{{ t.name }}</span>
           </button>
         </div>
 
@@ -311,12 +311,12 @@ watch(
 </template>
 
 <style scoped>
-.hh-themes {
+.ks-themes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
 }
-.hh-theme {
+.ks-theme {
   --md-state-color: rgb(var(--v-theme-primary));
   display: flex;
   align-items: center;
@@ -331,21 +331,21 @@ watch(
     border-color var(--md-duration-short3) var(--md-easing-standard),
     background-color var(--md-duration-short3) var(--md-easing-standard);
 }
-.hh-theme:hover {
+.ks-theme:hover {
   border-color: rgb(var(--v-theme-primary));
 }
-.hh-theme--active {
+.ks-theme--active {
   border-color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.08);
 }
-.hh-theme__swatch {
+.ks-theme__swatch {
   width: 18px;
   height: 18px;
   border-radius: var(--md-shape-full);
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
-.hh-theme__name {
+.ks-theme__name {
   flex: 1;
   text-align: left;
   white-space: nowrap;

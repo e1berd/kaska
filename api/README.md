@@ -1,4 +1,4 @@
-# Hardhat
+# Kaska
 
 To start your Phoenix server:
 

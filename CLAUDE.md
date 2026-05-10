@@ -1,4 +1,4 @@
-# Hardhat — правила для Claude
+# Kaska — правила для Claude
 
 Эти правила обязательны при любой работе с этим репозиторием. Они
 важнее общих привычек — если что-то противоречит этим правилам, делай
@@ -104,5 +104,5 @@ state layers, типографика). Доводим руками.
   tiptap 3 collab). Менеджер пакетов — pnpm.
 - M3-токены: `web/src/styles/m3-tokens.scss`.
 - Vuetify-конфиг с дефолтами: `web/src/plugins/vuetify.ts`.
-- Каналы: `api/lib/hardhat_web/channels/`.
+- Каналы: `api/lib/kaska_web/channels/`.
 - Алиас импортов на фронте: `@/` → `web/src/`.

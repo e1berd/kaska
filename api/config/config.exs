@@ -1,30 +1,30 @@
 import Config
 
-config :hardhat,
-  ecto_repos: [Hardhat.Repo],
+config :kaska,
+  ecto_repos: [Kaska.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :hardhat, HardhatWeb.Endpoint,
+config :kaska, KaskaWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [json: HardhatWeb.ErrorJSON],
+    formats: [json: KaskaWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: Hardhat.PubSub,
+  pubsub_server: Kaska.PubSub,
   live_view: [signing_salt: "rgJW2Vkr"]
 
-config :hardhat, Hardhat.Mailer, adapter: Swoosh.Adapters.Local
+config :kaska, Kaska.Mailer, adapter: Swoosh.Adapters.Local
 
-config :hardhat, Hardhat.Guardian,
-  issuer: "hardhat",
+config :kaska, Kaska.Guardian,
+  issuer: "kaska",
   ttl: {15, :minutes},
   allowed_algos: ["HS512"]
 
 config :ex_aws,
   json_codec: Jason,
   region: "us-east-1",
-  http_client: Hardhat.S3.ReqClient
+  http_client: Kaska.S3.ReqClient
 
 config :ex_aws, :s3,
   scheme: "http://",

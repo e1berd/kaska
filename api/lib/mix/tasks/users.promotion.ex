@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.Users.Promotion do
   use Mix.Task
 
-  alias Hardhat.Accounts
+  alias Kaska.Accounts
 
   @shortdoc "Promotes a user to a role by email"
 

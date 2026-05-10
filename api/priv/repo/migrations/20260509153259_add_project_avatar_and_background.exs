@@ -1,4 +1,4 @@
-defmodule Hardhat.Repo.Migrations.AddProjectAvatarAndBackground do
+defmodule Kaska.Repo.Migrations.AddProjectAvatarAndBackground do
   use Ecto.Migration
 
   def change do

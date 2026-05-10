@@ -51,10 +51,10 @@ function paletteToCssBlock(selector: string, palette: Record<string, string>): s
 }
 
 function ensureThemeStyleEl(): HTMLStyleElement {
-  let el = document.getElementById('hh-theme-vars') as HTMLStyleElement | null
+  let el = document.getElementById('ks-theme-vars') as HTMLStyleElement | null
   if (!el) {
     el = document.createElement('style')
-    el.id = 'hh-theme-vars'
+    el.id = 'ks-theme-vars'
   }
   document.head.appendChild(el)
   return el
@@ -63,15 +63,15 @@ function ensureThemeStyleEl(): HTMLStyleElement {
 watchEffect(() => {
   const palette = theme.effectivePalette
   const dark = theme.effectiveDark
-  vuetifyTheme.change(dark ? 'hardhatDark' : 'hardhatLight')
+  vuetifyTheme.change(dark ? 'kaskaDark' : 'kaskaLight')
   if (!palette) return
   const css = [
     paletteToCssBlock(
-      '.v-theme--hardhatLight, .v-theme-provider--hardhatLight',
+      '.v-theme--kaskaLight, .v-theme-provider--kaskaLight',
       palette.palette_light,
     ),
     paletteToCssBlock(
-      '.v-theme--hardhatDark, .v-theme-provider--hardhatDark',
+      '.v-theme--kaskaDark, .v-theme-provider--kaskaDark',
       palette.palette_dark,
     ),
   ].join('\n')
@@ -167,7 +167,7 @@ function logout() {
 <template>
   <v-app>
     <template v-if="true">
-      <v-app-bar flat color="surface" class="hh-bar" height="64">
+      <v-app-bar flat color="surface" class="ks-bar" height="64">
         <template #prepend>
           <v-app-bar-nav-icon
             v-if="mobile"
@@ -176,13 +176,13 @@ function logout() {
           />
           <router-link
             :to="{ name: 'home' }"
-            class="hh-brand md-state-layer"
-            aria-label="HardHat"
+            class="ks-brand md-state-layer"
+            aria-label="Kaska"
           >
-            <span class="hh-brand__logo">
+            <span class="ks-brand__logo">
               <v-icon size="22">mdi-hard-hat</v-icon>
             </span>
-            <span class="hh-brand__name md-title-large">HardHat</span>
+            <span class="ks-brand__name md-title-large">Kaska</span>
           </router-link>
         </template>
 
@@ -203,7 +203,7 @@ function logout() {
                   rounded="pill"
                   size="default"
                   density="comfortable"
-                  class="hh-bar__profile"
+                  class="ks-bar__profile"
                   :title="auth.user?.email"
                 >
                   <template #prepend>
@@ -224,7 +224,7 @@ function logout() {
                       }}</span>
                     </v-avatar>
                   </template>
-                  <span v-if="!mobile" class="hh-bar__profile-name md-label-large">
+                  <span v-if="!mobile" class="ks-bar__profile-name md-label-large">
                     {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
                   </span>
                 </v-btn>
@@ -277,18 +277,18 @@ function logout() {
         rail
         :rail-width="96"
         color="surface"
-        class="hh-nav"
+        class="ks-nav"
         :border="0"
       >
-        <nav class="hh-nav__list" v-auto-animate>
+        <nav class="ks-nav__list" v-auto-animate>
           <div
             v-for="project in pinned.list"
             :key="`pin:${project.id}`"
-            class="hh-nav__pin-group"
+            class="ks-nav__pin-group"
           >
             <button
               type="button"
-              class="hh-nav__pin-remove"
+              class="ks-nav__pin-remove"
               :aria-label="`Открепить ${project.name}`"
               @click.stop.prevent="pinned.remove(project.id)"
             >
@@ -296,10 +296,10 @@ function logout() {
             </button>
             <router-link
               :to="{ name: 'board', params: { slug: project.slug } }"
-              class="hh-nav__item hh-nav__item--pin md-state-layer"
+              class="ks-nav__item ks-nav__item--pin md-state-layer"
               :title="project.name"
             >
-              <span class="hh-nav__pill hh-nav__pill--pin">
+              <span class="ks-nav__pill ks-nav__pill--pin">
                 <v-avatar size="32" color="primary-container">
                   <v-img
                     v-if="project.avatar_url"
@@ -312,29 +312,29 @@ function logout() {
                   </span>
                 </v-avatar>
               </span>
-              <span class="hh-nav__label md-label-medium">{{ project.name }}</span>
+              <span class="ks-nav__label md-label-medium">{{ project.name }}</span>
             </router-link>
             <router-link
               :to="{ name: 'board_types', params: { slug: project.slug } }"
-              class="hh-nav__item hh-nav__item--sub md-state-layer"
+              class="ks-nav__item ks-nav__item--sub md-state-layer"
               :title="`Типы задач — ${project.name}`"
             >
-              <span class="hh-nav__pill hh-nav__pill--sub">
+              <span class="ks-nav__pill ks-nav__pill--sub">
                 <v-icon size="20">mdi-tag-multiple-outline</v-icon>
               </span>
-              <span class="hh-nav__label md-label-medium">Типы</span>
+              <span class="ks-nav__label md-label-medium">Типы</span>
             </router-link>
           </div>
           <router-link
             v-for="item in navItems"
             :key="item.key"
             :to="item.to"
-            class="hh-nav__item md-state-layer"
+            class="ks-nav__item md-state-layer"
           >
-            <span class="hh-nav__pill">
+            <span class="ks-nav__pill">
               <v-icon size="24">{{ item.icon }}</v-icon>
             </span>
-            <span class="hh-nav__label md-label-medium">{{ item.label }}</span>
+            <span class="ks-nav__label md-label-medium">{{ item.label }}</span>
           </router-link>
         </nav>
       </v-navigation-drawer>
@@ -347,14 +347,14 @@ function logout() {
 </template>
 
 <style scoped>
-.hh-bar {
+.ks-bar {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
   backdrop-filter: saturate(180%) blur(8px);
   background: rgba(var(--v-theme-surface), 0.85) !important;
   z-index: 1006;
 }
 
-.hh-brand {
+.ks-brand {
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -365,7 +365,7 @@ function logout() {
   border-radius: var(--md-shape-full);
   --md-state-color: rgb(var(--v-theme-on-surface));
 }
-.hh-brand__logo {
+.ks-brand__logo {
   width: 36px;
   height: 36px;
   border-radius: var(--md-shape-full);
@@ -375,21 +375,21 @@ function logout() {
   align-items: center;
   justify-content: center;
 }
-.hh-brand__name {
+.ks-brand__name {
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
   font-variation-settings: 'wght' 600;
   letter-spacing: -0.01em;
 }
 
-.hh-bar__link {
+.ks-bar__link {
   font-weight: 500;
 }
 
-.hh-bar__profile {
+.ks-bar__profile {
   padding-inline-start: 4px !important;
   padding-inline-end: 16px !important;
 }
-.hh-bar__profile-name {
+.ks-bar__profile-name {
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -397,23 +397,23 @@ function logout() {
 }
 
 @media (max-width: 600px) {
-  .hh-brand__name {
+  .ks-brand__name {
     display: none;
   }
 }
 
-.hh-nav {
+.ks-nav {
   background: rgb(var(--v-theme-surface)) !important;
   border-right: 1px solid rgba(var(--v-theme-on-surface), 0.06);
 }
-.hh-nav__list {
+.ks-nav__list {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   padding: 12px 4px;
 }
-.hh-nav__item {
+.ks-nav__item {
   --md-state-color: rgb(var(--v-theme-on-surface));
   display: flex;
   flex-direction: column;
@@ -427,7 +427,7 @@ function logout() {
   text-decoration: none;
   color: rgb(var(--v-theme-on-surface));
 }
-.hh-nav__pill {
+.ks-nav__pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -436,14 +436,14 @@ function logout() {
   border-radius: var(--md-shape-full);
   transition: background-color var(--md-duration-short4) var(--md-easing-emphasized);
 }
-.hh-nav__item.router-link-active .hh-nav__pill {
+.ks-nav__item.router-link-active .ks-nav__pill {
   background: rgb(var(--v-theme-secondary-container));
   color: rgb(var(--v-theme-on-secondary-container));
 }
-.hh-nav__item.router-link-active :deep(.v-icon) {
+.ks-nav__item.router-link-active :deep(.v-icon) {
   color: rgb(var(--v-theme-on-secondary-container));
 }
-.hh-nav__label {
+.ks-nav__label {
   text-align: center;
   font-size: 11px;
   line-height: 1.1;
@@ -454,7 +454,7 @@ function logout() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hh-nav__pin-group {
+.ks-nav__pin-group {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -466,39 +466,39 @@ function logout() {
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
   width: 80px;
 }
-.hh-nav__pin-group + .hh-nav__pin-group {
+.ks-nav__pin-group + .ks-nav__pin-group {
   margin-top: 2px;
 }
-.hh-nav__pin-group + .hh-nav__item {
+.ks-nav__pin-group + .ks-nav__item {
   margin-top: 8px;
 }
-.hh-nav__pill--pin {
+.ks-nav__pill--pin {
   width: 56px;
   height: 40px;
   background: transparent;
 }
-.hh-nav__item--pin.router-link-active .hh-nav__pill--pin {
+.ks-nav__item--pin.router-link-active .ks-nav__pill--pin {
   background: transparent;
 }
-.hh-nav__item--pin.router-link-active :deep(.v-avatar) {
+.ks-nav__item--pin.router-link-active :deep(.v-avatar) {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: 2px;
 }
-.hh-nav__item--sub {
+.ks-nav__item--sub {
   width: 72px;
   height: 50px;
   padding: 2px 0 4px;
 }
-.hh-nav__pill--sub {
+.ks-nav__pill--sub {
   width: 48px;
   height: 26px;
   background: rgb(var(--v-theme-surface-container-high));
 }
-.hh-nav__item--sub.router-link-active .hh-nav__pill--sub {
+.ks-nav__item--sub.router-link-active .ks-nav__pill--sub {
   background: rgb(var(--v-theme-secondary-container));
   color: rgb(var(--v-theme-on-secondary-container));
 }
-.hh-nav__pin-remove {
+.ks-nav__pin-remove {
   position: absolute;
   top: -6px;
   right: -6px;
@@ -521,8 +521,8 @@ function logout() {
   pointer-events: none;
   z-index: 2;
 }
-.hh-nav__pin-group:hover .hh-nav__pin-remove,
-.hh-nav__pin-remove:focus-visible {
+.ks-nav__pin-group:hover .ks-nav__pin-remove,
+.ks-nav__pin-remove:focus-visible {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
