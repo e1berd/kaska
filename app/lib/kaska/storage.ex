@@ -51,8 +51,6 @@ defmodule Kaska.Storage do
   """
   @spec presigned_put(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def presigned_put(key, opts \\ []) do
-    content_type = Keyword.get(opts, :content_type, "application/octet-stream")
-    opts = Keyword.put(opts, :headers, [{"content-type", content_type} | Keyword.get(opts, :headers, [])])
     presign(:put, key, opts)
   end
 
@@ -92,15 +90,15 @@ defmodule Kaska.Storage do
   # struct. Override them with the public endpoint so the browser can reach
   # the signed URL.
   defp public_aws_config do
-    %URI{scheme: scheme, host: host, port: port} = URI.parse(config(:public_endpoint))
+    uri = URI.parse(config(:public_endpoint))
 
     base = ExAws.Config.new(:s3)
 
     %{
       base
-      | scheme: "#{scheme}://",
-        host: host,
-        port: port
+      | scheme: uri.scheme,
+        host: uri.host,
+        port: uri.port
     }
   end
 
