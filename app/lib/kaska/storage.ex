@@ -90,15 +90,15 @@ defmodule Kaska.Storage do
   # struct. Override them with the public endpoint so the browser can reach
   # the signed URL.
   defp public_aws_config do
-    uri = URI.parse(config(:public_endpoint))
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(config(:public_endpoint))
 
     base = ExAws.Config.new(:s3)
 
     %{
       base
-      | scheme: uri.scheme,
-        host: uri.host,
-        port: uri.port
+      | scheme: scheme,
+        host: host,
+        port: port
     }
   end
 
