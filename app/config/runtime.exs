@@ -80,12 +80,24 @@ if (mail_host = System.get_env("MAIL_HOST")) && mail_host != "" do
   mail_password = System.get_env("MAIL_PASSWORD")
   mail_ssl = System.get_env("MAIL_SSL", "false") in ~w(true 1)
 
+  ssl_opts = [
+    verify: :verify_peer,
+    cacerts: :public_key.cacerts_get(),
+    server_name_indication: String.to_charlist(mail_host),
+    depth: 99,
+    customize_hostname_check: [
+      match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+    ]
+  ]
+
   base = [
     adapter: Swoosh.Adapters.SMTP,
     relay: mail_host,
     port: String.to_integer(System.get_env("MAIL_PORT", "465")),
     ssl: mail_ssl,
     tls: if(mail_ssl, do: :never, else: :if_available),
+    sockopts: ssl_opts,
+    tls_options: ssl_opts,
     retries: 1,
     no_mx_lookups: true
   ]
