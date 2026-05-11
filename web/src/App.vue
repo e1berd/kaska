@@ -257,7 +257,6 @@ function logout() {
           <template v-else>
             <v-btn variant="text" :to="{ name: 'login' }" rounded="pill">Войти</v-btn>
             <v-btn
-              v-if="!mobile"
               color="primary"
               variant="flat"
               :to="{ name: 'register' }"

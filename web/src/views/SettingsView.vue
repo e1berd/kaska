@@ -189,14 +189,16 @@ watch(
           color="primary"
           density="comfortable"
           variant="outlined"
+          class="ks-mode-toggle"
         >
           <v-btn
             v-for="opt in modeOptions"
             :key="opt.value"
             :value="opt.value"
-            :prepend-icon="opt.icon"
+            :aria-label="opt.label"
           >
-            {{ opt.label }}
+            <v-icon class="mr-sm-2">{{ opt.icon }}</v-icon>
+            <span class="d-none d-sm-inline">{{ opt.label }}</span>
           </v-btn>
         </v-btn-toggle>
       </v-card-text>
@@ -243,14 +245,16 @@ watch(
           color="primary"
           density="comfortable"
           variant="outlined"
+          class="ks-mode-toggle"
         >
           <v-btn
             v-for="opt in modeOptions"
             :key="opt.value"
             :value="opt.value"
-            :prepend-icon="opt.icon"
+            :aria-label="opt.label"
           >
-            {{ opt.label }}
+            <v-icon class="mr-sm-2">{{ opt.icon }}</v-icon>
+            <span class="d-none d-sm-inline">{{ opt.label }}</span>
           </v-btn>
         </v-btn-toggle>
       </v-card-text>
@@ -313,8 +317,16 @@ watch(
 <style scoped>
 .ks-themes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
   gap: 10px;
+}
+.ks-mode-toggle {
+  display: flex;
+  width: 100%;
+}
+.ks-mode-toggle :deep(.v-btn) {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .ks-theme {
   --md-state-color: rgb(var(--v-theme-primary));
