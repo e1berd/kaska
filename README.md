@@ -2,7 +2,7 @@
 
 Kaska — open source трекер задач с realtime-обновлениями на Phoenix Channels.
 
-[Preview](./docs/readme_preview_image.png)
+![Preview](./docs/readme_preview_image.png)
 
 ## Что это
 
