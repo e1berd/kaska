@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBoardStore } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
+import ThemePicker from '@/components/ThemePicker.vue'
 import { PhUploadSimple, PhTrash } from '@phosphor-icons/vue'
 
 defineProps<{ slug?: string }>()
@@ -28,9 +29,24 @@ const backgroundInput = ref<HTMLInputElement | null>(null)
 
 const project = computed(() => board.project)
 const projectId = computed(() => board.project?.id ?? null)
+const isOwner = computed(() => board.isOwner)
 const publicLink = ref(false)
 
 const publicUrl = computed(() => `${window.location.origin}/p/${slug.value}`)
+
+const projectTheme = computed<string | null>({
+  get: () => board.project?.theme_slug ?? null,
+  set: (value) => {
+    void board.setProjectTheme(value)
+  },
+})
+
+const myTheme = computed<string | null>({
+  get: () => board.myProjectThemeSlug,
+  set: (value) => {
+    void board.setMyProjectTheme(value)
+  },
+})
 
 watch(project, (p) => {
   if (p) publicLink.value = p.public_link
@@ -40,10 +56,6 @@ onMounted(async () => {
   try {
     await projects.joinLobby()
     await board.joinBySlug(slug.value)
-    if (!board.isOwner) {
-      router.replace({ name: 'board', params: { slug: slug.value } })
-      return
-    }
     name.value = board.project?.name ?? ''
     description.value = board.project?.description ?? ''
     publicLink.value = board.project?.public_link ?? false
@@ -145,7 +157,7 @@ function copyPublicUrl() {
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
     <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-4" />
 
-    <v-card variant="outlined" rounded="lg" class="mb-6">
+    <v-card v-if="isOwner" variant="outlined" rounded="lg" class="mb-6">
       <v-card-text>
         <div class="d-flex align-center mb-4" style="gap: 16px">
           <v-avatar size="64" color="primary-container">
@@ -195,7 +207,7 @@ function copyPublicUrl() {
       </v-card-text>
     </v-card>
 
-    <v-card variant="outlined" rounded="lg" class="mb-6">
+    <v-card v-if="isOwner" variant="outlined" rounded="lg" class="mb-6">
       <v-card-text>
         <v-switch
           :model-value="publicLink"
@@ -223,7 +235,27 @@ function copyPublicUrl() {
       </v-card-text>
     </v-card>
 
-    <v-card variant="outlined" rounded="lg" color="error" class="border-error">
+    <v-card v-if="isOwner" variant="outlined" rounded="lg" class="mb-6">
+      <v-card-text>
+        <h2 class="md-title-medium mb-1">Тема проекта</h2>
+        <p class="md-body-small text-medium-emphasis mt-0 mb-3">
+          Применяется ко всем участникам, у кого нет своей темы.
+        </p>
+        <ThemePicker v-model="projectTheme" allow-null null-label="По умолчанию" />
+      </v-card-text>
+    </v-card>
+
+    <v-card variant="outlined" rounded="lg" class="mb-6">
+      <v-card-text>
+        <h2 class="md-title-medium mb-1">Моя тема в этом проекте</h2>
+        <p class="md-body-small text-medium-emphasis mt-0 mb-3">
+          Видна только вам в этом проекте и переопределяет тему проекта.
+        </p>
+        <ThemePicker v-model="myTheme" allow-null null-label="Как в проекте" />
+      </v-card-text>
+    </v-card>
+
+    <v-card v-if="isOwner" variant="outlined" rounded="lg" color="error" class="border-error">
       <v-card-text class="d-flex align-center justify-space-between">
         <div>
           <div class="md-title-small">Удалить проект</div>

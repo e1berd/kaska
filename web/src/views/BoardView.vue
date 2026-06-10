@@ -74,17 +74,24 @@ const filterEndDateModel = computed<Date | null>({
   },
 })
 
-const taskStartDateModel = computed<Date | null>({
-  get: () => parseIsoDate(taskStartDate.value),
-  set: (value) => {
-    taskStartDate.value = value ? formatIsoDate(value) : null
+const taskDateRangeModel = computed<Date[]>({
+  get: () => {
+    const start = parseIsoDate(taskStartDate.value)
+    const end = parseIsoDate(taskEndDate.value)
+    if (start && end) return buildDateRange(start, end)
+    if (start) return [start]
+    if (end) return [end]
+    return []
   },
-})
-
-const taskEndDateModel = computed<Date | null>({
-  get: () => parseIsoDate(taskEndDate.value),
   set: (value) => {
-    taskEndDate.value = value ? formatIsoDate(value) : null
+    if (!value || value.length === 0) {
+      taskStartDate.value = null
+      taskEndDate.value = null
+      return
+    }
+    const sorted = [...value].sort((a, b) => a.getTime() - b.getTime())
+    taskStartDate.value = formatIsoDate(sorted[0])
+    taskEndDate.value = formatIsoDate(sorted[sorted.length - 1])
   },
 })
 
@@ -306,6 +313,16 @@ function formatIsoDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function buildDateRange(start: Date, end: Date): Date[] {
+  const out: Date[] = []
+  const cur = new Date(start)
+  while (cur.getTime() <= end.getTime()) {
+    out.push(new Date(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
 }
 
 async function load() {
@@ -969,37 +986,18 @@ const boardBackgroundStyle = computed(() => ({
               :title="userLabel(item)"
             >
               <template #prepend>
-                <v-avatar
-                  :image="userAvatar(item)"
-                  size="24"
-                  class="mr-2"
-                  color="primary"
-                >
-                  <span
-                    v-if="!userAvatar(item)"
-                    class="text-white text-caption"
-                  >
-                    {{ userInitial(item) }}
-                  </span>
+                <v-avatar size="24" class="mr-2" color="primary">
+                  <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
+                  <span v-else class="text-white text-caption">{{ userInitial(item) }}</span>
                 </v-avatar>
               </template>
             </v-list-item>
           </template>
           <template #selection="{ item }">
             <div class="ks-filter-user">
-              <v-avatar
-                :image="userAvatar(item)"
-                size="20"
-                class="mr-2"
-                color="primary"
-              >
-                <span
-                  v-if="!userAvatar(item)"
-                  class="text-white"
-                  style="font-size: 10px"
-                >
-                  {{ userInitial(item) }}
-                </span>
+              <v-avatar size="20" class="mr-2" color="primary">
+                <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
+                <span v-else class="text-white" style="font-size: 10px">{{ userInitial(item) }}</span>
               </v-avatar>
               <span class="ks-filter-user__label">
                 {{ userLabel(item) }}
@@ -1388,17 +1386,9 @@ const boardBackgroundStyle = computed(() => ({
               <v-card variant="flat" color="surface-container-high" rounded="lg" class="ks-task-meta-card">
                 <div class="ks-task-meta-grid">
                   <v-date-input
-                    v-model="taskStartDateModel"
-                    label="Дата начала"
-                    density="comfortable"
-                    clearable
-                    :readonly="!board.canWrite"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-calendar"
-                  />
-                  <v-date-input
-                    v-model="taskEndDateModel"
-                    label="Дата окончания"
+                    v-model="taskDateRangeModel"
+                    multiple="range"
+                    label="Даты задачи"
                     density="comfortable"
                     clearable
                     :readonly="!board.canWrite"
@@ -1446,52 +1436,22 @@ const boardBackgroundStyle = computed(() => ({
                     :readonly="!board.canWrite"
                   >
                     <template #item="{ props: itemProps, item }">
-                      <v-list-item
-                        v-bind="itemProps"
-                        :title="(item as User).display_name || (item as User).email"
-                      >
+                      <v-list-item v-bind="itemProps" :title="userLabel(item)">
                         <template #prepend>
-                          <v-avatar
-                            :image="(item as User).avatar_url || ''"
-                            size="24"
-                            class="mr-2"
-                            color="primary"
-                          >
-                            <span
-                              v-if="!(item as User).avatar_url"
-                              class="text-white text-caption"
-                            >
-                              {{
-                                ((item as User).display_name || (item as User).email)
-                                  .slice(0, 1)
-                                  .toUpperCase()
-                              }}
-                            </span>
+                          <v-avatar size="24" class="mr-2" color="primary">
+                            <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
+                            <span v-else class="text-white text-caption">{{ userInitial(item) }}</span>
                           </v-avatar>
                         </template>
                       </v-list-item>
                     </template>
                     <template #selection="{ item }">
-                      <div class="d-flex align-center">
-                        <v-avatar
-                          :image="(item as User).avatar_url || ''"
-                          size="20"
-                          class="mr-2"
-                          color="primary"
-                        >
-                          <span
-                            v-if="!(item as User).avatar_url"
-                            class="text-white"
-                            style="font-size: 10px"
-                          >
-                            {{
-                              ((item as User).display_name || (item as User).email)
-                                .slice(0, 1)
-                                .toUpperCase()
-                            }}
-                          </span>
+                      <div class="ks-assignee-selection">
+                        <v-avatar size="20" class="mr-2" color="primary">
+                          <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
+                          <span v-else class="text-white" style="font-size: 10px">{{ userInitial(item) }}</span>
                         </v-avatar>
-                        {{ (item as User).display_name || (item as User).email }}
+                        <span class="ks-assignee-selection__label">{{ userLabel(item) }}</span>
                       </div>
                     </template>
                   </v-select>
@@ -1645,6 +1605,18 @@ const boardBackgroundStyle = computed(() => ({
   max-width: 100%;
 }
 .ks-filter-user__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ks-assignee-selection {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+.ks-assignee-selection__label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

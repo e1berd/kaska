@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { pushAsync, useSocketStore } from '@/stores/socket'
 import { useAuthStore } from '@/stores/auth'
+import { useBoardStore } from '@/stores/board'
 import type { ThemeMode } from '@/stores/auth'
 
 export type PaletteColors = Record<string, string>
@@ -40,12 +41,11 @@ function writeCachedPalette(palette: ThemePalettes) {
 
 export const useThemeStore = defineStore('theme', () => {
   const auth = useAuthStore()
+  const board = useBoardStore()
 
   const themesIndex = ref<ThemeIndexEntry[]>([])
   const palettes = ref<Record<string, ThemePalettes>>({})
 
-  const globalSlug = ref<string>(DEFAULT_SLUG)
-  const globalMode = ref<ThemeMode>('system')
   const systemPrefersDark = ref<boolean>(
     typeof window !== 'undefined'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -62,12 +62,14 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   const effectiveSlug = computed<string>(
-    () => auth.user?.theme_slug || globalSlug.value || DEFAULT_SLUG,
+    () =>
+      board.myProjectThemeSlug ||
+      auth.user?.theme_slug ||
+      board.project?.theme_slug ||
+      DEFAULT_SLUG,
   )
 
-  const effectiveMode = computed<ThemeMode>(
-    () => auth.user?.theme_mode || globalMode.value || 'system',
-  )
+  const effectiveMode = computed<ThemeMode>(() => auth.user?.theme_mode || 'system')
 
   const effectiveDark = computed<boolean>(() => {
     const m = effectiveMode.value
@@ -123,23 +125,6 @@ export const useThemeStore = defineStore('theme', () => {
     return await fetchPalette(slug)
   }
 
-  function applyGlobalSettings(settings: { theme_slug: string; theme_mode: ThemeMode }) {
-    globalSlug.value = settings.theme_slug || DEFAULT_SLUG
-    globalMode.value = settings.theme_mode || 'system'
-  }
-
-  let listenersAttached = false
-
-  async function initRealtime() {
-    if (listenersAttached) return
-    const ch = await sysChannel()
-    ch.on('global_theme_updated', (payload: { theme_slug: string; theme_mode: ThemeMode }) => {
-      globalSlug.value = payload.theme_slug || DEFAULT_SLUG
-      globalMode.value = payload.theme_mode || 'system'
-    })
-    listenersAttached = true
-  }
-
   let bootstrapped = false
 
   async function bootstrap() {
@@ -149,19 +134,8 @@ export const useThemeStore = defineStore('theme', () => {
     hydrateFromCache(DEFAULT_SLUG)
     if (auth.user?.theme_slug) hydrateFromCache(auth.user.theme_slug)
 
-    try {
-      await initRealtime()
-      const ch = await sysChannel()
-      const settings = await pushAsync<{ theme_slug: string; theme_mode: ThemeMode }>(
-        ch,
-        'get_settings',
-        {},
-      )
-      applyGlobalSettings(settings)
-      void loadIndex().catch(() => {})
-    } catch {}
-
     void ensurePalette(effectiveSlug.value).catch(() => {})
+    void loadIndex().catch(() => {})
 
     watch(effectiveSlug, (slug) => {
       void ensurePalette(slug).catch(() => {})
@@ -177,31 +151,9 @@ export const useThemeStore = defineStore('theme', () => {
     await auth.setUserTheme({ theme_slug: auth.user?.theme_slug ?? null, theme_mode: mode })
   }
 
-  async function setGlobalTheme(slug: string) {
-    const ch = await sysChannel()
-    const reply = await pushAsync<{ theme_slug: string; theme_mode: ThemeMode }>(
-      ch,
-      'set_settings',
-      { theme_slug: slug },
-    )
-    applyGlobalSettings(reply)
-  }
-
-  async function setGlobalMode(mode: ThemeMode) {
-    const ch = await sysChannel()
-    const reply = await pushAsync<{ theme_slug: string; theme_mode: ThemeMode }>(
-      ch,
-      'set_settings',
-      { theme_mode: mode },
-    )
-    applyGlobalSettings(reply)
-  }
-
   return {
     themesIndex,
     palettes,
-    globalSlug,
-    globalMode,
     effectiveSlug,
     effectiveMode,
     effectiveDark,
@@ -209,10 +161,7 @@ export const useThemeStore = defineStore('theme', () => {
     bootstrap,
     loadIndex,
     ensurePalette,
-    applyGlobalSettings,
     setUserTheme,
     setUserMode,
-    setGlobalTheme,
-    setGlobalMode,
   }
 })

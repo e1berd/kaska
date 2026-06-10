@@ -232,6 +232,7 @@ defmodule KaskaWeb.ProjectsChannel do
       description: p.description,
       owner_id: p.owner_id,
       public_link: p.public_link,
+      theme_slug: p.theme_slug,
       avatar_url: media_url(p.avatar_key),
       background_url: media_url(p.background_key),
       inserted_at: p.inserted_at,

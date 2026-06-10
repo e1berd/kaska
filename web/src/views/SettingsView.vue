@@ -30,7 +30,7 @@ watch(
 )
 
 const userSelectedSlug = computed<string>({
-  get: () => auth.user?.theme_slug ?? theme.globalSlug,
+  get: () => auth.user?.theme_slug ?? theme.effectiveSlug,
   set: (value) => {
     void theme.setUserTheme(value)
   },
@@ -51,20 +51,6 @@ async function toggleUserOverride(value: boolean) {
     await theme.setUserTheme(null)
   }
 }
-
-const globalSlug = computed<string>({
-  get: () => theme.globalSlug,
-  set: (value) => {
-    void theme.setGlobalTheme(value)
-  },
-})
-
-const globalMode = computed<ThemeMode>({
-  get: () => theme.globalMode,
-  set: (value) => {
-    void theme.setGlobalMode(value)
-  },
-})
 
 function swatchStyle(color: string | null | undefined) {
   return { background: cssColorOr(color, 'transparent') }
@@ -144,7 +130,7 @@ watch(
           <div>
             <div class="md-label-large">Использовать свою тему</div>
             <div class="text-body-2 text-medium-emphasis">
-              Иначе применяется глобальная тема приложения.
+              Иначе применяется тема проекта, а вне проекта — тема по умолчанию.
             </div>
           </div>
           <v-switch
@@ -184,62 +170,6 @@ watch(
         <div class="md-label-large mb-2">Режим</div>
         <v-btn-toggle
           v-model="userMode"
-          mandatory
-          rounded="pill"
-          color="primary"
-          density="comfortable"
-          variant="outlined"
-          class="ks-mode-toggle"
-        >
-          <v-btn
-            v-for="opt in modeOptions"
-            :key="opt.value"
-            :value="opt.value"
-            :aria-label="opt.label"
-          >
-            <v-icon class="mr-sm-2">{{ opt.icon }}</v-icon>
-            <span class="d-none d-sm-inline">{{ opt.label }}</span>
-          </v-btn>
-        </v-btn-toggle>
-      </v-card-text>
-    </v-card>
-
-    <v-card v-if="isAdmin" variant="outlined" class="mb-4">
-      <v-card-text>
-        <h2 class="md-title-medium mb-1">Глобальная тема</h2>
-        <div class="text-body-2 text-medium-emphasis mb-3">
-          Применяется ко всем, кроме пользователей с собственной темой.
-          Меняется в реальном времени.
-        </div>
-
-        <div class="ks-themes mb-4">
-          <button
-            v-for="t in theme.themesIndex"
-            :key="t.slug"
-            type="button"
-            class="ks-theme md-state-layer"
-            :class="{ 'ks-theme--active': globalSlug === t.slug }"
-            @click="globalSlug = t.slug"
-          >
-            <span
-              class="ks-theme__swatch"
-              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.primary)"
-            />
-            <span
-              class="ks-theme__swatch"
-              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.['secondary-container'])"
-            />
-            <span
-              class="ks-theme__swatch"
-              :style="swatchStyle(theme.palettes[t.slug]?.palette_light?.tertiary)"
-            />
-            <span class="ks-theme__name md-label-large">{{ t.name }}</span>
-          </button>
-        </div>
-
-        <div class="md-label-large mb-2">Режим по умолчанию</div>
-        <v-btn-toggle
-          v-model="globalMode"
           mandatory
           rounded="pill"
           color="primary"

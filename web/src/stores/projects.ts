@@ -12,6 +12,7 @@ export interface Project {
   description: string | null
   owner_id: string
   public_link: boolean
+  theme_slug: string | null
   avatar_url: string | null
   background_url: string | null
   inserted_at?: string

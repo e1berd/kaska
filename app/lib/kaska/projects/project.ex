@@ -16,6 +16,7 @@ defmodule Kaska.Projects.Project do
     field :avatar_key, :string
     field :background_key, :string
     field :public_link, :boolean, default: false
+    field :theme_slug, :string
 
     belongs_to :owner, User
     has_many :columns, Column
@@ -54,6 +55,12 @@ defmodule Kaska.Projects.Project do
     project
     |> cast(attrs, [:public_link])
     |> validate_required([:public_link])
+  end
+
+  def theme_changeset(project, attrs) do
+    project
+    |> cast(attrs, [:theme_slug])
+    |> validate_length(:theme_slug, min: 2, max: 64)
   end
 
   def media_changeset(project, attrs) do

@@ -19,6 +19,7 @@ defmodule Kaska.Projects do
     Project,
     ProjectInvite,
     ProjectMember,
+    ProjectThemePref,
     Task,
     TaskComment,
     TaskType
@@ -150,6 +151,59 @@ defmodule Kaska.Projects do
     |> Project.visibility_changeset(attrs)
     |> Repo.update()
   end
+
+  ## Themes ────────────────────────────────────────────────────────────────
+
+  def set_project_theme(%Project{} = project, slug) do
+    project
+    |> Project.theme_changeset(%{theme_slug: normalize_theme_slug(slug)})
+    |> Repo.update()
+  end
+
+  def get_user_project_theme(project_id, user_id)
+      when is_binary(project_id) and is_binary(user_id) do
+    Repo.one(
+      from p in ProjectThemePref,
+        where: p.project_id == ^project_id and p.user_id == ^user_id,
+        select: p.theme_slug
+    )
+  end
+
+  def get_user_project_theme(_, _), do: nil
+
+  def set_user_project_theme(project_id, user_id, slug)
+      when is_binary(project_id) and is_binary(user_id) do
+    case normalize_theme_slug(slug) do
+      nil ->
+        Repo.delete_all(
+          from p in ProjectThemePref,
+            where: p.project_id == ^project_id and p.user_id == ^user_id
+        )
+
+        {:ok, nil}
+
+      normalized ->
+        %ProjectThemePref{}
+        |> ProjectThemePref.changeset(%{
+          project_id: project_id,
+          user_id: user_id,
+          theme_slug: normalized
+        })
+        |> Repo.insert(
+          on_conflict: {:replace, [:theme_slug, :updated_at]},
+          conflict_target: [:project_id, :user_id]
+        )
+        |> case do
+          {:ok, pref} -> {:ok, pref.theme_slug}
+          other -> other
+        end
+    end
+  end
+
+  defp normalize_theme_slug(nil), do: nil
+  defp normalize_theme_slug(""), do: nil
+  defp normalize_theme_slug(slug) when is_binary(slug), do: String.trim(slug)
+  defp normalize_theme_slug(_), do: nil
 
   ## Membership ────────────────────────────────────────────────────────────
 

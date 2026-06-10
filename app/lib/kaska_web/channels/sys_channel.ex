@@ -40,34 +40,7 @@ defmodule KaskaWeb.SysChannel do
         Accounts.set_setting("allow_guest_comments", payload["allow_guest_comments"])
       end
 
-      theme_changed? = Map.has_key?(payload, "theme_slug") or Map.has_key?(payload, "theme_mode")
-
-      if Map.has_key?(payload, "theme_slug") do
-        slug = payload["theme_slug"] || ""
-
-        if slug == "" or Themes.get_by_slug(slug) do
-          Accounts.set_setting("theme_slug", slug)
-        end
-      end
-
-      if Map.has_key?(payload, "theme_mode") do
-        mode = payload["theme_mode"]
-
-        if mode in ["light", "dark", "system", "", nil] do
-          Accounts.set_setting("theme_mode", mode || "")
-        end
-      end
-
-      view = settings_view()
-
-      if theme_changed? do
-        broadcast!(socket, "global_theme_updated", %{
-          theme_slug: view.theme_slug,
-          theme_mode: view.theme_mode
-        })
-      end
-
-      {:reply, {:ok, view}, socket}
+      {:reply, {:ok, settings_view()}, socket}
     else
       {:reply, {:error, %{reason: "forbidden"}}, socket}
     end
@@ -200,24 +173,10 @@ defmodule KaskaWeb.SysChannel do
   defp is_admin(_), do: false
 
   defp settings_view do
-    theme_slug =
-      case Accounts.get_setting("theme_slug", "") do
-        "" -> Themes.default_slug()
-        slug -> slug
-      end
-
-    theme_mode =
-      case Accounts.get_setting("theme_mode", "") do
-        mode when mode in ["light", "dark", "system"] -> mode
-        _ -> "system"
-      end
-
     %{
       allow_registration: Accounts.get_setting("allow_registration", "true") == "true",
       allow_guest_comments: Accounts.get_setting("allow_guest_comments", "false") == "true",
-      first_user_bootstrap: Accounts.users_count() == 0,
-      theme_slug: theme_slug,
-      theme_mode: theme_mode
+      first_user_bootstrap: Accounts.users_count() == 0
     }
   end
 

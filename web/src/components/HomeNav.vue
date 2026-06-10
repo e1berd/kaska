@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { PhSquaresFour, PhGear } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 
 interface NavItem {
   key: string
   label: string
-  icon: string
+  icon: Component
   to: RouteLocationRaw
 }
 
@@ -17,7 +18,7 @@ const navItems = computed<NavItem[]>(() => {
     {
       key: 'projects',
       label: 'Проекты',
-      icon: 'mdi-view-grid-outline',
+      icon: PhSquaresFour,
       to: { name: 'projects' },
     },
   ]
@@ -26,7 +27,7 @@ const navItems = computed<NavItem[]>(() => {
     items.push({
       key: 'settings',
       label: 'Настройки',
-      icon: 'mdi-cog-outline',
+      icon: PhGear,
       to: { name: 'settings' },
     })
   }
@@ -44,7 +45,7 @@ const navItems = computed<NavItem[]>(() => {
       class="ks-nav__item md-state-layer"
     >
       <span class="ks-nav__pill">
-        <v-icon size="24">{{ item.icon }}</v-icon>
+        <component :is="item.icon" :size="24" weight="regular" />
       </span>
       <span class="ks-nav__label md-label-medium">{{ item.label }}</span>
     </router-link>
@@ -84,9 +85,6 @@ const navItems = computed<NavItem[]>(() => {
 }
 .ks-nav__item.router-link-exact-active .ks-nav__pill {
   background: rgb(var(--v-theme-secondary-container));
-  color: rgb(var(--v-theme-on-secondary-container));
-}
-.ks-nav__item.router-link-exact-active :deep(.v-icon) {
   color: rgb(var(--v-theme-on-secondary-container));
 }
 .ks-nav__label {

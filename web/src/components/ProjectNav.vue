@@ -1,23 +1,17 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { useBoardStore } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
 import { PhListChecks, PhTag, PhUsers, PhGear } from '@phosphor-icons/vue'
 
 const props = defineProps<{ slug: string }>()
 
-const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
 
 const project = computed(
   () => projects.findBySlug(props.slug) ?? (board.project?.slug === props.slug ? board.project : null),
-)
-
-const isOwner = computed(
-  () => !!project.value && !!auth.user && project.value.owner_id === auth.user.id,
 )
 
 interface NavItem {
@@ -33,16 +27,8 @@ const navItems = computed<NavItem[]>(() => {
     { key: 'board', label: 'Задачи', icon: PhListChecks, to: { name: 'board', params: { slug } } },
     { key: 'types', label: 'Типы', icon: PhTag, to: { name: 'board_types', params: { slug } } },
     { key: 'members', label: 'Участники', icon: PhUsers, to: { name: 'board_members', params: { slug } } },
+    { key: 'settings', label: 'Настройки', icon: PhGear, to: { name: 'board_settings', params: { slug } } },
   ]
-
-  if (isOwner.value) {
-    items.push({
-      key: 'settings',
-      label: 'Настройки',
-      icon: PhGear,
-      to: { name: 'board_settings', params: { slug } },
-    })
-  }
 
   return items
 })

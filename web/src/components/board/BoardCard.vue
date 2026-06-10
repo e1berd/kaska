@@ -168,11 +168,11 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <div v-if="assignee" class="mt-2 text-caption text-medium-emphasis d-flex align-center">
-      <v-avatar :image="assignee.avatar_url || ''" size="20" class="mr-1" color="primary">
+    <div v-if="assignee" class="ks-card__assignee mt-2 text-caption text-medium-emphasis d-flex align-center">
+      <v-avatar :image="assignee.avatar_url || ''" size="20" class="mr-1 flex-shrink-0" color="primary">
         <span v-if="!assignee.avatar_url" class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>
       </v-avatar>
-      {{ assignee.display_name || assignee.email }}
+      <span class="ks-card__assignee-label">{{ assignee.display_name || assignee.email }}</span>
     </div>
 
     <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
@@ -181,6 +181,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.ks-card__assignee {
+  min-width: 0;
+}
+.ks-card__assignee-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ks-card {
   position: relative;
   background: rgb(var(--v-theme-surface-container-lowest));

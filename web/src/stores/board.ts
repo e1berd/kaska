@@ -103,6 +103,7 @@ export interface BoardSnapshot {
   project: Project
   can_write?: boolean
   is_owner?: boolean
+  my_theme_slug?: string | null
   columns: Column[]
   tasks: Task[]
   task_types: TaskType[]
@@ -137,6 +138,7 @@ export const useBoardStore = defineStore('board', () => {
   const topic = ref<string | null>(null)
   const canWrite = ref(false)
   const isOwner = ref(false)
+  const myProjectThemeSlug = ref<string | null>(null)
 
   const orderedColumns = computed(() =>
     [...columns.value].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0)),
@@ -176,6 +178,7 @@ export const useBoardStore = defineStore('board', () => {
     project.value = reply.project
     canWrite.value = reply.can_write ?? false
     isOwner.value = reply.is_owner ?? false
+    myProjectThemeSlug.value = reply.my_theme_slug ?? null
     columns.value = reply.columns.slice()
     tasks.value = reply.tasks.slice()
     if (reply.task_types) task_types.value = reply.task_types.slice()
@@ -238,6 +241,7 @@ export const useBoardStore = defineStore('board', () => {
     lastTaskDeleted.value = null
     canWrite.value = false
     isOwner.value = false
+    myProjectThemeSlug.value = null
   }
 
   function attachmentsFor(taskId: string): Attachment[] {
@@ -451,6 +455,18 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync<Project>(ch(), 'set_public_link', { public_link: value })
   }
 
+  function setProjectTheme(slug: string | null) {
+    return pushAsync<Project>(ch(), 'set_project_theme', { theme_slug: slug })
+  }
+
+  async function setMyProjectTheme(slug: string | null) {
+    const reply = await pushAsync<{ theme_slug: string | null }>(ch(), 'set_my_project_theme', {
+      theme_slug: slug,
+    })
+    myProjectThemeSlug.value = reply.theme_slug ?? null
+    return reply.theme_slug ?? null
+  }
+
   return {
     project,
     columns,
@@ -462,6 +478,7 @@ export const useBoardStore = defineStore('board', () => {
     settings,
     canWrite,
     isOwner,
+    myProjectThemeSlug,
     lastTaskDeleted,
     orderedColumns,
     activeViewerIds,
@@ -492,5 +509,7 @@ export const useBoardStore = defineStore('board', () => {
     revokeInvite,
     removeMember,
     setPublicLink,
+    setProjectTheme,
+    setMyProjectTheme,
   }
 })

@@ -65,6 +65,7 @@ defmodule KaskaWeb.BoardChannel do
          project: project_view(project),
          can_write: can_write,
          is_owner: is_binary(user_id) and Projects.owner?(project, user_id),
+         my_theme_slug: user_id && Projects.get_user_project_theme(project.id, user_id),
          columns: Enum.map(columns, &column_view/1),
          tasks: Enum.map(tasks, &task_view/1),
          task_types: Enum.map(task_types, &task_type_view/1),
@@ -236,6 +237,35 @@ defmodule KaskaWeb.BoardChannel do
           {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
       end
     end)
+  end
+
+  def handle_in("set_project_theme", payload, socket) do
+    with_owned_project(socket, fn project ->
+      case Projects.set_project_theme(project, Map.get(payload, "theme_slug")) do
+        {:ok, updated} ->
+          view = project_view(updated)
+          broadcast!(socket, "project_updated", view)
+
+          for member_id <- Projects.member_user_ids(updated.id) do
+            Endpoint.broadcast("projects:user:#{member_id}", "project_updated", view)
+          end
+
+          {:reply, {:ok, view}, socket}
+
+        {:error, changeset} ->
+          {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("set_my_project_theme", payload, socket) do
+    project_id = socket.assigns.project_id
+    user_id = socket.assigns.current_user.id
+
+    case Projects.set_user_project_theme(project_id, user_id, Map.get(payload, "theme_slug")) do
+      {:ok, slug} -> {:reply, {:ok, %{theme_slug: slug}}, socket}
+      {:error, changeset} -> {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+    end
   end
 
   ## Columns ─────────────────────────────────────────────────────────────
@@ -558,6 +588,7 @@ defmodule KaskaWeb.BoardChannel do
       description: p.description,
       owner_id: p.owner_id,
       public_link: p.public_link,
+      theme_slug: p.theme_slug,
       avatar_url: media_url(p.avatar_key),
       background_url: media_url(p.background_key)
     }
