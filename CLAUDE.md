@@ -64,6 +64,23 @@ state layers, типографика). Доводим руками.
 - Кардинальные (заменить компонент, отказаться от Vuetify-варианта,
   ввести новый паттерн) — обсуди с пользователем сначала.
 
+### Tailwind CSS
+
+Tailwind 4 подключён (`@tailwindcss/vite`, точка входа
+`web/src/styles/tailwind.css` — импортируются только `theme` и `utilities`,
+**без preflight**, чтобы не ломать ресет Vuetify). Область применения строго
+ограничена:
+
+- **Можно** — утилиты раскладки и spacing: `flex`/`grid`/`gap`/`p*`/`m*`/
+  `justify-*`/`items-*`/`self-*`/`w-*`/`h-*`/`hidden` и т.п., в т.ч.
+  arbitrary-значения (`[grid-column:-2/-1]`). Это замена мелким scoped-CSS на
+  раскладку.
+- **Нельзя** — цвета, типографику, радиусы, тени, motion через Tailwind. Для
+  них только Vuetify-роли и M3-токены (`--md-*`, `.md-*`,
+  `rgb(var(--v-theme-*))`). Никаких `text-*`/`bg-*`-цветов Tailwind,
+  никакого хардкода палитры.
+- Компоненты — по-прежнему Vuetify, а не Tailwind-вёрстка с нуля.
+
 ### Анимации
 
 - **CSS first.** Большая часть M3 motion (page transitions, state-layer

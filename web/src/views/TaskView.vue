@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import { Presence } from 'phoenix'
@@ -10,6 +11,7 @@ import { useSocketStore, pushAsync } from '@/stores/socket'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
+import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 
 import { collabUserColor, base64ToUint8 } from '@/utils/collab'
@@ -18,6 +20,7 @@ defineProps<{ slug?: string; taskId?: string }>()
 
 const route = useRoute()
 const router = useRouter()
+const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const socket = useSocketStore()
@@ -34,6 +37,7 @@ const taskEndDate = ref<string | null>(null)
 const taskType = ref<string | null>(null)
 const taskAssignee = ref<string | null>(null)
 const editingDescription = ref(false)
+const metaOpen = ref(false)
 const taskSaving = ref(false)
 const taskSyncing = ref(false)
 const taskUploading = ref(false)
@@ -114,32 +118,39 @@ function isFormSyncedWithTask(task: Task): boolean {
   )
 }
 
-const taskStartDateModel = computed<Date | null>({
-  get: () => parseIsoDate(taskStartDate.value),
-  set: (value) => {
-    taskStartDate.value = value ? formatIsoDate(value) : null
+const taskDateRangeModel = computed<Date[]>({
+  get: () => {
+    const start = parseIsoDate(taskStartDate.value)
+    const end = parseIsoDate(taskEndDate.value)
+    if (start && end) return buildDateRange(start, end)
+    if (start) return [start]
+    if (end) return [end]
+    return []
   },
-})
-
-const taskEndDateModel = computed<Date | null>({
-  get: () => parseIsoDate(taskEndDate.value),
   set: (value) => {
-    taskEndDate.value = value ? formatIsoDate(value) : null
+    if (!value || value.length === 0) {
+      taskStartDate.value = null
+      taskEndDate.value = null
+      return
+    }
+    const sorted = [...value].sort((a, b) => a.getTime() - b.getTime())
+    taskStartDate.value = formatIsoDate(sorted[0])
+    taskEndDate.value = formatIsoDate(sorted[sorted.length - 1])
   },
 })
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null
-  const [y, m, d] = value.split('-').map((n) => Number(n))
-  if (!y || !m || !d) return null
-  return new Date(y, m - 1, d)
+  const parsed = parse(value, 'yyyy-MM-dd', new Date())
+  return isValid(parsed) ? parsed : null
 }
 
 function formatIsoDate(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return format(date, 'yyyy-MM-dd')
+}
+
+function buildDateRange(start: Date, end: Date): Date[] {
+  return eachDayOfInterval({ start, end })
 }
 
 function syncFormFromTask(task: Task) {
@@ -549,61 +560,70 @@ watch(
           </div>
         </div>
       </div>
-      <aside class="ks-task-page__side">
-        <v-card variant="flat" color="surface-container-high" class="ks-task-page__meta">
-          <v-date-input
-            v-model="taskStartDateModel"
-            label="Дата начала"
-            density="comfortable"
-            clearable
-            :readonly="!auth.isAuthed"
-            prepend-icon=""
-            prepend-inner-icon="mdi-calendar"
-          />
-          <v-date-input
-            v-model="taskEndDateModel"
-            label="Дата окончания"
-            density="comfortable"
-            clearable
-            :readonly="!auth.isAuthed"
-            prepend-icon=""
-            prepend-inner-icon="mdi-calendar"
-          />
-          <v-select
-            v-model="taskType"
-            :items="board.task_types"
-            item-title="name"
-            item-value="id"
-            label="Тип задачи"
-            density="comfortable"
-            clearable
-            :readonly="!auth.isAuthed"
-          />
-          <v-select
-            v-model="taskAssignee"
-            :items="board.users"
-            :item-title="(u: User) => u.display_name || u.email"
-            item-value="id"
-            label="Исполнитель"
-            density="comfortable"
-            clearable
-            :readonly="!auth.isAuthed"
-          />
+      <aside class="ks-task-page__meta">
+        <v-btn
+          v-if="mobile"
+          class="ks-task-page__toggle"
+          variant="text"
+          block
+          :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+          @click="metaOpen = !metaOpen"
+        >
+          Свойства и комментарии
+        </v-btn>
+        <div v-show="!mobile || metaOpen" class="ks-task-page__meta-body">
+        <div class="ks-task-page__group">
+          <div class="ks-task-page__meta-title md-label-large">Свойства</div>
+          <div class="ks-task-page__fields">
+            <v-date-input
+              v-model="taskDateRangeModel"
+              multiple="range"
+              label="Даты задачи"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+              prepend-icon=""
+              prepend-inner-icon="mdi-calendar"
+            />
+            <v-select
+              v-model="taskType"
+              :items="board.task_types"
+              item-title="name"
+              item-value="id"
+              label="Тип задачи"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+            />
+            <v-select
+              v-model="taskAssignee"
+              :items="board.users"
+              :item-title="(u: User) => u.display_name || u.email"
+              item-value="id"
+              label="Исполнитель"
+              density="comfortable"
+              clearable
+              :readonly="!auth.isAuthed"
+            />
+          </div>
           <v-btn
             v-if="auth.isAuthed"
             color="error"
             variant="text"
             rounded="pill"
+            class="mt-2 align-self-start"
             @click="deleteCurrentTask"
           >
             Удалить карточку
           </v-btn>
-        </v-card>
+        </div>
+        <v-divider class="ks-task-page__divider" />
         <TaskCommentsSection
           v-if="currentTask"
           :task-id="currentTask.id"
-          class="ks-task-page__comments mt-3"
+          class="ks-task-page__comments"
         />
+        </div>
       </aside>
     </div>
   </div>
@@ -613,7 +633,7 @@ watch(
 .ks-task-page {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: calc(100vh - 64px);
 }
 .ks-task-page__bar {
   display: flex;
@@ -627,22 +647,15 @@ watch(
   padding: 80px 0;
 }
 .ks-task-page__content {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
-  padding: 0 16px 16px;
+  grid-template-columns: minmax(0, 1fr) 360px;
 }
-.ks-task-page__description {
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
-  border-radius: var(--md-shape-m);
-  padding: 12px 16px;
-  background: rgb(var(--v-theme-surface-container-lowest));
-}
-.ks-task-page__description-empty {
-  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.6);
-  border-radius: var(--md-shape-m);
-  padding: 18px;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+.ks-task-page__main {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 8px 24px 24px;
 }
 .ks-attach__media {
   background: rgb(var(--v-theme-surface-container));
@@ -651,28 +664,57 @@ watch(
   --ks-attach-remove-bg: rgba(var(--v-theme-surface), 0.7);
   --ks-attach-remove-color: currentColor;
 }
-.ks-task-page__editing-note {
-  color: rgba(var(--v-theme-on-surface), 0.65);
-}
-.ks-edit-lock-btn {
-  opacity: 0.9;
-}
 .ks-task-page__meta {
-  padding: 12px;
-  border: 1px solid rgba(var(--v-theme-outline), 0.45);
-  box-shadow: var(--md-elev-1);
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 24px;
+  background: rgb(var(--v-theme-surface-container-high));
+  border-left: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
+}
+.ks-task-page__meta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ks-task-page__toggle {
+  justify-content: space-between;
+}
+.ks-task-page__group {
+  display: flex;
+  flex-direction: column;
+}
+.ks-task-page__meta-title {
+  color: rgb(var(--v-theme-on-surface-variant));
+  margin-bottom: 12px;
+}
+.ks-task-page__fields {
   display: grid;
   gap: 8px;
 }
 .ks-task-page__meta :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
-.ks-task-page__comments {
-  border-radius: var(--md-shape-l);
+.ks-task-page__divider {
+  opacity: 0.5;
 }
-@media (max-width: 900px) {
+@media (max-width: 959px) {
+  .ks-task-page {
+    min-height: 0;
+  }
   .ks-task-page__content {
     grid-template-columns: 1fr;
+    flex: initial;
+  }
+  .ks-task-page__main,
+  .ks-task-page__meta {
+    overflow-y: visible;
+  }
+  .ks-task-page__meta {
+    border-left: none;
+    border-top: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
   }
 }
 </style>

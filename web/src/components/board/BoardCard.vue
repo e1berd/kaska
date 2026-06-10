@@ -169,8 +169,9 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="assignee" class="ks-card__assignee mt-2 text-caption text-medium-emphasis d-flex align-center">
-      <v-avatar :image="assignee.avatar_url || ''" size="20" class="mr-1 flex-shrink-0" color="primary">
-        <span v-if="!assignee.avatar_url" class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>
+      <v-avatar size="20" class="mr-1 flex-shrink-0" color="primary">
+        <v-img v-if="assignee.avatar_url" :src="assignee.avatar_url" cover alt="" />
+        <span v-else class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>
       </v-avatar>
       <span class="ks-card__assignee-label">{{ assignee.display_name || assignee.email }}</span>
     </div>

@@ -260,13 +260,8 @@ watch(
 
 <style scoped>
 .ks-comments {
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.55);
-  border-radius: var(--md-shape-l);
-  background: rgb(var(--v-theme-surface-container-low));
-  padding: 12px;
   display: grid;
   gap: 10px;
-  max-height: min(62vh, 740px);
 }
 .ks-comments__head {
   display: flex;
@@ -290,13 +285,9 @@ watch(
   padding: 10px 0;
 }
 .ks-comments__list {
-  background: rgb(var(--v-theme-surface-container-lowest));
-  padding: 6px;
-  border-radius: var(--md-shape-m);
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.45);
   overflow-y: auto;
   overscroll-behavior: contain;
-  max-height: 31dvh;
+  max-height: 38dvh;
 }
 .ks-comments__item {
   display: grid;

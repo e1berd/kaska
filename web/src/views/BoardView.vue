@@ -26,6 +26,7 @@ import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import { cssUrlImageOr } from '@/utils/css'
 import { docPreview } from '@/utils/tiptap'
+import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 
 import { collabUserColor, base64ToUint8 } from '@/utils/collab'
@@ -60,17 +61,24 @@ const filterStartDate = ref<string | null>(null)
 const filterEndDate = ref<string | null>(null)
 const syncingFiltersFromRoute = ref(false)
 
-const filterStartDateModel = computed<Date | null>({
-  get: () => parseIsoDate(filterStartDate.value),
-  set: (value) => {
-    filterStartDate.value = value ? formatIsoDate(value) : null
+const filterDateRangeModel = computed<Date[]>({
+  get: () => {
+    const start = parseIsoDate(filterStartDate.value)
+    const end = parseIsoDate(filterEndDate.value)
+    if (start && end) return buildDateRange(start, end)
+    if (start) return [start]
+    if (end) return [end]
+    return []
   },
-})
-
-const filterEndDateModel = computed<Date | null>({
-  get: () => parseIsoDate(filterEndDate.value),
   set: (value) => {
-    filterEndDate.value = value ? formatIsoDate(value) : null
+    if (!value || value.length === 0) {
+      filterStartDate.value = null
+      filterEndDate.value = null
+      return
+    }
+    const sorted = [...value].sort((a, b) => a.getTime() - b.getTime())
+    filterStartDate.value = formatIsoDate(sorted[0])
+    filterEndDate.value = formatIsoDate(sorted[sorted.length - 1])
   },
 })
 
@@ -146,6 +154,7 @@ type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
 const taskDocPresences = shallowRef<PresenceState>({})
 
 const editingDescription = ref(false)
+const metaOpen = ref(false)
 const deleteSnackOpen = ref(false)
 const deleteSnackText = ref('')
 
@@ -303,26 +312,16 @@ function fmtDate(iso: string | null | undefined): string {
 
 function parseIsoDate(value: string | null): Date | null {
   if (!value) return null
-  const [y, m, d] = value.split('-').map((n) => Number(n))
-  if (!y || !m || !d) return null
-  return new Date(y, m - 1, d)
+  const parsed = parse(value, 'yyyy-MM-dd', new Date())
+  return isValid(parsed) ? parsed : null
 }
 
 function formatIsoDate(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return format(date, 'yyyy-MM-dd')
 }
 
 function buildDateRange(start: Date, end: Date): Date[] {
-  const out: Date[] = []
-  const cur = new Date(start)
-  while (cur.getTime() <= end.getTime()) {
-    out.push(new Date(cur))
-    cur.setDate(cur.getDate() + 1)
-  }
-  return out
+  return eachDayOfInterval({ start, end })
 }
 
 async function load() {
@@ -1006,26 +1005,24 @@ const boardBackgroundStyle = computed(() => ({
           </template>
         </v-select>
         <v-date-input
-          v-model="filterStartDateModel"
-          label="Дата начала от"
+          v-model="filterDateRangeModel"
+          multiple="range"
+          label="Период дат"
           density="comfortable"
           hide-details
           clearable
           prepend-icon=""
           prepend-inner-icon="mdi-calendar"
         />
-        <v-date-input
-          v-model="filterEndDateModel"
-          label="Дата завершения до"
-          density="comfortable"
-          hide-details
-          clearable
-          prepend-icon=""
-          prepend-inner-icon="mdi-calendar"
-        />
-        <v-btn variant="text" rounded="pill" prepend-icon="mdi-filter-off-outline" @click="clearFilters">
-          Сбросить
-        </v-btn>
+          <v-btn
+            class="justify-self-end self-center [grid-column:-2/-1]"
+            variant="text"
+            rounded="pill"
+            prepend-icon="mdi-filter-off-outline"
+            @click="clearFilters"
+          >
+            Сбросить
+          </v-btn>
       </div>
     </v-expand-transition>
 
@@ -1218,46 +1215,25 @@ const boardBackgroundStyle = computed(() => ({
     <v-dialog
       v-model="taskDialog"
       max-width="1080"
-      scrollable
       :fullscreen="mobile"
     >
-      <v-card v-if="taskTarget" rounded="xl">
-        <v-card-title class="px-6 pt-6 d-flex align-center ga-2">
-          <span class="md-headline-small">Карточка</span>
+      <v-card v-if="taskTarget" rounded="xl" class="ks-task-dialog">
+        <header v-if="mobile" class="ks-task-mbar">
+          <span class="md-title-large">Карточка</span>
           <PresenceGroup
             v-if="taskViewers.length"
-            class="ml-2"
+            class="ml-1"
             :users="taskViewers"
             label="Сейчас в задаче"
             size="sm"
           />
           <v-spacer />
-          <v-tooltip text="Открыть на странице" location="bottom">
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                icon="mdi-arrow-expand"
-                variant="text"
-                size="small"
-                @click="openTaskPage"
-              />
-            </template>
-          </v-tooltip>
-          <v-tooltip text="Поделиться ссылкой" location="bottom">
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                icon="mdi-link-variant"
-                variant="text"
-                size="small"
-                @click="copyTaskLink"
-              />
-            </template>
-          </v-tooltip>
-        </v-card-title>
-        <v-card-text class="px-6 pt-2">
-          <div class="ks-task-layout">
-            <section class="ks-task-main">
+          <v-btn icon="mdi-arrow-expand" variant="text" size="small" @click="openTaskPage" />
+          <v-btn icon="mdi-link-variant" variant="text" size="small" @click="copyTaskLink" />
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closeTaskDialog" />
+        </header>
+        <div class="ks-task-split">
+            <section class="ks-task-content">
               <v-text-field
                 v-model="taskTitle"
                 label="Название"
@@ -1382,9 +1358,43 @@ const boardBackgroundStyle = computed(() => ({
           </div>
             </section>
 
-            <aside class="ks-task-side">
-              <v-card variant="flat" color="surface-container-high" rounded="lg" class="ks-task-meta-card">
-                <div class="ks-task-meta-grid">
+            <aside class="ks-task-meta">
+              <header v-if="!mobile" class="ks-task-meta__bar">
+                <PresenceGroup
+                  v-if="taskViewers.length"
+                  :users="taskViewers"
+                  label="Сейчас в задаче"
+                  size="sm"
+                />
+                <v-spacer />
+                <v-tooltip text="Открыть на странице" location="bottom">
+                  <template #activator="{ props }">
+                    <v-btn v-bind="props" icon="mdi-arrow-expand" variant="text" size="small" @click="openTaskPage" />
+                  </template>
+                </v-tooltip>
+                <v-tooltip text="Поделиться ссылкой" location="bottom">
+                  <template #activator="{ props }">
+                    <v-btn v-bind="props" icon="mdi-link-variant" variant="text" size="small" @click="copyTaskLink" />
+                  </template>
+                </v-tooltip>
+                <v-btn icon="mdi-close" variant="text" size="small" @click="closeTaskDialog" />
+              </header>
+
+              <v-btn
+                v-if="mobile"
+                class="ks-task-meta__toggle"
+                variant="text"
+                block
+                :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                @click="metaOpen = !metaOpen"
+              >
+                Свойства и комментарии
+              </v-btn>
+
+              <div v-show="!mobile || metaOpen" class="ks-task-meta__body">
+                <div class="ks-task-meta__group">
+                <div class="ks-task-meta__title md-label-large">Свойства</div>
+                <div class="ks-task-meta__fields">
                   <v-date-input
                     v-model="taskDateRangeModel"
                     multiple="range"
@@ -1456,37 +1466,36 @@ const boardBackgroundStyle = computed(() => ({
                     </template>
                   </v-select>
                 </div>
-              </v-card>
+              </div>
+              <v-divider class="ks-task-meta__divider" />
               <TaskCommentsSection
                 v-if="taskTarget"
                 :task-id="taskTarget.id"
-                class="ks-task-comments-side mt-3"
+                class="ks-task-meta__comments"
               />
+              </div>
+
+              <footer v-show="!mobile || metaOpen" class="ks-task-meta__foot">
+                <v-btn
+                  v-if="board.canWrite"
+                  color="error"
+                  variant="text"
+                  rounded="pill"
+                  @click="deleteCurrentTask"
+                >
+                  Удалить карточку
+                </v-btn>
+                <v-spacer />
+                <div
+                  v-if="board.canWrite && taskSaving"
+                  class="save-icon flex items-center justify-center text-primary"
+                  style="height: 22px"
+                >
+                  <PhFloppyDisk size="22" />
+                </div>
+              </footer>
             </aside>
           </div>
-        </v-card-text>
-        <v-card-actions class="px-6 pb-6">
-          <v-btn
-            v-if="board.canWrite"
-            color="error"
-            variant="text"
-            rounded="pill"
-            @click="deleteCurrentTask"
-          >
-            Удалить карточку
-          </v-btn>
-          <v-spacer />
-          <div
-            key="save"
-            class="save-icon flex items-center justify-center text-primary"
-            v-if="board.canWrite && taskSaving"
-            style="height: 24px"
-          >
-            <PhFloppyDisk size="24" />
-          </div>
-          <v-btn variant="text" rounded="pill" @click="closeTaskDialog">Закрыть</v-btn>
-
-        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
@@ -1689,35 +1698,80 @@ const boardBackgroundStyle = computed(() => ({
   color: rgba(var(--v-theme-on-surface), 0.78);
 }
 
-.ks-task-layout {
+.ks-task-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 86vh;
+  overflow: hidden;
+}
+.ks-task-split {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+.ks-task-content {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+.ks-task-mbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 16px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
+}
+.ks-task-meta {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--v-theme-surface-container-high));
+  border-left: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
+}
+.ks-task-meta__bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 8px 16px;
+  min-height: 52px;
+}
+.ks-task-meta__toggle {
+  justify-content: space-between;
+}
+.ks-task-meta__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: start;
+  padding: 4px 20px 20px;
 }
-.ks-task-main {
-  min-width: 0;
+.ks-task-meta__foot {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
 }
-.ks-task-side {
-  min-width: 0;
-  position: sticky;
-  top: 0;
+.ks-task-meta__group {
+  display: flex;
+  flex-direction: column;
 }
-.ks-task-comments-side {
-  border-radius: var(--md-shape-l);
+.ks-task-meta__title {
+  color: rgb(var(--v-theme-on-surface-variant));
+  margin-bottom: 12px;
 }
-.ks-task-meta-card {
-  padding: 12px;
-  border: 1px solid rgba(var(--v-theme-outline), 0.45);
-  box-shadow: var(--md-elev-1);
-}
-.ks-task-meta-grid {
+.ks-task-meta__fields {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 8px;
 }
-.ks-task-meta-grid :deep(.v-field) {
+.ks-task-meta__fields :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
+}
+.ks-task-meta__divider {
+  opacity: 0.5;
 }
 .ks-task__row {
   display: flex;
@@ -1736,15 +1790,28 @@ const boardBackgroundStyle = computed(() => ({
   }
 }
 
+@media (max-width: 959px) {
+  .ks-task-dialog {
+    height: 100%;
+  }
+  .ks-task-split {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .ks-task-content,
+  .ks-task-meta,
+  .ks-task-meta__body {
+    overflow-y: visible;
+  }
+  .ks-task-meta {
+    border-left: none;
+    border-top: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
+  }
+}
+
 @media (max-width: 600px) {
   .ks-board__filters {
     grid-template-columns: 1fr;
-  }
-  .ks-task-layout {
-    grid-template-columns: 1fr;
-  }
-  .ks-task-side {
-    position: static;
   }
   .ks-board__cols {
     padding: 8px 12px 16px;
