@@ -13,7 +13,6 @@ import {
   type Edge,
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { useBoardStore, type Column, type Task } from '@/stores/board'
-import { useAuthStore } from '@/stores/auth'
 import BoardCard from '@/components/board/BoardCard.vue'
 import { PhDotsSix } from '@phosphor-icons/vue'
 
@@ -31,7 +30,6 @@ defineEmits<{
 }>()
 
 const board = useBoardStore()
-const auth = useAuthStore()
 const tasksInColumn = computed(() =>
   props.tasks
     ? props.tasks.slice().sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
@@ -226,7 +224,7 @@ function cancelAdd() {
         <span class="md-title-medium">{{ column.name }}</span>
         <span class="ks-col__count md-label-medium">{{ tasksInColumn.length }}</span>
       </div>
-      <v-menu v-if="auth.isAuthed">
+      <v-menu v-if="board.canWrite">
         <template #activator="{ props: act }">
           <v-btn
             v-bind="act"
@@ -265,7 +263,7 @@ function cancelAdd() {
       </div>
     </div>
 
-    <div v-if="auth.isAuthed" class="ks-col__add">
+    <div v-if="board.canWrite" class="ks-col__add">
       <template v-if="!adding">
         <button class="ks-col__addbtn md-state-layer" type="button" @click="startAdd">
           <v-icon size="18">mdi-plus</v-icon>

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Channel } from 'phoenix'
 import { pushAsync, useSocketStore } from '@/stores/socket'
+import { useAuthStore } from '@/stores/auth'
 import { uploadToPresignedUrl } from '@/utils/upload'
 
 export interface Project {
@@ -10,6 +11,7 @@ export interface Project {
   name: string
   description: string | null
   owner_id: string
+  public_link: boolean
   avatar_url: string | null
   background_url: string | null
   inserted_at?: string
@@ -35,10 +37,17 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   async function joinLobby() {
+    const auth = useAuthStore()
+    const userId = auth.user?.id
+    if (!userId) {
+      list.value = []
+      return null
+    }
+
     if (channel.value && channel.value.state === 'joined') return channel.value
 
     const sock = useSocketStore()
-    const { channel: ch, reply } = await sock.joinChannel<JoinReply>('projects:lobby')
+    const { channel: ch, reply } = await sock.joinChannel<JoinReply>(`projects:user:${userId}`)
 
     list.value = (reply?.projects ?? []).slice()
 
@@ -50,13 +59,24 @@ export const useProjectsStore = defineStore('projects', () => {
     return ch
   }
 
-  async function createProject(input: { slug: string; name: string; description?: string }) {
+  async function requireChannel() {
     const ch = await joinLobby()
+    if (!ch) throw new Error('not authenticated')
+    return ch
+  }
+
+  async function acceptInvite(token: string) {
+    const ch = await requireChannel()
+    return pushAsync<{ slug: string }>(ch, 'accept_invite', { token })
+  }
+
+  async function createProject(input: { slug: string; name: string; description?: string }) {
+    const ch = await requireChannel()
     return pushAsync<Project>(ch, 'create_project', input)
   }
 
   async function updateProject(input: { id: string; name?: string; description?: string | null }) {
-    const ch = await joinLobby()
+    const ch = await requireChannel()
     const payload: Record<string, unknown> = { id: input.id }
     if (input.name !== undefined) payload.name = input.name
     if (input.description !== undefined) payload.description = input.description ?? ''
@@ -64,7 +84,7 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   async function deleteProject(id: string) {
-    const ch = await joinLobby()
+    const ch = await requireChannel()
     return pushAsync<{ id: string }>(ch, 'delete_project', { id })
   }
 
@@ -74,7 +94,7 @@ export const useProjectsStore = defineStore('projects', () => {
     file: File,
     onProgress?: (f: number) => void,
   ) {
-    const ch = await joinLobby()
+    const ch = await requireChannel()
     const requestEvent =
       kind === 'avatar' ? 'request_project_avatar_upload' : 'request_project_background_upload'
     const confirmEvent =
@@ -94,13 +114,14 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   async function clearProjectMedia(kind: 'avatar' | 'background', projectId: string) {
-    const ch = await joinLobby()
+    const ch = await requireChannel()
     const event = kind === 'avatar' ? 'clear_project_avatar' : 'clear_project_background'
     return pushAsync<Project>(ch, event, { id: projectId })
   }
 
   async function refresh() {
     const ch = await joinLobby()
+    if (!ch) return
     const reply = await pushAsync<JoinReply>(ch, 'list_projects', {})
     list.value = reply.projects.slice()
   }
@@ -112,6 +133,7 @@ export const useProjectsStore = defineStore('projects', () => {
   return {
     list,
     joinLobby,
+    acceptInvite,
     createProject,
     updateProject,
     deleteProject,

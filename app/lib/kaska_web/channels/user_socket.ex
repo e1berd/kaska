@@ -3,7 +3,7 @@ defmodule KaskaWeb.UserSocket do
 
   channel "auth:lobby", KaskaWeb.AuthChannel
   channel "user:*", KaskaWeb.UserChannel
-  channel "projects:lobby", KaskaWeb.ProjectsChannel
+  channel "projects:user:*", KaskaWeb.ProjectsChannel
   channel "board:*", KaskaWeb.BoardChannel
   channel "board_slug:*", KaskaWeb.BoardChannel
   channel "task_doc:*", KaskaWeb.TaskDocChannel

@@ -12,9 +12,11 @@ defmodule KaskaWeb.BoardChannel do
   use Phoenix.Channel
 
   alias Kaska.{Accounts, Attachments, Projects}
+  alias Kaska.Accounts.UserNotifier
+  alias KaskaWeb.Endpoint
   alias KaskaWeb.Presence
   alias Kaska.Attachments.Attachment
-  alias Kaska.Projects.{Column, Project, Task, TaskComment}
+  alias Kaska.Projects.{Column, Project, ProjectInvite, ProjectMember, Task, TaskComment}
   @guest_comment_max_length 255
   @guest_comment_min_interval_ms 4000
   @guest_comment_rate_table :kaska_guest_comment_rate
@@ -34,31 +36,46 @@ defmodule KaskaWeb.BoardChannel do
   defp join_with_snapshot(nil, _payload, _socket), do: {:error, %{reason: "not_found"}}
 
   defp join_with_snapshot({project, columns, tasks}, _payload, socket) do
-    socket = assign(socket, :project_id, project.id)
-    send(self(), :after_join_presence)
-    task_ids = Enum.map(tasks, & &1.id)
-    task_types = Projects.list_task_types(project.id)
-    task_comments = Projects.list_task_comments(project.id)
-    users = Kaska.Accounts.list_users()
-    allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
+    user = socket.assigns[:current_user]
+    user_id = user && user.id
 
-    attachments =
-      for t_id <- task_ids,
-          a <- Attachments.list_for("task", t_id) do
-        attachment_view(a)
-      end
+    if Projects.board_accessible?(project, user_id) do
+      can_write = is_binary(user_id) and Projects.member?(project.id, user_id)
 
-    {:ok,
-     %{
-       project: project_view(project),
-       columns: Enum.map(columns, &column_view/1),
-       tasks: Enum.map(tasks, &task_view/1),
-       task_types: Enum.map(task_types, &task_type_view/1),
-       task_comments: Enum.map(task_comments, &task_comment_view/1),
-       settings: %{allow_guest_comments: allow_guest_comments},
-       users: Enum.map(users, &user_view/1),
-       attachments: attachments
-     }, socket}
+      socket =
+        socket
+        |> assign(:project_id, project.id)
+        |> assign(:can_write, can_write)
+
+      send(self(), :after_join_presence)
+      task_ids = Enum.map(tasks, & &1.id)
+      task_types = Projects.list_task_types(project.id)
+      task_comments = Projects.list_task_comments(project.id)
+      users = Kaska.Accounts.list_users()
+      allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
+
+      attachments =
+        for t_id <- task_ids,
+            a <- Attachments.list_for("task", t_id) do
+          attachment_view(a)
+        end
+
+      {:ok,
+       %{
+         project: project_view(project),
+         can_write: can_write,
+         is_owner: is_binary(user_id) and Projects.owner?(project, user_id),
+         columns: Enum.map(columns, &column_view/1),
+         tasks: Enum.map(tasks, &task_view/1),
+         task_types: Enum.map(task_types, &task_type_view/1),
+         task_comments: Enum.map(task_comments, &task_comment_view/1),
+         settings: %{allow_guest_comments: allow_guest_comments},
+         users: Enum.map(users, &user_view/1),
+         attachments: attachments
+       }, socket}
+    else
+      {:error, %{reason: "forbidden"}}
+    end
   end
 
   @impl true
@@ -77,9 +94,9 @@ defmodule KaskaWeb.BoardChannel do
   ## Authorization gate ──────────────────────────────────────────────────
 
   @impl true
-  def handle_in(event, _payload, %{assigns: %{current_user: nil}} = socket)
+  def handle_in(event, _payload, %{assigns: %{can_write: false}} = socket)
       when event != "create_task_comment" do
-    {:reply, {:error, %{message: "unauthorized", code: "unauthorized"}}, socket}
+    {:reply, {:error, %{message: "forbidden", code: "forbidden"}}, socket}
   end
 
   def handle_in("create_task_comment", %{"task_id" => task_id} = payload, socket) do
@@ -137,6 +154,88 @@ defmodule KaskaWeb.BoardChannel do
       {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
       _ -> {:reply, {:error, %{message: "task_comment_not_found"}}, socket}
     end
+  end
+
+  ## Members ─────────────────────────────────────────────────────────────
+
+  def handle_in("list_members", _payload, socket) do
+    members = Projects.list_members(socket.assigns.project_id)
+    {:reply, {:ok, %{members: Enum.map(members, &member_view/1)}}, socket}
+  end
+
+  def handle_in("list_invites", _payload, socket) do
+    with_owned_project(socket, fn project ->
+      invites = Projects.list_project_invites(project.id)
+      {:reply, {:ok, %{invites: Enum.map(invites, &invite_view/1)}}, socket}
+    end)
+  end
+
+  def handle_in("invite_member", payload, socket) do
+    with_owned_project(socket, fn project ->
+      email = normalize_invite_email(Map.get(payload, "email"))
+      expires_in_minutes = Map.get(payload, "expires_in_minutes")
+
+      expires_at =
+        if is_integer(expires_in_minutes) do
+          DateTime.utc_now() |> DateTime.add(expires_in_minutes, :minute) |> DateTime.truncate(:second)
+        end
+
+      attrs = %{
+        email: email,
+        expires_at: expires_at,
+        invited_by_id: socket.assigns.current_user.id
+      }
+
+      case Projects.create_project_invite(project.id, attrs) do
+        {:ok, invite} ->
+          url = "#{frontend_url()}/invite/#{invite.token}"
+          if email, do: UserNotifier.deliver_project_invite_link(email, project.name, url)
+          {:reply, {:ok, Map.put(invite_view(invite), :url, url)}, socket}
+
+        {:error, changeset} ->
+          {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("revoke_invite", %{"id" => id}, socket) do
+    with_owned_project(socket, fn project ->
+      case Projects.get_project_invite_by_id(id, project.id) do
+        %ProjectInvite{} = invite ->
+          {:ok, _} = Projects.delete_project_invite(invite)
+          {:reply, {:ok, %{id: id}}, socket}
+
+        nil ->
+          {:reply, {:error, %{message: "invite_not_found"}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("remove_member", %{"user_id" => user_id}, socket) do
+    with_owned_project(socket, fn project ->
+      {:ok, _} = Projects.remove_member(project.id, user_id)
+      Endpoint.broadcast("projects:user:#{user_id}", "project_deleted", %{id: project.id})
+      {:reply, {:ok, %{user_id: user_id}}, socket}
+    end)
+  end
+
+  def handle_in("set_public_link", %{"public_link" => public_link}, socket) do
+    with_owned_project(socket, fn project ->
+      case Projects.set_project_visibility(project, %{public_link: !!public_link}) do
+        {:ok, updated} ->
+          view = project_view(updated)
+          broadcast!(socket, "project_updated", view)
+
+          for member_id <- Projects.member_user_ids(updated.id) do
+            Endpoint.broadcast("projects:user:#{member_id}", "project_updated", view)
+          end
+
+          {:reply, {:ok, view}, socket}
+
+        {:error, changeset} ->
+          {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
+      end
+    end)
   end
 
   ## Columns ─────────────────────────────────────────────────────────────
@@ -402,6 +501,27 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
+  defp with_owned_project(socket, fun) do
+    user = socket.assigns[:current_user]
+    project = Projects.get_project(socket.assigns.project_id)
+
+    if user && project && Projects.owner?(project, user.id) do
+      fun.(project)
+    else
+      {:reply, {:error, %{message: "forbidden", code: "forbidden"}}, socket}
+    end
+  end
+
+  defp normalize_invite_email(nil), do: nil
+  defp normalize_invite_email(""), do: nil
+
+  defp normalize_invite_email(value) when is_binary(value),
+    do: value |> String.downcase() |> String.trim()
+
+  defp normalize_invite_email(_), do: nil
+
+  defp frontend_url, do: System.get_env("FRONTEND_URL", "http://localhost:5173")
+
   defp get_owned_column(id, socket) do
     case Projects.get_column(id) do
       %Column{project_id: pid} = c when pid == socket.assigns.project_id -> c
@@ -437,8 +557,31 @@ defmodule KaskaWeb.BoardChannel do
       name: p.name,
       description: p.description,
       owner_id: p.owner_id,
+      public_link: p.public_link,
       avatar_url: media_url(p.avatar_key),
       background_url: media_url(p.background_key)
+    }
+  end
+
+  defp member_view(%ProjectMember{} = m) do
+    %{
+      user_id: m.user_id,
+      role: m.role,
+      email: m.user && m.user.email,
+      display_name: m.user && m.user.display_name,
+      avatar_url: m.user && avatar_url(m.user),
+      inserted_at: m.inserted_at
+    }
+  end
+
+  defp invite_view(%ProjectInvite{} = i) do
+    %{
+      id: i.id,
+      token: i.token,
+      email: i.email,
+      expires_at: i.expires_at,
+      accepted_at: i.accepted_at,
+      inserted_at: i.inserted_at
     }
   end
 

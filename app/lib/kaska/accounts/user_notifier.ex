@@ -40,6 +40,18 @@ defmodule Kaska.Accounts.UserNotifier do
     """)
   end
 
+  def deliver_project_invite_link(email, project_name, url) do
+    deliver(email, "Приглашение в проект «#{project_name}» — Kaska", """
+    Привет!
+
+    Тебя пригласили в проект «#{project_name}» в Kaska. Чтобы присоединиться, перейди по ссылке:
+
+    #{url}
+
+    Если ты не знаешь, о чем речь — просто проигнорируй это письмо.
+    """)
+  end
+
   defp deliver(to, subject, body) do
     email =
       new()

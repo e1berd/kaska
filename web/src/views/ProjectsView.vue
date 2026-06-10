@@ -192,7 +192,7 @@ async function confirmDelete() {
           Выберите проект, чтобы перейти к доске задач, или создайте новый.
         </p>
         <p v-if="!auth.isAuthed" class="md-body-medium text-medium-emphasis mt-3 mb-0">
-          Войдите, чтобы создавать проекты. Просматривать можно без аккаунта.
+          Войдите, чтобы видеть свои проекты и создавать новые.
         </p>
       </div>
       <div class="ks-projects__panel">

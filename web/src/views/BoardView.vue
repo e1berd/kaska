@@ -19,7 +19,6 @@ import {
   type TiptapDoc,
 } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
-import { usePinnedProjectsStore } from '@/stores/pinnedProjects'
 import { useSocketStore, pushAsync } from '@/stores/socket'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import RichEditor from '@/components/RichEditor.vue'
@@ -39,7 +38,6 @@ const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
-const pinned = usePinnedProjectsStore()
 
 const socket = useSocketStore()
 
@@ -319,12 +317,6 @@ async function load() {
       projects.list.length ? Promise.resolve() : projects.joinLobby(),
     ])
     if (!board.project) throw new Error('проект не найден')
-    pinned.add({
-      id: board.project.id,
-      slug: board.project.slug,
-      name: board.project.name,
-      avatar_url: board.project.avatar_url ?? null,
-    })
   } catch (e) {
     error.value = (e as { message?: string }).message ?? 'не удалось открыть доску'
   } finally {
@@ -569,7 +561,7 @@ watch(
     taskAssignee.value,
   ],
   () => {
-    if (!taskDialog.value || !currentTask.value || !auth.isAuthed) return
+    if (!taskDialog.value || !currentTask.value || !board.canWrite) return
     if (taskSyncing.value) return
     if (isFormSyncedWithTask(currentTask.value)) return
     if (taskSaveTimer) clearTimeout(taskSaveTimer)
@@ -644,7 +636,7 @@ async function setupCollab(taskId: string) {
     const aw = new Awareness(doc)
     const provider = new PhoenixYProvider(channel, doc, aw, {
       onLocalSettle: () => {
-        if (!auth.isAuthed) return
+        if (!board.canWrite) return
         const docJson = richEditorRef.value?.getJSON()
         if (!docJson) return
         beginSave()
@@ -716,7 +708,7 @@ async function saveTask() {
     void endSave()
     if (taskSaveQueued) {
       taskSaveQueued = false
-      if (taskDialog.value && currentTask.value && auth.isAuthed) {
+      if (taskDialog.value && currentTask.value && board.canWrite) {
         void saveTask()
       }
     }
@@ -927,9 +919,9 @@ const boardBackgroundStyle = computed(() => ({
         Фильтры
       </v-btn>
       <v-btn
-        v-if="auth.isAuthed"
+        v-if="board.canWrite"
         prepend-icon="mdi-plus"
-        key="auth.isAuthed"
+        key="board.canWrite"
         variant="tonal"
         rounded="pill"
         @click="openNewColumn"
@@ -1115,7 +1107,7 @@ const boardBackgroundStyle = computed(() => ({
               flat
               rounded="pill"
               :menu-props="{ closeOnContentClick: true }"
-              :readonly="!auth.isAuthed"
+              :readonly="!board.canWrite"
               class="ks-table__col-select"
               @click.stop
               @update:model-value="(v: unknown) => changeColumn(item, v)"
@@ -1273,13 +1265,13 @@ const boardBackgroundStyle = computed(() => ({
                 label="Название"
                 variant="filled"
                 density="comfortable"
-                :readonly="!auth.isAuthed"
+                :readonly="!board.canWrite"
               />
 
               <div class="ks-desc__head mt-2 mb-2">
                 <div class="md-label-large">Описание</div>
                 <v-btn
-                  v-if="auth.isAuthed && !editingDescription"
+                  v-if="board.canWrite && !editingDescription"
                   variant="text"
                   size="small"
                   rounded="pill"
@@ -1289,7 +1281,7 @@ const boardBackgroundStyle = computed(() => ({
                   Редактировать
                 </v-btn>
                 <v-btn
-                  v-else-if="auth.isAuthed && editingDescription"
+                  v-else-if="board.canWrite && editingDescription"
                   variant="text"
                   size="small"
                   rounded="pill"
@@ -1307,7 +1299,7 @@ const boardBackgroundStyle = computed(() => ({
                 :ydoc="taskYDoc"
                 :awareness="taskAwareness"
                 :user="collabUser"
-                :editable="auth.isAuthed && editingDescription"
+                :editable="board.canWrite && editingDescription"
                 placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
                 @blur="onDescriptionBlur"
               />
@@ -1315,7 +1307,7 @@ const boardBackgroundStyle = computed(() => ({
               <div class="ks-attach__head mt-5 mb-2">
                 <div class="md-label-large">Вложения</div>
                 <v-btn
-                  v-if="auth.isAuthed"
+                  v-if="board.canWrite"
                   variant="tonal"
                   rounded="pill"
                   size="small"
@@ -1380,7 +1372,7 @@ const boardBackgroundStyle = computed(() => ({
                 <span class="ks-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
               </div>
               <v-btn
-                v-if="auth.isAuthed"
+                v-if="board.canWrite"
                 icon="mdi-close"
                 variant="text"
                 density="comfortable"
@@ -1400,7 +1392,7 @@ const boardBackgroundStyle = computed(() => ({
                     label="Дата начала"
                     density="comfortable"
                     clearable
-                    :readonly="!auth.isAuthed"
+                    :readonly="!board.canWrite"
                     prepend-icon=""
                     prepend-inner-icon="mdi-calendar"
                   />
@@ -1409,7 +1401,7 @@ const boardBackgroundStyle = computed(() => ({
                     label="Дата окончания"
                     density="comfortable"
                     clearable
-                    :readonly="!auth.isAuthed"
+                    :readonly="!board.canWrite"
                     prepend-icon=""
                     prepend-inner-icon="mdi-calendar"
                   />
@@ -1422,7 +1414,7 @@ const boardBackgroundStyle = computed(() => ({
                     variant="filled"
                     density="comfortable"
                     clearable
-                    :readonly="!auth.isAuthed"
+                    :readonly="!board.canWrite"
                   >
                     <template #item="{ props: itemProps, item }">
                       <v-list-item v-bind="itemProps">
@@ -1451,7 +1443,7 @@ const boardBackgroundStyle = computed(() => ({
                     variant="filled"
                     density="comfortable"
                     clearable
-                    :readonly="!auth.isAuthed"
+                    :readonly="!board.canWrite"
                   >
                     <template #item="{ props: itemProps, item }">
                       <v-list-item
@@ -1515,7 +1507,7 @@ const boardBackgroundStyle = computed(() => ({
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
           <v-btn
-            v-if="auth.isAuthed"
+            v-if="board.canWrite"
             color="error"
             variant="text"
             rounded="pill"
@@ -1527,7 +1519,7 @@ const boardBackgroundStyle = computed(() => ({
           <div
             key="save"
             class="save-icon flex items-center justify-center text-primary"
-            v-if="auth.isAuthed && taskSaving"
+            v-if="board.canWrite && taskSaving"
             style="height: 24px"
           >
             <PhFloppyDisk size="24" />

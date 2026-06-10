@@ -3,7 +3,7 @@ defmodule Kaska.Projects.Project do
   import Ecto.Changeset
 
   alias Kaska.Accounts.User
-  alias Kaska.Projects.{Column, Task}
+  alias Kaska.Projects.{Column, ProjectMember, Task}
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -15,10 +15,12 @@ defmodule Kaska.Projects.Project do
     field :description, :string
     field :avatar_key, :string
     field :background_key, :string
+    field :public_link, :boolean, default: false
 
     belongs_to :owner, User
     has_many :columns, Column
     has_many :tasks, Task
+    has_many :members, ProjectMember
 
     timestamps()
   end
@@ -46,6 +48,12 @@ defmodule Kaska.Projects.Project do
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 120)
     |> validate_length(:description, max: 4000)
+  end
+
+  def visibility_changeset(project, attrs) do
+    project
+    |> cast(attrs, [:public_link])
+    |> validate_required([:public_link])
   end
 
   def media_changeset(project, attrs) do

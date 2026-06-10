@@ -80,8 +80,29 @@ export interface BoardSettings {
   allow_guest_comments: boolean
 }
 
+export interface ProjectMember {
+  user_id: string
+  role: 'owner' | 'member'
+  email: string | null
+  display_name: string | null
+  avatar_url: string | null
+  inserted_at?: string
+}
+
+export interface ProjectInvite {
+  id: string
+  token: string
+  email: string | null
+  expires_at: string | null
+  accepted_at: string | null
+  inserted_at?: string
+  url?: string
+}
+
 export interface BoardSnapshot {
   project: Project
+  can_write?: boolean
+  is_owner?: boolean
   columns: Column[]
   tasks: Task[]
   task_types: TaskType[]
@@ -114,6 +135,8 @@ export const useBoardStore = defineStore('board', () => {
   const lastTaskDeleted = ref<TaskDeletedEvent | null>(null)
   const channel = ref<Channel | null>(null)
   const topic = ref<string | null>(null)
+  const canWrite = ref(false)
+  const isOwner = ref(false)
 
   const orderedColumns = computed(() =>
     [...columns.value].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0)),
@@ -151,6 +174,8 @@ export const useBoardStore = defineStore('board', () => {
     const { channel: ch, reply } = await sock.joinChannel<BoardSnapshot>(targetTopic)
 
     project.value = reply.project
+    canWrite.value = reply.can_write ?? false
+    isOwner.value = reply.is_owner ?? false
     columns.value = reply.columns.slice()
     tasks.value = reply.tasks.slice()
     if (reply.task_types) task_types.value = reply.task_types.slice()
@@ -211,6 +236,8 @@ export const useBoardStore = defineStore('board', () => {
     settings.value = { allow_guest_comments: false }
     presences.value = {}
     lastTaskDeleted.value = null
+    canWrite.value = false
+    isOwner.value = false
   }
 
   function attachmentsFor(taskId: string): Attachment[] {
@@ -395,6 +422,35 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task_type', { id })
   }
 
+  async function listMembers() {
+    const reply = await pushAsync<{ members: ProjectMember[] }>(ch(), 'list_members', {})
+    return reply.members
+  }
+
+  async function listInvites() {
+    const reply = await pushAsync<{ invites: ProjectInvite[] }>(ch(), 'list_invites', {})
+    return reply.invites
+  }
+
+  function inviteMember(input: { email?: string | null; expires_in_minutes?: number | null }) {
+    return pushAsync<ProjectInvite>(ch(), 'invite_member', {
+      email: input.email ?? null,
+      expires_in_minutes: input.expires_in_minutes ?? null,
+    })
+  }
+
+  function revokeInvite(id: string) {
+    return pushAsync<{ id: string }>(ch(), 'revoke_invite', { id })
+  }
+
+  function removeMember(userId: string) {
+    return pushAsync<{ user_id: string }>(ch(), 'remove_member', { user_id: userId })
+  }
+
+  function setPublicLink(value: boolean) {
+    return pushAsync<Project>(ch(), 'set_public_link', { public_link: value })
+  }
+
   return {
     project,
     columns,
@@ -404,6 +460,8 @@ export const useBoardStore = defineStore('board', () => {
     attachments,
     taskComments,
     settings,
+    canWrite,
+    isOwner,
     lastTaskDeleted,
     orderedColumns,
     activeViewerIds,
@@ -428,5 +486,11 @@ export const useBoardStore = defineStore('board', () => {
     deleteTaskType,
     uploadTaskAttachment,
     deleteTaskAttachment,
+    listMembers,
+    listInvites,
+    inviteMember,
+    revokeInvite,
+    removeMember,
+    setPublicLink,
   }
 })

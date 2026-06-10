@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue'
-import { useRoute, type RouteLocationRaw } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useDisplay, useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useSocketStore } from '@/stores/socket'
 import { useSysStore } from '@/stores/sys'
 import { useBoardStore } from '@/stores/board'
 import { useThemeStore } from '@/stores/theme'
-import { usePinnedProjectsStore } from '@/stores/pinnedProjects'
 import { PhUser, PhSignOut } from '@phosphor-icons/vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
+import HomeNav from '@/components/HomeNav.vue'
+import ProjectNav from '@/components/ProjectNav.vue'
 import { cssColorOr } from '@/utils/css'
 
 const auth = useAuthStore()
@@ -17,7 +18,6 @@ const socket = useSocketStore()
 const sys = useSysStore()
 const board = useBoardStore()
 const theme = useThemeStore()
-const pinned = usePinnedProjectsStore()
 const route = useRoute()
 const { mobile } = useDisplay()
 const vuetifyTheme = useTheme()
@@ -101,11 +101,14 @@ watch(
   { immediate: true },
 )
 
+const projectScopeRoutes = ['board', 'task', 'board_types', 'board_members', 'board_settings']
+
+const inProjectScope = computed(() => projectScopeRoutes.includes(route.name as string))
+
 watch(
-  () => route.name,
-  (name) => {
-    const inProjectScope = name === 'board' || name === 'task' || name === 'board_types'
-    if (!inProjectScope && board.project) {
+  () => inProjectScope.value,
+  (inScope) => {
+    if (!inScope && board.project) {
       board.leave()
     }
   },
@@ -122,42 +125,6 @@ const headerPresenceUsers = computed(() => {
 })
 
 const headerPresenceLabel = 'Сейчас в проекте'
-
-interface NavItem {
-  key: string
-  label: string
-  icon: string
-  to: RouteLocationRaw
-}
-
-const navItems = computed<NavItem[]>(() => {
-  const items: NavItem[] = [
-    {
-      key: 'projects',
-      label: 'Проекты',
-      icon: 'mdi-view-grid-outline',
-      to: { name: 'projects' },
-    },
-  ]
-
-  items.push({
-    key: 'members',
-    label: 'Участники',
-    icon: 'mdi-account-multiple-outline',
-    to: { name: 'members' }
-  });
-
-  if (auth.isAuthed) {
-    items.push({
-      key: 'settings',
-      label: 'Настройки',
-      icon: 'mdi-cog-outline',
-      to: { name: 'settings' }
-    });
-  }
-
-  return items
-})
 
 function logout() {
   auth.logout()
@@ -279,63 +246,8 @@ function logout() {
         class="ks-nav"
         :border="0"
       >
-        <nav class="ks-nav__list" v-auto-animate>
-          <div
-            v-for="project in pinned.list"
-            :key="`pin:${project.id}`"
-            class="ks-nav__pin-group"
-          >
-            <button
-              type="button"
-              class="ks-nav__pin-remove"
-              :aria-label="`Открепить ${project.name}`"
-              @click.stop.prevent="pinned.remove(project.id)"
-            >
-              <v-icon size="14">mdi-close</v-icon>
-            </button>
-            <router-link
-              :to="{ name: 'board', params: { slug: project.slug } }"
-              class="ks-nav__item ks-nav__item--pin md-state-layer"
-              :title="project.name"
-            >
-              <span class="ks-nav__pill ks-nav__pill--pin">
-                <v-avatar size="32" color="primary-container">
-                  <v-img
-                    v-if="project.avatar_url"
-                    :src="project.avatar_url"
-                    cover
-                    alt=""
-                  />
-                  <span v-else class="md-label-large">
-                    {{ (project.name || '?').slice(0, 1).toUpperCase() }}
-                  </span>
-                </v-avatar>
-              </span>
-              <span class="ks-nav__label md-label-medium">{{ project.name }}</span>
-            </router-link>
-            <router-link
-              :to="{ name: 'board_types', params: { slug: project.slug } }"
-              class="ks-nav__item ks-nav__item--sub md-state-layer"
-              :title="`Типы задач — ${project.name}`"
-            >
-              <span class="ks-nav__pill ks-nav__pill--sub">
-                <v-icon size="20">mdi-tag-multiple-outline</v-icon>
-              </span>
-              <span class="ks-nav__label md-label-medium">Типы</span>
-            </router-link>
-          </div>
-          <router-link
-            v-for="item in navItems"
-            :key="item.key"
-            :to="item.to"
-            class="ks-nav__item md-state-layer"
-          >
-            <span class="ks-nav__pill">
-              <v-icon size="24">{{ item.icon }}</v-icon>
-            </span>
-            <span class="ks-nav__label md-label-medium">{{ item.label }}</span>
-          </router-link>
-        </nav>
+        <ProjectNav v-if="inProjectScope && currentSlug" :slug="currentSlug" />
+        <HomeNav v-else />
       </v-navigation-drawer>
 
       <v-main>
@@ -404,126 +316,5 @@ function logout() {
 .ks-nav {
   background: rgb(var(--v-theme-surface)) !important;
   border-right: 1px solid rgba(var(--v-theme-on-surface), 0.06);
-}
-.ks-nav__list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 4px;
-}
-.ks-nav__item {
-  --md-state-color: rgb(var(--v-theme-on-surface));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: 72px;
-  height: 64px;
-  padding: 4px 0 6px;
-  border-radius: var(--md-shape-l);
-  text-decoration: none;
-  color: rgb(var(--v-theme-on-surface));
-}
-.ks-nav__pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 32px;
-  border-radius: var(--md-shape-full);
-  transition: background-color var(--md-duration-short4) var(--md-easing-emphasized);
-}
-.ks-nav__item.router-link-active .ks-nav__pill {
-  background: rgb(var(--v-theme-secondary-container));
-  color: rgb(var(--v-theme-on-secondary-container));
-}
-.ks-nav__item.router-link-active :deep(.v-icon) {
-  color: rgb(var(--v-theme-on-secondary-container));
-}
-.ks-nav__label {
-  text-align: center;
-  font-size: 11px;
-  line-height: 1.1;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  color: inherit;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ks-nav__pin-group {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  padding: 4px;
-  border-radius: var(--md-shape-l);
-  background: rgb(var(--v-theme-surface-container));
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
-  width: 80px;
-}
-.ks-nav__pin-group + .ks-nav__pin-group {
-  margin-top: 2px;
-}
-.ks-nav__pin-group + .ks-nav__item {
-  margin-top: 8px;
-}
-.ks-nav__pill--pin {
-  width: 56px;
-  height: 40px;
-  background: transparent;
-}
-.ks-nav__item--pin.router-link-active .ks-nav__pill--pin {
-  background: transparent;
-}
-.ks-nav__item--pin.router-link-active :deep(.v-avatar) {
-  outline: 2px solid rgb(var(--v-theme-primary));
-  outline-offset: 2px;
-}
-.ks-nav__item--sub {
-  width: 72px;
-  height: 50px;
-  padding: 2px 0 4px;
-}
-.ks-nav__pill--sub {
-  width: 48px;
-  height: 26px;
-  background: rgb(var(--v-theme-surface-container-high));
-}
-.ks-nav__item--sub.router-link-active .ks-nav__pill--sub {
-  background: rgb(var(--v-theme-secondary-container));
-  color: rgb(var(--v-theme-on-secondary-container));
-}
-.ks-nav__pin-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(var(--v-theme-error));
-  color: rgb(var(--v-theme-on-error));
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0;
-  transform: scale(0.7);
-  transition:
-    opacity var(--md-duration-short3) var(--md-easing-standard),
-    transform var(--md-duration-short3) var(--md-easing-emphasized);
-  pointer-events: none;
-  z-index: 2;
-}
-.ks-nav__pin-group:hover .ks-nav__pin-remove,
-.ks-nav__pin-remove:focus-visible {
-  opacity: 1;
-  transform: scale(1);
-  pointer-events: auto;
 }
 </style>

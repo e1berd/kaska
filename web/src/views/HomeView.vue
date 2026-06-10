@@ -2,11 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore, type Project } from '@/stores/projects'
-import { usePinnedProjectsStore } from '@/stores/pinnedProjects'
 
 const auth = useAuthStore()
 const projects = useProjectsStore()
-const pinned = usePinnedProjectsStore()
 
 const loading = ref(true)
 
@@ -37,12 +35,6 @@ const displayedName = computed(() => {
 
 const avatarUrl = computed(() => auth.user?.avatar_url ?? null)
 const initial = computed(() => (displayedName.value ?? '?').slice(0, 1).toUpperCase())
-
-const pinnedProject = computed<Project | null>(() => {
-  const first = pinned.list[0]
-  if (!first) return null
-  return projects.list.find((p) => p.id === first.id) ?? null
-})
 
 function ts(p: Project): number {
   return Date.parse(p.updated_at ?? p.inserted_at ?? '') || 0
@@ -155,52 +147,6 @@ function relTime(iso?: string): string {
       </aside>
     </header>
 
-
-    <section v-if="pinnedProject" class="ks-section">
-      <header class="ks-section__head">
-        <h2 class="md-title-large ks-section__title">
-          <v-icon size="20" class="mr-2">mdi-pin</v-icon>
-          Закреплённый проект
-        </h2>
-      </header>
-      <router-link
-        :to="{ name: 'board', params: { slug: pinnedProject.slug } }"
-        class="ks-pin md-state-layer"
-      >
-        <v-avatar
-          :color="pinnedProject.avatar_url ? undefined : accent(pinnedProject.id)"
-          size="64"
-          rounded="lg"
-          class="ks-pin__avatar"
-        >
-          <v-img
-            v-if="pinnedProject.avatar_url"
-            :src="pinnedProject.avatar_url"
-            cover
-            alt=""
-          />
-          <span v-else class="text-white md-headline-small">
-            {{ pinnedProject.name.slice(0, 1).toUpperCase() }}
-          </span>
-        </v-avatar>
-        <div class="ks-pin__body">
-          <div class="ks-pin__title">
-            <span class="md-title-large">{{ pinnedProject.name }}</span>
-            <code class="ks-pin__slug md-label-medium">/{{ pinnedProject.slug }}</code>
-          </div>
-          <p
-            v-if="pinnedProject.description"
-            class="ks-pin__desc md-body-medium text-medium-emphasis"
-          >
-            {{ pinnedProject.description }}
-          </p>
-          <span class="ks-pin__cta md-label-large">
-            Продолжить
-            <v-icon size="16">mdi-arrow-right</v-icon>
-          </span>
-        </div>
-      </router-link>
-    </section>
 
     <section class="ks-section">
       <header class="ks-section__head">
@@ -439,80 +385,6 @@ function relTime(iso?: string): string {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px;
-}
-
-.ks-pin {
-  --md-state-color: rgb(var(--v-theme-primary));
-  position: relative;
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-  padding: 24px;
-  text-decoration: none;
-  color: rgb(var(--v-theme-on-surface));
-  background:
-    radial-gradient(circle at 90% 10%, rgba(var(--v-theme-primary), 0.10), transparent 55%),
-    rgb(var(--v-theme-surface-container-low));
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
-  border-radius: var(--md-shape-l);
-  transition:
-    transform var(--md-duration-short4) var(--md-easing-emphasized),
-    box-shadow var(--md-duration-short4) var(--md-easing-emphasized),
-    border-color var(--md-duration-short4) var(--md-easing-emphasized);
-}
-.ks-pin:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--md-elev-2);
-  border-color: rgba(var(--v-theme-primary), 0.4);
-}
-.ks-pin:focus-visible {
-  outline: none;
-  border-color: rgb(var(--v-theme-primary));
-}
-.ks-pin__avatar {
-  flex-shrink: 0;
-}
-.ks-pin__body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-.ks-pin__title {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  min-width: 0;
-}
-.ks-pin__title > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ks-pin__slug {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.ks-pin__desc {
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.ks-pin__cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  color: rgb(var(--v-theme-primary));
-  transition: transform var(--md-duration-short4) var(--md-easing-emphasized);
-}
-.ks-pin:hover .ks-pin__cta {
-  transform: translateX(2px);
 }
 
 .ks-card {

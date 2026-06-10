@@ -81,9 +81,16 @@ state layers, типографика). Доводим руками.
 
 - **Drag-and-drop** — только `@atlaskit/pragmatic-drag-and-drop`. Никаких
   `vuedraggable` / `Sortable.js`.
-- **Public-read, authed-write** — анонимные посетители видят весь
-  контент. Чтения не прячем, мутации режутся в `handle_in/3` каналов
-  на бэке и через `:readonly`/`:disabled` на фронте.
+- **Приватность по участию** — проект видят только его участники: владелец
+  (`owner`) и приглашённые (`member`). Список проектов — per-user топик
+  `projects:user:<id>`. Доска (`board:*`) открыта участникам на чтение+запись;
+  не-участникам и анонимам — только если у проекта включён `public_link`
+  (тогда read-only). Доступ к доске проверяется на join канала
+  (`Projects.board_accessible?/2`), запись — по членству (`can_write` /
+  `Projects.member?/2`) в `handle_in/3`, а на фронте через `board.canWrite`
+  (`:readonly`/`:disabled`). Управление участниками/приглашениями и
+  `public_link` — только владелец. Приглашают по email или ссылкой-токеном
+  (`project_invites`); принятие (`/invite/:token`) добавляет в `member`.
 - **Realtime через Phoenix Channels** — любая доменная мутация
   отправляется через канал и обновление приходит broadcast-событием.
   REST-эндпоинтов для доменных операций не делаем. Локальный store не

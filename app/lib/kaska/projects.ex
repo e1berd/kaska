@@ -13,7 +13,16 @@ defmodule Kaska.Projects do
   alias Ecto.Multi
   alias Kaska.Repo
   alias Kaska.Rank
-  alias Kaska.Projects.{Column, Project, Task, TaskComment, TaskType}
+
+  alias Kaska.Projects.{
+    Column,
+    Project,
+    ProjectInvite,
+    ProjectMember,
+    Task,
+    TaskComment,
+    TaskType
+  }
 
   @default_columns [
     {"Todo", "F"},
@@ -23,9 +32,16 @@ defmodule Kaska.Projects do
 
   ## Projects ─────────────────────────────────────────────────────────────
 
-  def list_projects do
-    Repo.all(from p in Project, order_by: [asc: p.inserted_at])
+  def list_projects(user_id) when is_binary(user_id) do
+    Repo.all(
+      from p in Project,
+        join: m in ProjectMember,
+        on: m.project_id == p.id and m.user_id == ^user_id,
+        order_by: [asc: p.inserted_at]
+    )
   end
+
+  def list_projects(_), do: []
 
   def get_project(id) when is_binary(id) do
     case Ecto.UUID.cast(id) do
@@ -86,6 +102,13 @@ defmodule Kaska.Projects do
 
         {:ok, columns}
       end)
+      |> Multi.insert(:owner_membership, fn %{project: project} ->
+        ProjectMember.changeset(%ProjectMember{}, %{
+          project_id: project.id,
+          user_id: owner_id,
+          role: :owner
+        })
+      end)
 
     case Repo.transaction(multi) do
       {:ok, %{project: project}} -> {:ok, project}
@@ -121,6 +144,135 @@ defmodule Kaska.Projects do
   end
 
   def delete_project(%Project{} = project), do: Repo.delete(project)
+
+  def set_project_visibility(%Project{} = project, attrs) do
+    project
+    |> Project.visibility_changeset(attrs)
+    |> Repo.update()
+  end
+
+  ## Membership ────────────────────────────────────────────────────────────
+
+  def member?(project_id, user_id) when is_binary(project_id) and is_binary(user_id) do
+    Repo.exists?(
+      from m in ProjectMember,
+        where: m.project_id == ^project_id and m.user_id == ^user_id
+    )
+  end
+
+  def member?(_, _), do: false
+
+  def owner?(%Project{owner_id: owner_id}, user_id), do: owner_id == user_id
+  def owner?(_, _), do: false
+
+  def list_members(project_id) when is_binary(project_id) do
+    Repo.all(
+      from m in ProjectMember,
+        where: m.project_id == ^project_id,
+        order_by: [asc: m.inserted_at],
+        preload: [:user]
+    )
+  end
+
+  def add_member(project_id, user_id, role \\ :member)
+      when is_binary(project_id) and is_binary(user_id) do
+    %ProjectMember{}
+    |> ProjectMember.changeset(%{project_id: project_id, user_id: user_id, role: role})
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:project_id, :user_id]
+    )
+  end
+
+  def remove_member(project_id, user_id) when is_binary(project_id) and is_binary(user_id) do
+    {count, _} =
+      Repo.delete_all(
+        from m in ProjectMember,
+          where:
+            m.project_id == ^project_id and m.user_id == ^user_id and m.role != :owner
+      )
+
+    {:ok, count}
+  end
+
+  def member_user_ids(project_id) when is_binary(project_id) do
+    Repo.all(from m in ProjectMember, where: m.project_id == ^project_id, select: m.user_id)
+  end
+
+  def board_accessible?(%Project{} = project, user_id) when is_binary(user_id) do
+    project.public_link or member?(project.id, user_id)
+  end
+
+  def board_accessible?(%Project{} = project, _), do: project.public_link
+
+  ## Project invites ───────────────────────────────────────────────────────
+
+  def list_project_invites(project_id) when is_binary(project_id) do
+    Repo.all(
+      from i in ProjectInvite,
+        where: i.project_id == ^project_id and is_nil(i.accepted_at),
+        order_by: [desc: i.inserted_at]
+    )
+  end
+
+  def get_project_invite_by_token(token) when is_binary(token) do
+    Repo.get_by(ProjectInvite, token: token)
+  end
+
+  def get_project_invite_by_token(_), do: nil
+
+  def get_project_invite_by_id(id, project_id) when is_binary(id) and is_binary(project_id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _} -> Repo.get_by(ProjectInvite, id: id, project_id: project_id)
+      :error -> nil
+    end
+  end
+
+  def get_project_invite_by_id(_, _), do: nil
+
+  def create_project_invite(project_id, attrs) when is_binary(project_id) do
+    token = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+
+    %ProjectInvite{}
+    |> ProjectInvite.changeset(Map.merge(attrs, %{project_id: project_id, token: token}))
+    |> Repo.insert()
+  end
+
+  def delete_project_invite(%ProjectInvite{} = invite), do: Repo.delete(invite)
+
+  def accept_project_invite(token, user_id) when is_binary(token) and is_binary(user_id) do
+    with %ProjectInvite{} = invite <- get_project_invite_by_token(token),
+         :ok <- check_invite_live(invite),
+         {:ok, _} <- add_member(invite.project_id, user_id, :member) do
+      maybe_mark_accepted(invite)
+      {:ok, get_project(invite.project_id)}
+    else
+      nil -> {:error, :invalid_invite}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp maybe_mark_accepted(%ProjectInvite{email: nil}), do: :ok
+
+  defp maybe_mark_accepted(%ProjectInvite{accepted_at: nil} = invite) do
+    invite
+    |> ProjectInvite.changeset(%{
+      accepted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.update()
+  end
+
+  defp maybe_mark_accepted(_), do: :ok
+
+  defp check_invite_live(%ProjectInvite{expires_at: nil}), do: :ok
+
+  defp check_invite_live(%ProjectInvite{expires_at: expires_at}) do
+    if DateTime.compare(expires_at, DateTime.utc_now()) == :gt do
+      :ok
+    else
+      {:error, :expired}
+    end
+  end
 
   ## Board snapshot ───────────────────────────────────────────────────────
 
