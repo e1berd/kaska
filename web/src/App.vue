@@ -101,6 +101,8 @@ watch(
   { immediate: true },
 )
 
+const authScreen = computed(() => route.meta.authScreen === true)
+
 const projectScopeRoutes = ['board', 'task', 'board_types', 'board_members', 'board_settings']
 
 const inProjectScope = computed(() => projectScopeRoutes.includes(route.name as string))
@@ -133,7 +135,7 @@ function logout() {
 
 <template>
   <v-app>
-    <template v-if="true">
+    <template v-if="!authScreen">
       <v-app-bar flat color="surface" class="ks-bar" height="64">
         <template #prepend>
           <v-app-bar-nav-icon
@@ -254,6 +256,30 @@ function logout() {
         <router-view />
       </v-main>
     </template>
+
+    <template v-else>
+      <v-main class="ks-authshell">
+        <div class="ks-authshell__grid">
+          <section class="ks-authshell__hero">
+            <router-link :to="{ name: 'login' }" class="ks-authshell__brand md-state-layer">
+              <span class="ks-brand__logo">
+                <v-icon size="22">mdi-hard-hat</v-icon>
+              </span>
+              <span class="ks-brand__name md-title-large">Kaska</span>
+            </router-link>
+            <h1 class="ks-authshell__title">Канбан-трекер задач с realtime-обновлениями</h1>
+            <p class="ks-authshell__lede md-body-large">
+              Войдите, чтобы вернуться к своим проектам и доскам.
+              Публичные доски доступны по прямой ссылке без аккаунта.
+            </p>
+          </section>
+
+          <div class="ks-authshell__panel">
+            <router-view />
+          </div>
+        </div>
+      </v-main>
+    </template>
   </v-app>
 </template>
 
@@ -316,5 +342,74 @@ function logout() {
 .ks-nav {
   background: rgb(var(--v-theme-surface)) !important;
   border-right: 1px solid rgba(var(--v-theme-on-surface), 0.06);
+}
+
+.ks-authshell {
+  min-block-size: 100dvh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--v-theme-primary), 0.16), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(var(--v-theme-tertiary), 0.12), transparent 55%),
+    rgb(var(--v-theme-surface));
+}
+.ks-authshell__grid {
+  min-block-size: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 48px;
+  max-inline-size: 1100px;
+  margin-inline: auto;
+  padding: 48px 32px;
+}
+@media (max-width: 900px) {
+  .ks-authshell__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding: 32px 20px;
+    align-content: center;
+  }
+}
+
+.ks-authshell__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-inline-size: 480px;
+}
+.ks-authshell__brand {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: rgb(var(--v-theme-on-surface));
+  padding: 6px 14px 6px 6px;
+  border-radius: var(--md-shape-full);
+  --md-state-color: rgb(var(--v-theme-on-surface));
+}
+.ks-authshell__title {
+  font-family: 'Roboto Flex', 'Roboto', sans-serif;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  margin: 0;
+  color: rgb(var(--v-theme-on-surface));
+}
+.ks-authshell__lede {
+  margin: 0;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+@media (max-width: 900px) {
+  .ks-authshell__hero {
+    max-inline-size: none;
+    text-align: center;
+    align-items: center;
+  }
+}
+
+.ks-authshell__panel {
+  display: flex;
+  justify-content: center;
 }
 </style>

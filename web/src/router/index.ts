@@ -9,6 +9,7 @@ const routes: RouteRecordRaw[] = [
     name: 'board',
     component: () => import('@/views/BoardView.vue'),
     props: true,
+    meta: { guest: true },
   },
   {
     path: '/p/:slug/types',
@@ -33,34 +34,50 @@ const routes: RouteRecordRaw[] = [
     name: 'task',
     component: () => import('@/views/TaskView.vue'),
     props: true,
+    meta: { guest: true },
   },
   {
     path: '/invite/:token',
     name: 'invite',
     component: () => import('@/views/AcceptInviteView.vue'),
     props: true,
-    meta: { requiresAuth: true },
   },
-  { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
-  { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { authScreen: true },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { authScreen: true },
+  },
   {
     path: '/verify/:token',
     name: 'verify',
     component: () => import('@/views/VerifyView.vue'),
     props: true,
+    meta: { authScreen: true },
   },
-  { path: '/forgot', name: 'forgot', component: () => import('@/views/ForgotView.vue') },
+  {
+    path: '/forgot',
+    name: 'forgot',
+    component: () => import('@/views/ForgotView.vue'),
+    meta: { authScreen: true },
+  },
   {
     path: '/reset/:token',
     name: 'reset',
     component: () => import('@/views/ResetView.vue'),
     props: true,
+    meta: { authScreen: true },
   },
   {
     path: '/me',
     name: 'me',
     component: () => import('@/views/MeView.vue'),
-    meta: { requiresAuth: true },
   },
   {
     path: '/members',
@@ -71,7 +88,6 @@ const routes: RouteRecordRaw[] = [
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/SettingsView.vue'),
-    meta: { requiresAuth: true },
   },
   {
     path: '/:pathMatch(.*)*',
@@ -90,8 +106,21 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.isAuthed) {
-    return { name: 'login', query: { next: to.fullPath } }
+
+  if (auth.isAuthed) {
+    if (to.name === 'login' || to.name === 'register') {
+      return { name: 'home' }
+    }
+    return
+  }
+
+  if (to.meta.authScreen === true || to.meta.guest === true) {
+    return
+  }
+
+  return {
+    name: 'login',
+    query: to.fullPath === '/' ? {} : { next: to.fullPath },
   }
 })
 

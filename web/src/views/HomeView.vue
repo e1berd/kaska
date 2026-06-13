@@ -77,13 +77,7 @@ function relTime(iso?: string): string {
           </template>
         </h1>
         <p class="md-body-large ks-greet__lede">
-          <template v-if="auth.isAuthed">
-            Вернитесь к работе или начните новый проект.
-          </template>
-          <template v-else>
-            Просматривать проекты и доски можно без аккаунта. Чтобы создавать
-            и менять задачи — войдите или зарегистрируйтесь.
-          </template>
+          Вернитесь к работе или начните новый проект.
         </p>
 
         <div class="ks-greet__actions">
@@ -98,7 +92,6 @@ function relTime(iso?: string): string {
             К проектам
           </v-btn>
           <v-btn
-            v-if="auth.isAuthed"
             variant="tonal"
             size="large"
             rounded="pill"
@@ -107,28 +100,10 @@ function relTime(iso?: string): string {
           >
             Новый проект
           </v-btn>
-          <template v-else>
-            <v-btn
-              variant="tonal"
-              size="large"
-              rounded="pill"
-              :to="{ name: 'register' }"
-            >
-              Создать аккаунт
-            </v-btn>
-            <v-btn
-              variant="text"
-              size="large"
-              rounded="pill"
-              :to="{ name: 'login' }"
-            >
-              Войти
-            </v-btn>
-          </template>
         </div>
       </div>
 
-      <aside v-if="auth.isAuthed" class="ks-greet__user">
+      <aside class="ks-greet__user">
         <router-link :to="{ name: 'me' }" class="ks-greet__user-link md-state-layer">
           <v-avatar
             :color="avatarUrl ? undefined : 'primary'"
@@ -176,12 +151,9 @@ function relTime(iso?: string): string {
         </div>
         <h3 class="md-title-medium mt-3">Здесь пока пусто</h3>
         <p class="md-body-medium text-medium-emphasis mt-1 mb-4">
-          {{ auth.isAuthed
-            ? 'Создайте первый проект, чтобы начать работу.'
-            : 'Войдите, чтобы создать проект.' }}
+          Создайте первый проект, чтобы начать работу.
         </p>
         <v-btn
-          v-if="auth.isAuthed"
           color="primary"
           variant="flat"
           rounded="pill"
@@ -189,15 +161,6 @@ function relTime(iso?: string): string {
           :to="{ name: 'projects' }"
         >
           К проектам
-        </v-btn>
-        <v-btn
-          v-else
-          color="primary"
-          variant="flat"
-          rounded="pill"
-          :to="{ name: 'login' }"
-        >
-          Войти
         </v-btn>
       </div>
 

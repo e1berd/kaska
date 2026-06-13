@@ -91,6 +91,18 @@ services:
     volumes:
       - web-dist:/export
 
+  landing:
+    networks:
+      - default
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    image: kaska-landing:latest
+    container_name: kaska-landing
+    restart: "no"
+    volumes:
+      - landing-dist:/export
+
   caddy:
     networks:
       - default
@@ -109,12 +121,14 @@ services:
       - "443:443/udp"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./landing:/srv/landing:ro
+      - landing-dist:/srv/landing:ro
       - web-dist:/srv/app:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
       web:
+        condition: service_completed_successfully
+      landing:
         condition: service_completed_successfully
       api:
         condition: service_started
@@ -125,6 +139,7 @@ volumes:
   postgres-data:
   rustfs-data:
   web-dist:
+  landing-dist:
   caddy-data:
   caddy-config:
 

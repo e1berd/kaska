@@ -22,7 +22,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    const next = (route.query.next as string) || '/projects'
+    const next = (route.query.next as string) || '/'
     router.push(next)
   } catch (e: any) {
     error.value = e?.message ?? 'Не удалось войти'

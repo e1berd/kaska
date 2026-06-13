@@ -1,0 +1,196 @@
+---
+import Base from '../layouts/Base.astro'
+
+const appUrl = 'https://app.kaska.space'
+const repoUrl = 'https://github.com/e1berd'
+
+const features = [
+  {
+    title: 'Realtime',
+    body: 'Все изменения синхронизируются мгновенно через Phoenix Channels.',
+  },
+  {
+    title: 'Публичные доски',
+    body: 'Откройте доску по ссылке — гости видят задачи и обновления в realtime без аккаунта.',
+  },
+  {
+    title: 'Self-hosted',
+    body: 'Один docker-compose, своя БД, своё S3-хранилище. Полный контроль над данными.',
+  },
+]
+---
+
+<Base>
+  <main id="main">
+    <section class="hero">
+      <span class="brand">
+        <span class="brand__logo" aria-hidden="true">
+          <svg viewBox="0 0 100 100" width="22" height="22">
+            <path d="M28 66V48a22 22 0 0 1 44 0v18Z" fill="currentColor"></path>
+            <rect x="18" y="66" width="64" height="10" rx="3" fill="currentColor"></rect>
+            <path d="M50 24v10" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+          </svg>
+        </span>
+        Kaska
+      </span>
+
+      <h1>Канбан с realtime-обновлениями</h1>
+      <p class="tagline">
+        Самохостящийся трекер задач: доски, drag-and-drop и мгновенная синхронизация
+        для всей команды.
+      </p>
+
+      <div class="actions">
+        <a class="cta cta--primary" href={appUrl} rel="noopener">Открыть приложение →</a>
+        <a class="cta cta--ghost" href={repoUrl} rel="noopener">GitHub</a>
+      </div>
+    </section>
+
+    <section class="features" aria-label="Возможности">
+      {
+        features.map((f) => (
+          <article class="feature">
+            <h2>{f.title}</h2>
+            <p>{f.body}</p>
+          </article>
+        ))
+      }
+    </section>
+  </main>
+
+  <footer>
+    <p><a href={repoUrl} rel="noopener">GitHub</a> · MIT License</p>
+  </footer>
+</Base>
+
+<style>
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: clamp(48px, 12vh, 120px) 24px 24px;
+  }
+  .hero {
+    text-align: center;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+    margin-bottom: 28px;
+  }
+  .brand__logo {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-on);
+  }
+  h1 {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+    line-height: 1.1;
+  }
+  .tagline {
+    font-size: clamp(1.125rem, 2vw, 1.375rem);
+    color: var(--muted);
+    margin: 0 auto 40px;
+    max-width: 36ch;
+    font-weight: 400;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    text-decoration: none;
+    border-radius: 100px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition:
+      transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1),
+      background 0.2s cubic-bezier(0.2, 0, 0, 1);
+  }
+  .cta--primary {
+    background: var(--accent);
+    color: var(--accent-on);
+  }
+  .cta--primary:hover,
+  .cta--primary:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px var(--accent-shadow);
+    outline: none;
+  }
+  .cta--ghost {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .cta--ghost:hover,
+  .cta--ghost:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+  }
+  .cta:active {
+    transform: translateY(0);
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 72px;
+    text-align: left;
+  }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .feature h2 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .feature p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9375rem;
+  }
+  footer {
+    text-align: center;
+    padding: 48px 24px 56px;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+  footer a {
+    color: var(--muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  footer a:hover,
+  footer a:focus-visible {
+    color: var(--text);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cta {
+      transition: none;
+    }
+    .cta:hover,
+    .cta:focus-visible {
+      transform: none;
+    }
+  }
+</style>

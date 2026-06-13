@@ -79,17 +79,15 @@ body {
 }
 
 :where(.ks-auth) {
-  min-block-size: calc(100vh - 64px);
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
+  display: contents;
 }
 
 :where(.ks-auth__card) {
   inline-size: 100%;
-  max-inline-size: 440px;
-  padding: var(--ks-auth-card-padding, 32px);
+  max-inline-size: 448px;
+  padding: var(--ks-auth-card-padding, 36px 32px);
   background: rgb(var(--v-theme-surface-container-low)) !important;
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
 
 :where(.ks-auth__links) {
