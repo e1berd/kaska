@@ -5,6 +5,7 @@ import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
+import { computeTaskPlacement, type TaskDropTarget } from '@/utils/boardDnd'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
@@ -363,34 +364,20 @@ onMounted(async () => {
       if (!target) return
 
       const sourceTask = source.data.task as Task
-      const targetType = target.data.type as 'task' | 'column'
-      let targetColumnId: string
-      let beforeId: string | null = null
-      let afterId: string | null = null
+      const dropTarget: TaskDropTarget =
+        target.data.type === 'task'
+          ? {
+              kind: 'task',
+              task: target.data.task as Task,
+              edge: extractClosestEdge(target.data) === 'top' ? 'top' : 'bottom',
+            }
+          : { kind: 'column', columnId: target.data.columnId as string }
 
-      if (targetType === 'task') {
-        const overTask = target.data.task as Task
-        if (overTask.id === sourceTask.id) return
-        targetColumnId = overTask.column_id
-        const edge = extractClosestEdge(target.data)
-        const ordered = board.tasksFor(targetColumnId)
-        const idx = ordered.findIndex((t) => t.id === overTask.id)
-        if (edge === 'top') {
-          beforeId = idx > 0 ? ordered[idx - 1].id : null
-          afterId = overTask.id
-        } else {
-          beforeId = overTask.id
-          afterId = idx + 1 < ordered.length ? ordered[idx + 1].id : null
-        }
-      } else {
-        targetColumnId = target.data.columnId as string
-        const ordered = board.tasksFor(targetColumnId).filter((t) => t.id !== sourceTask.id)
-        beforeId = ordered.length ? ordered[ordered.length - 1].id : null
-        afterId = null
-      }
+      const placement = computeTaskPlacement(board.tasksFor, sourceTask, dropTarget)
+      if (!placement) return
 
       board
-        .moveTask(sourceTask.id, targetColumnId, beforeId, afterId)
+        .moveTask(sourceTask.id, placement.columnId, placement.beforeId, placement.afterId)
         .catch((e) => {
           console.warn('[board] move failed', e)
         })

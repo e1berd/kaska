@@ -13,13 +13,20 @@ import {
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { computed } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
+import {
+  computeTaskPlacement,
+  resetTouchDrag,
+  touchDrag,
+  type DropEdge,
+  type TaskPlacement,
+} from '@/utils/boardDnd'
 import { docPreview } from '@/utils/tiptap'
 import { cssColorOr } from '@/utils/css'
 
 const board = useBoardStore()
 
 const props = defineProps<{ task: Task }>()
-defineEmits<{ (e: 'open', task: Task): void }>()
+const emit = defineEmits<{ (e: 'open', task: Task): void }>()
 
 const preview = computed(() => docPreview(props.task.body_doc, 220))
 const attachmentCount = computed(() => board.attachmentsFor(props.task.id).length)
@@ -57,6 +64,17 @@ const root = useTemplateRef<HTMLElement>('root')
 const dragging = ref(false)
 const closestEdge = ref<Edge | null>(null)
 
+const showTopEdge = computed(
+  () =>
+    closestEdge.value === 'top' ||
+    (touchDrag.active && touchDrag.overTaskId === props.task.id && touchDrag.edge === 'top'),
+)
+const showBottomEdge = computed(
+  () =>
+    closestEdge.value === 'bottom' ||
+    (touchDrag.active && touchDrag.overTaskId === props.task.id && touchDrag.edge === 'bottom'),
+)
+
 let cleanup: (() => void) | null = null
 
 let ghost: HTMLElement | null = null
@@ -66,6 +84,196 @@ let grabOffsetY = 0
 function moveGhost(x: number, y: number) {
   if (!ghost) return
   ghost.style.transform = `translate3d(${x - grabOffsetX}px, ${y - grabOffsetY}px, 0)`
+}
+
+const LONG_PRESS_MS = 600
+const SCROLL_CANCEL_PX = 10
+const AUTOSCROLL_EDGE = 64
+const AUTOSCROLL_SPEED = 16
+
+let pressTimer: ReturnType<typeof setTimeout> | null = null
+let touchDragging = false
+let suppressClick = false
+let startX = 0
+let startY = 0
+let pointerX = 0
+let pointerY = 0
+let scrollRAF = 0
+let placement: TaskPlacement | null = null
+
+function clearPressTimer() {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+}
+
+function clearTouchIndicators() {
+  touchDrag.overTaskId = null
+  touchDrag.edge = null
+  touchDrag.overColumnId = null
+}
+
+function updateTouchTarget() {
+  const el = document.elementFromPoint(pointerX, pointerY) as HTMLElement | null
+  if (!el) {
+    placement = null
+    clearTouchIndicators()
+    return
+  }
+
+  const overCard = el.closest('[data-task-id]') as HTMLElement | null
+  if (overCard) {
+    const overId = overCard.getAttribute('data-task-id')
+    if (!overId || overId === props.task.id) {
+      placement = null
+      clearTouchIndicators()
+      return
+    }
+    const overTask = board.taskById(overId)
+    if (!overTask) {
+      placement = null
+      clearTouchIndicators()
+      return
+    }
+    const rect = overCard.getBoundingClientRect()
+    const edge: DropEdge = pointerY < rect.top + rect.height / 2 ? 'top' : 'bottom'
+    placement = computeTaskPlacement(board.tasksFor, props.task, {
+      kind: 'task',
+      task: overTask,
+      edge,
+    })
+    touchDrag.overTaskId = overId
+    touchDrag.edge = edge
+    touchDrag.overColumnId = overTask.column_id
+    return
+  }
+
+  const overColumn = el.closest('.ks-col') as HTMLElement | null
+  const columnId = overColumn?.getAttribute('data-column-id') ?? null
+  if (columnId) {
+    placement = computeTaskPlacement(board.tasksFor, props.task, { kind: 'column', columnId })
+    touchDrag.overTaskId = null
+    touchDrag.edge = null
+    touchDrag.overColumnId = columnId
+    return
+  }
+
+  placement = null
+  clearTouchIndicators()
+}
+
+function autoScrollStep() {
+  if (!touchDragging) return
+  const cols = document.querySelector('.ks-board__cols') as HTMLElement | null
+  if (cols) {
+    const r = cols.getBoundingClientRect()
+    if (pointerX < r.left + AUTOSCROLL_EDGE) cols.scrollLeft -= AUTOSCROLL_SPEED
+    else if (pointerX > r.right - AUTOSCROLL_EDGE) cols.scrollLeft += AUTOSCROLL_SPEED
+  }
+  const under = document.elementFromPoint(pointerX, pointerY) as HTMLElement | null
+  const list = under?.closest('.ks-col__cards') as HTMLElement | null
+  if (list) {
+    const r = list.getBoundingClientRect()
+    if (pointerY < r.top + AUTOSCROLL_EDGE) list.scrollTop -= AUTOSCROLL_SPEED
+    else if (pointerY > r.bottom - AUTOSCROLL_EDGE) list.scrollTop += AUTOSCROLL_SPEED
+  }
+  scrollRAF = requestAnimationFrame(autoScrollStep)
+}
+
+function activateTouchDrag() {
+  if (!root.value) return
+  pressTimer = null
+  touchDragging = true
+  dragging.value = true
+  navigator.vibrate?.(12)
+  document.body.classList.add('ks-dragging')
+  touchDrag.active = true
+  touchDrag.sourceTaskId = props.task.id
+
+  const el = root.value
+  const rect = el.getBoundingClientRect()
+  grabOffsetX = pointerX - rect.left
+  grabOffsetY = pointerY - rect.top
+
+  const clone = el.cloneNode(true) as HTMLElement
+  clone.classList.add('ks-card--ghost')
+  clone.style.width = `${rect.width}px`
+  clone.style.height = `${rect.height}px`
+  clone.querySelectorAll('.ks-card__edge').forEach((node) => node.remove())
+  document.body.appendChild(clone)
+  ghost = clone
+
+  moveGhost(pointerX, pointerY)
+  updateTouchTarget()
+  scrollRAF = requestAnimationFrame(autoScrollStep)
+}
+
+function endTouchDrag(commit: boolean) {
+  clearPressTimer()
+  if (scrollRAF) {
+    cancelAnimationFrame(scrollRAF)
+    scrollRAF = 0
+  }
+  if (touchDragging && commit && placement) {
+    board
+      .moveTask(props.task.id, placement.columnId, placement.beforeId, placement.afterId)
+      .catch((e) => console.warn('[board] touch move failed', e))
+  }
+  if (touchDragging) suppressClick = true
+  touchDragging = false
+  dragging.value = false
+  placement = null
+  document.body.classList.remove('ks-dragging')
+  ghost?.remove()
+  ghost = null
+  resetTouchDrag()
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (!board.canWrite || e.touches.length !== 1) {
+    clearPressTimer()
+    return
+  }
+  const t = e.touches[0]
+  startX = pointerX = t.clientX
+  startY = pointerY = t.clientY
+  clearPressTimer()
+  pressTimer = setTimeout(activateTouchDrag, LONG_PRESS_MS)
+}
+
+function onTouchMove(e: TouchEvent) {
+  const t = e.touches[0]
+  if (!t) return
+  pointerX = t.clientX
+  pointerY = t.clientY
+
+  if (!touchDragging) {
+    if (Math.hypot(pointerX - startX, pointerY - startY) > SCROLL_CANCEL_PX) {
+      clearPressTimer()
+    }
+    return
+  }
+
+  e.preventDefault()
+  moveGhost(pointerX, pointerY)
+  updateTouchTarget()
+}
+
+function onTouchEnd() {
+  endTouchDrag(true)
+}
+
+function onTouchCancel() {
+  endTouchDrag(false)
+}
+
+function onCardClick() {
+  if (suppressClick) {
+    suppressClick = false
+    return
+  }
+  emit('open', props.task)
 }
 
 onMounted(() => {
@@ -134,10 +342,23 @@ onMounted(() => {
       onDrop: () => (closestEdge.value = null),
     }),
   )
+
+  el.addEventListener('touchstart', onTouchStart, { passive: true })
+  el.addEventListener('touchmove', onTouchMove, { passive: false })
+  el.addEventListener('touchend', onTouchEnd, { passive: true })
+  el.addEventListener('touchcancel', onTouchCancel, { passive: true })
 })
 
 onBeforeUnmount(() => {
   cleanup?.()
+  const el = root.value
+  if (el) {
+    el.removeEventListener('touchstart', onTouchStart)
+    el.removeEventListener('touchmove', onTouchMove)
+    el.removeEventListener('touchend', onTouchEnd)
+    el.removeEventListener('touchcancel', onTouchCancel)
+  }
+  if (touchDragging) endTouchDrag(false)
 })
 </script>
 
@@ -147,7 +368,7 @@ onBeforeUnmount(() => {
     class="ks-card md-state-layer"
     :class="{ 'ks-card--dragging': dragging }"
     :data-task-id="task.id"
-    @click="$emit('open', task)"
+    @click="onCardClick"
   >
     <div v-if="firstImageUrl" class="ks-card__cover">
       <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
@@ -176,8 +397,8 @@ onBeforeUnmount(() => {
       <span class="ks-card__assignee-label">{{ assignee.display_name || assignee.email }}</span>
     </div>
 
-    <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': closestEdge === 'top' }" />
-    <div class="ks-card__edge ks-card__edge--bottom" :class="{ 'is-on': closestEdge === 'bottom' }" />
+    <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': showTopEdge }" />
+    <div class="ks-card__edge ks-card__edge--bottom" :class="{ 'is-on': showBottomEdge }" />
   </div>
 </template>
 
@@ -204,6 +425,7 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   cursor: grab;
   user-select: none;
+  -webkit-touch-callout: none;
   --md-state-color: rgb(var(--v-theme-on-surface));
   transition:
     transform var(--md-duration-short4) var(--md-easing-standard),

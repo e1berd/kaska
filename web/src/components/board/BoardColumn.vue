@@ -14,6 +14,7 @@ import {
 } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { useBoardStore, type Column, type Task } from '@/stores/board'
 import BoardCard from '@/components/board/BoardCard.vue'
+import { touchDrag } from '@/utils/boardDnd'
 import { PhDotsSix } from '@phosphor-icons/vue'
 
 const PAGE_SIZE = 20
@@ -79,6 +80,10 @@ const cardsScroll = ref<HTMLElement | null>(null)
 const isOver = ref(false)
 const dragging = ref(false)
 const closestEdge = ref<Edge | null>(null)
+
+const touchOver = computed(
+  () => touchDrag.active && touchDrag.overColumnId === props.column.id,
+)
 let dndCleanup: (() => void) | null = null
 let ghost: HTMLElement | null = null
 let grabOffsetX = 0
@@ -212,8 +217,9 @@ function cancelAdd() {
   <section
     ref="root"
     class="ks-col"
-    :class="{ 'ks-col--over': isOver, 'ks-col--dragging': dragging }"
+    :class="{ 'ks-col--over': isOver || touchOver, 'ks-col--dragging': dragging }"
     :data-accent="accent"
+    :data-column-id="column.id"
   >
     <header class="ks-col__head">
       <div class="ks-col__title">

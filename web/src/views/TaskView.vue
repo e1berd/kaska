@@ -564,7 +564,9 @@ watch(
         <v-btn
           v-if="mobile"
           class="ks-task-page__toggle"
-          variant="text"
+          variant="tonal"
+          size="small"
+          density="comfortable"
           block
           :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
           @click="metaOpen = !metaOpen"
@@ -609,9 +611,11 @@ watch(
           <v-btn
             v-if="auth.isAuthed"
             color="error"
-            variant="text"
+            variant="tonal"
             rounded="pill"
-            class="mt-2 align-self-start"
+            size="small"
+            prepend-icon="mdi-trash-can-outline"
+            class="ks-task-page__delete align-self-start"
             @click="deleteCurrentTask"
           >
             Удалить карточку
@@ -685,6 +689,9 @@ watch(
 .ks-task-page__group {
   display: flex;
   flex-direction: column;
+}
+.ks-task-page__delete {
+  margin-top: 20px;
 }
 .ks-task-page__meta-title {
   color: rgb(var(--v-theme-on-surface-variant));

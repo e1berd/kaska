@@ -156,6 +156,10 @@ export const useBoardStore = defineStore('board', () => {
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
   }
 
+  function taskById(id: string): Task | null {
+    return tasks.value.find((t) => t.id === id) ?? null
+  }
+
   async function joinBySlug(slug: string) {
     return joinTopic(`board_slug:${slug}`)
   }
@@ -483,6 +487,7 @@ export const useBoardStore = defineStore('board', () => {
     orderedColumns,
     activeViewerIds,
     tasksFor,
+    taskById,
     attachmentsFor,
     commentsFor,
     join,
