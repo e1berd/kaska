@@ -267,7 +267,7 @@ function logout() {
               </span>
               <span class="ks-brand__name md-title-large">Kaska</span>
             </router-link>
-            <h1 class="ks-authshell__title">Канбан-трекер задач с realtime-обновлениями</h1>
+            <h1 class="ks-authshell__title">Канбан-доски для командной работы</h1>
             <p class="ks-authshell__lede md-body-large">
               Войдите, чтобы вернуться к своим проектам и доскам.
               Публичные доски доступны по прямой ссылке без аккаунта.
