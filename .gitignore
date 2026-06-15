@@ -1,8 +1,6 @@
 .env
-.env.dev
 .env.local
 !.env.example
-!.env.dev.example
 *.local
 
 # OS

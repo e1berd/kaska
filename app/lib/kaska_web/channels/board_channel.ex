@@ -51,7 +51,7 @@ defmodule KaskaWeb.BoardChannel do
       task_ids = Enum.map(tasks, & &1.id)
       task_types = Projects.list_task_types(project.id)
       task_comments = Projects.list_task_comments(project.id)
-      users = Kaska.Accounts.list_users()
+      users = Projects.list_member_users(project.id)
       allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
 
       attachments =
@@ -215,6 +215,12 @@ defmodule KaskaWeb.BoardChannel do
   def handle_in("remove_member", %{"user_id" => user_id}, socket) do
     with_owned_project(socket, fn project ->
       {:ok, _} = Projects.remove_member(project.id, user_id)
+
+      for task <- Projects.unassign_user_from_tasks(project.id, user_id) do
+        broadcast!(socket, "task_updated", task_view(task))
+      end
+
+      broadcast_users(project)
       Endpoint.broadcast("projects:user:#{user_id}", "project_deleted", %{id: project.id})
       {:reply, {:ok, %{user_id: user_id}}, socket}
     end)
@@ -550,7 +556,7 @@ defmodule KaskaWeb.BoardChannel do
 
   defp normalize_invite_email(_), do: nil
 
-  defp frontend_url, do: System.get_env("FRONTEND_URL", "http://localhost:5173")
+  defp frontend_url, do: System.get_env("WEB_BASE_URL", "http://localhost:5173")
 
   defp get_owned_column(id, socket) do
     case Projects.get_column(id) do
@@ -656,6 +662,21 @@ defmodule KaskaWeb.BoardChannel do
       color: tt.color,
       text_color: tt.text_color
     }
+  end
+
+  def broadcast_users(%Project{} = project) do
+    payload = %{users: users_view(project.id)}
+    Endpoint.broadcast("board:#{project.id}", "board_users", payload)
+
+    if is_binary(project.slug) do
+      Endpoint.broadcast("board_slug:#{project.slug}", "board_users", payload)
+    end
+
+    :ok
+  end
+
+  defp users_view(project_id) do
+    project_id |> Projects.list_member_users() |> Enum.map(&user_view/1)
   end
 
   defp user_view(%Kaska.Accounts.User{} = u) do

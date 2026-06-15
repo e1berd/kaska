@@ -151,7 +151,7 @@ defmodule KaskaWeb.SysChannel do
       case Accounts.create_invite(%{token: token, email: email, expires_at: expires_at}) do
         {:ok, invite} ->
           if email do
-            frontend_url = System.get_env("FRONTEND_URL", "http://localhost:5173")
+            frontend_url = System.get_env("WEB_BASE_URL", "http://localhost:5173")
             url = "#{frontend_url}/register?invite=#{invite.token}"
             UserNotifier.deliver_invite_link(email, url)
           end

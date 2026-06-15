@@ -83,7 +83,92 @@ let grabOffsetY = 0
 
 function moveGhost(x: number, y: number) {
   if (!ghost) return
-  ghost.style.transform = `translate3d(${x - grabOffsetX}px, ${y - grabOffsetY}px, 0)`
+  ghost.style.transform = `translate3d(${x - grabOffsetX}px, ${y - grabOffsetY}px, 0) scale(var(--ks-pickup, 1))`
+}
+
+type LandingPoint = { left: number; top: number }
+
+function landingRect(el: HTMLElement, isTask: boolean, edge: Edge | null): LandingPoint | null {
+  if (isTask) {
+    const rect = el.getBoundingClientRect()
+    return { left: rect.left, top: edge === 'bottom' ? rect.bottom + 10 : rect.top }
+  }
+  const list = el.querySelector('.ks-col__cards') as HTMLElement | null
+  const cards = list
+    ? (Array.from(
+        list.querySelectorAll('.ks-card:not(.ks-card--ghost):not(.ks-card--dragging)'),
+      ) as HTMLElement[])
+    : []
+  if (cards.length) {
+    const r = cards[cards.length - 1].getBoundingClientRect()
+    return { left: r.left, top: r.bottom + 10 }
+  }
+  if (list) {
+    const r = list.getBoundingClientRect()
+    return { left: r.left + 4, top: r.top + 4 }
+  }
+  return null
+}
+
+let dragResetTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleDragReset() {
+  if (dragResetTimer) clearTimeout(dragResetTimer)
+  dragResetTimer = setTimeout(() => {
+    dragging.value = false
+    dragResetTimer = null
+  }, 1500)
+}
+
+function finishGhost(point: LandingPoint | null) {
+  const g = ghost
+  ghost = null
+  if (!g) return
+  if (!point) {
+    g.remove()
+    return
+  }
+  g.classList.add('ks-card--landing')
+  requestAnimationFrame(() => {
+    g.style.transform = `translate3d(${point.left}px, ${point.top}px, 0) scale(1)`
+  })
+  const done = () => g.remove()
+  g.addEventListener('transitionend', done, { once: true })
+  setTimeout(done, 420)
+}
+
+type DropTargetRecord = { element: Element; data: Record<string, unknown> }
+
+function crossColumnLandingPoint(target: DropTargetRecord | undefined): LandingPoint | null {
+  if (!target) return null
+  if (target.data.type === 'task') {
+    const overTask = target.data.task as Task
+    if (overTask.column_id === props.task.column_id) return null
+    return landingRect(target.element as HTMLElement, true, extractClosestEdge(target.data))
+  }
+  if (target.data.type === 'column') {
+    if ((target.data.columnId as string) === props.task.column_id) return null
+    return landingRect(target.element as HTMLElement, false, null)
+  }
+  return null
+}
+
+function touchLandingPoint(): LandingPoint | null {
+  if (touchDrag.overTaskId) {
+    const overTask = board.taskById(touchDrag.overTaskId)
+    if (!overTask || overTask.column_id === props.task.column_id) return null
+    const el = document.querySelector(
+      `[data-task-id="${touchDrag.overTaskId}"]`,
+    ) as HTMLElement | null
+    return el ? landingRect(el, true, touchDrag.edge === 'bottom' ? 'bottom' : 'top') : null
+  }
+  if (touchDrag.overColumnId && touchDrag.overColumnId !== props.task.column_id) {
+    const el = document.querySelector(
+      `.ks-col[data-column-id="${touchDrag.overColumnId}"]`,
+    ) as HTMLElement | null
+    return el ? landingRect(el, false, null) : null
+  }
+  return null
 }
 
 const LONG_PRESS_MS = 600
@@ -220,13 +305,14 @@ function endTouchDrag(commit: boolean) {
       .moveTask(props.task.id, placement.columnId, placement.beforeId, placement.afterId)
       .catch((e) => console.warn('[board] touch move failed', e))
   }
+  const point = touchDragging && commit ? touchLandingPoint() : null
   if (touchDragging) suppressClick = true
   touchDragging = false
-  dragging.value = false
   placement = null
   document.body.classList.remove('ks-dragging')
-  ghost?.remove()
-  ghost = null
+  finishGhost(point)
+  if (point) scheduleDragReset()
+  else dragging.value = false
   resetTouchDrag()
 }
 
@@ -314,11 +400,12 @@ onMounted(() => {
         moveGhost(location.current.input.clientX, location.current.input.clientY)
       },
 
-      onDrop: () => {
-        dragging.value = false
+      onDrop: ({ location }) => {
         document.body.classList.remove('ks-dragging')
-        ghost?.remove()
-        ghost = null
+        const point = crossColumnLandingPoint(location.current.dropTargets[0])
+        finishGhost(point)
+        if (point) scheduleDragReset()
+        else dragging.value = false
       },
     }),
     dropTargetForElements({
@@ -351,6 +438,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cleanup?.()
+  if (dragResetTimer) clearTimeout(dragResetTimer)
   const el = root.value
   if (el) {
     el.removeEventListener('touchstart', onTouchStart)
@@ -464,6 +552,16 @@ onBeforeUnmount(() => {
   transition: none !important;
   transform-origin: 16px 16px;
   will-change: transform;
+  animation: ks-dnd-pickup var(--md-duration-medium2) var(--md-easing-emphasized-decelerate) both;
+}
+:global(.ks-card.ks-card--landing) {
+  transition: transform var(--md-duration-medium2) var(--md-easing-emphasized) !important;
+  animation: none !important;
+}
+:global(.ks-card.ks-card--flying-clone) {
+  opacity: 1 !important;
+  animation: none !important;
+  transition: none !important;
 }
 :global(.ks-card--ghost .md-state-layer::after) {
   display: none;

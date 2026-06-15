@@ -166,7 +166,7 @@ cp .env.example .env
 $EDITOR .env
 ```
 
-> В репозитории два шаблона env — `.env.example` для production (этот гайд) и `.env.dev.example` для локальной разработки. Compose в production режиме (`docker-compose.yml`) автоматически подхватывает `.env`; для dev — `docker compose --env-file .env.dev -f docker-compose.dev.yml up -d`.
+> В репозитории один шаблон env — `.env.example`. Из него создаётся единственный `.env` в корне проекта. Compose подхватывает его автоматически и в production (`docker-compose.yml`), и в dev (`docker compose -f docker-compose.dev.yml up -d`).
 
 Сгенерируй секреты:
 

@@ -195,6 +195,10 @@ export const useBoardStore = defineStore('board', () => {
       project.value = p
     })
 
+    ch.on('board_users', ({ users: list }: { users: User[] }) => {
+      users.value = list.slice()
+    })
+
     ch.on('column_created', (c: Column) => upsertColumn(c))
     ch.on('column_updated', (c: Column) => upsertColumn(c))
     ch.on('column_moved', (c: Column) => upsertColumn(c))
@@ -202,7 +206,7 @@ export const useBoardStore = defineStore('board', () => {
 
     ch.on('task_created', (t: Task) => upsertTask(t))
     ch.on('task_updated', (t: Task) => upsertTask(t))
-    ch.on('task_moved', (t: Task) => upsertTask(t))
+    ch.on('task_moved', (t: Task) => applyTaskMove(t))
     ch.on('task_deleted', (payload: TaskDeletedEvent) => {
       removeTask(payload.id)
       lastTaskDeleted.value = payload
@@ -391,12 +395,39 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task_comment', { id })
   }
 
+  const localMoves = new Map<string, number>()
+  let taskMovingHandler: ((task: Task, prevColumnId: string) => void) | null = null
+
+  function onTaskMoving(handler: ((task: Task, prevColumnId: string) => void) | null) {
+    taskMovingHandler = handler
+  }
+
+  function applyTaskMove(t: Task) {
+    const existing = tasks.value.find((x) => x.id === t.id)
+    if (existing && existing.column_id !== t.column_id) {
+      taskMovingHandler?.(t, existing.column_id)
+    }
+    upsertTask(t)
+  }
+
+  function noteLocalMove(id: string) {
+    localMoves.set(id, Date.now())
+  }
+
+  function consumeLocalMove(id: string): boolean {
+    const at = localMoves.get(id)
+    if (at === undefined) return false
+    localMoves.delete(id)
+    return Date.now() - at < 5000
+  }
+
   function moveTask(
     id: string,
     columnId: string,
     beforeId: string | null,
     afterId: string | null,
   ) {
+    noteLocalMove(id)
     return pushAsync<Task>(ch(), 'move_task', {
       id,
       column_id: columnId,
@@ -503,6 +534,8 @@ export const useBoardStore = defineStore('board', () => {
     createTaskComment,
     deleteTaskComment,
     moveTask,
+    consumeLocalMove,
+    onTaskMoving,
     createTaskType,
     updateTaskType,
     deleteTaskType,

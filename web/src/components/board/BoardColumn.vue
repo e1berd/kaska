@@ -118,11 +118,11 @@ onMounted(() => {
         clone.querySelectorAll('.ks-col__edge').forEach((node) => node.remove())
         document.body.appendChild(clone)
         ghost = clone
-        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0)`
+        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0) scale(var(--ks-pickup, 1))`
       },
       onDrag: ({ location }) => {
         if (!ghost) return
-        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0)`
+        ghost.style.transform = `translate3d(${location.current.input.clientX - grabOffsetX}px, ${location.current.input.clientY - grabOffsetY}px, 0) scale(var(--ks-pickup, 1))`
       },
       onDrop: () => {
         dragging.value = false
@@ -253,12 +253,14 @@ function cancelAdd() {
     </header>
 
     <div ref="cardsScroll" class="ks-col__cards">
-      <BoardCard
-        v-for="task in visibleTasks"
-        :key="task.id"
-        :task="task"
-        @open="$emit('open-task', $event)"
-      />
+      <TransitionGroup name="ks-card-move">
+        <BoardCard
+          v-for="task in visibleTasks"
+          :key="task.id"
+          :task="task"
+          @open="$emit('open-task', $event)"
+        />
+      </TransitionGroup>
 
       <div v-if="hasMore" ref="sentinel" class="ks-col__sentinel">
         <v-progress-circular indeterminate size="20" width="2" color="primary" />
@@ -410,6 +412,7 @@ function cancelAdd() {
 }
 
 .ks-col__cards {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -426,6 +429,26 @@ function cancelAdd() {
 .ks-col__cards::-webkit-scrollbar-thumb {
   border-radius: 99px;
   background: rgba(var(--v-theme-on-surface), 0.18);
+}
+
+.ks-col__cards .ks-card-move-move {
+  transition: transform var(--md-duration-medium4) var(--md-easing-emphasized);
+}
+.ks-col__cards .ks-card-move-enter-active {
+  transition: opacity var(--md-duration-medium2) var(--md-easing-standard);
+}
+.ks-col__cards .ks-card-move-enter-from {
+  opacity: 0;
+}
+.ks-col__cards .ks-card-move-leave-active {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  z-index: 0;
+  transition: opacity var(--md-duration-short3) var(--md-easing-standard);
+}
+.ks-col__cards .ks-card-move-leave-to {
+  opacity: 0;
 }
 
 .ks-col__sentinel {
@@ -506,6 +529,7 @@ function cancelAdd() {
   opacity: 0.96;
   transition: none !important;
   will-change: transform;
+  animation: ks-dnd-pickup var(--md-duration-medium2) var(--md-easing-emphasized-decelerate) both;
 }
 :global(body.ks-dragging-column) {
   cursor: grabbing;

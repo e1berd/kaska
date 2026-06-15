@@ -6,6 +6,7 @@ import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/ad
 import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { computeTaskPlacement, type TaskDropTarget } from '@/utils/boardDnd'
+import { useCrossColumnFlight } from '@/utils/taskFlight'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
@@ -42,6 +43,8 @@ const board = useBoardStore()
 const projects = useProjectsStore()
 
 const socket = useSocketStore()
+
+useCrossColumnFlight(board)
 
 const slug = computed(() => route.params.slug as string)
 const loading = ref(true)
@@ -1027,16 +1030,18 @@ const boardBackgroundStyle = computed(() => ({
     </v-alert>
 
     <div v-else-if="viewMode === 'columns'" ref="colsScroll" class="ks-board__cols">
-      <BoardColumn
-        v-for="(column, idx) in board.orderedColumns"
-        :key="column.id"
-        :column="column"
-        :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
-        :accent="accentFor(idx)"
-        @open-task="openTask"
-        @rename="onRename"
-        @delete="onDeleteColumn"
-      />
+      <TransitionGroup name="ks-col-move">
+        <BoardColumn
+          v-for="(column, idx) in board.orderedColumns"
+          :key="column.id"
+          :column="column"
+          :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
+          :accent="accentFor(idx)"
+          @open-task="openTask"
+          @rename="onRename"
+          @delete="onDeleteColumn"
+        />
+      </TransitionGroup>
     </div>
 
     <div v-else-if="viewMode === 'list'" class="ks-board__list">
@@ -1633,6 +1638,18 @@ const boardBackgroundStyle = computed(() => ({
   overflow-x: auto;
   overflow-y: hidden;
   align-items: stretch;
+}
+.ks-board__cols .ks-col-move-move {
+  transition: transform var(--md-duration-medium4) var(--md-easing-emphasized);
+}
+.ks-board__cols .ks-col-move-enter-active {
+  transition:
+    opacity var(--md-duration-medium2) var(--md-easing-emphasized-decelerate),
+    transform var(--md-duration-medium2) var(--md-easing-emphasized-decelerate);
+}
+.ks-board__cols .ks-col-move-enter-from {
+  opacity: 0;
+  transform: scale(0.97) translateY(8px);
 }
 
 .ks-board__list {

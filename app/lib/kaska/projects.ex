@@ -253,6 +253,10 @@ defmodule Kaska.Projects do
     Repo.all(from m in ProjectMember, where: m.project_id == ^project_id, select: m.user_id)
   end
 
+  def list_member_users(project_id) when is_binary(project_id) do
+    project_id |> list_members() |> Enum.map(& &1.user)
+  end
+
   def board_accessible?(%Project{} = project, user_id) when is_binary(user_id) do
     project.public_link or member?(project.id, user_id)
   end
@@ -462,6 +466,7 @@ defmodule Kaska.Projects do
 
       %Task{}
       |> Task.create_changeset(attrs)
+      |> validate_assignee_membership(project_id)
       |> Repo.insert()
     else
       _ -> {:error, :column_not_found}
@@ -471,10 +476,44 @@ defmodule Kaska.Projects do
   def update_task(%Task{} = task, attrs) do
     task
     |> Task.update_changeset(attrs)
+    |> validate_assignee_membership(task.project_id)
     |> Repo.update()
   end
 
   def delete_task(%Task{} = task), do: Repo.delete(task)
+
+  def unassign_user_from_tasks(project_id, user_id)
+      when is_binary(project_id) and is_binary(user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {_count, tasks} =
+      Repo.update_all(
+        from(t in Task,
+          where: t.project_id == ^project_id and t.assignee_id == ^user_id,
+          select: t
+        ),
+        set: [assignee_id: nil, updated_at: now]
+      )
+
+    tasks
+  end
+
+  defp validate_assignee_membership(changeset, project_id) do
+    case Ecto.Changeset.fetch_change(changeset, :assignee_id) do
+      {:ok, nil} ->
+        changeset
+
+      {:ok, assignee_id} ->
+        if member?(project_id, assignee_id) do
+          changeset
+        else
+          Ecto.Changeset.add_error(changeset, :assignee_id, "не участник проекта")
+        end
+
+      :error ->
+        changeset
+    end
+  end
 
   def list_task_comments(project_id) do
     Repo.all(

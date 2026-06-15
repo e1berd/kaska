@@ -163,3 +163,24 @@ $md-type-scale: (
   opacity: 0;
   transform: translateY(-8px);
 }
+
+/* Drag-and-drop pickup: animatable scale factor for floating drag previews. */
+@property --ks-pickup {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@keyframes ks-dnd-pickup {
+  0% {
+    --ks-pickup: 0.98;
+    opacity: 0.6;
+  }
+  60% {
+    --ks-pickup: 1.05;
+  }
+  100% {
+    --ks-pickup: 1.03;
+    opacity: 1;
+  }
+}

@@ -36,6 +36,7 @@ defmodule KaskaWeb.ProjectsChannel do
       {:ok, %Project{} = project} ->
         view = project_view(project)
         broadcast!(socket, "project_created", view)
+        KaskaWeb.BoardChannel.broadcast_users(project)
         {:reply, {:ok, %{slug: project.slug}}, socket}
 
       {:error, reason} ->
