@@ -108,6 +108,23 @@ defmodule Kaska.Attachments do
   end
 
   @doc """
+  Returns ready attachments for many parents at once, grouped by `parent_id`.
+  Avoids an N+1 when serialising a list of tasks.
+  """
+  def list_for_many(parent_type, parent_ids)
+      when parent_type in @parent_types and is_list(parent_ids) do
+    Repo.all(
+      from a in Attachment,
+        where:
+          a.parent_type == ^parent_type and
+            a.parent_id in ^parent_ids and
+            a.status == "ready",
+        order_by: [asc: a.inserted_at]
+    )
+    |> Enum.group_by(& &1.parent_id)
+  end
+
+  @doc """
   Build a short-lived pre-signed GET URL for an attachment.
   Embeds the public RustFS host so the browser can reach it directly.
   """

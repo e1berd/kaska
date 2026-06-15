@@ -11,6 +11,7 @@ export interface Column {
   project_id: string
   name: string
   rank: string
+  description?: string | null
 }
 
 import type { JSONContent } from '@tiptap/vue-3'
@@ -86,6 +87,17 @@ export interface ProjectMember {
   email: string | null
   display_name: string | null
   avatar_url: string | null
+  is_agent?: boolean | null
+  inserted_at?: string
+}
+
+export interface Agent {
+  id: string
+  user_id: string
+  display_name: string | null
+  email: string | null
+  avatar_url: string | null
+  is_agent: true
   inserted_at?: string
 }
 
@@ -325,8 +337,10 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync<Column>(ch(), 'create_column', { name })
   }
 
-  function renameColumn(id: string, name: string) {
-    return pushAsync<Column>(ch(), 'rename_column', { id, name })
+  function renameColumn(id: string, name: string, description?: string | null) {
+    const payload: { id: string; name: string; description?: string | null } = { id, name }
+    if (description !== undefined) payload.description = description
+    return pushAsync<Column>(ch(), 'rename_column', payload)
   }
 
   function deleteColumn(id: string) {
@@ -486,6 +500,29 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync<{ user_id: string }>(ch(), 'remove_member', { user_id: userId })
   }
 
+  async function listAgents() {
+    const reply = await pushAsync<{ agents: Agent[] }>(ch(), 'list_agents', {})
+    return reply.agents
+  }
+
+  function createAgent(displayName: string) {
+    return pushAsync<{ agent: Agent; token: string }>(ch(), 'create_agent', {
+      display_name: displayName,
+    })
+  }
+
+  function updateAgent(id: string, input: { display_name?: string; avatar_key?: string | null }) {
+    return pushAsync<{ agent: Agent }>(ch(), 'update_agent', { id, ...input })
+  }
+
+  function removeAgent(id: string) {
+    return pushAsync<{ id: string }>(ch(), 'remove_agent', { id })
+  }
+
+  function regenerateAgentToken(id: string) {
+    return pushAsync<{ id: string; token: string }>(ch(), 'regenerate_agent_token', { id })
+  }
+
   function setPublicLink(value: boolean) {
     return pushAsync<Project>(ch(), 'set_public_link', { public_link: value })
   }
@@ -546,6 +583,11 @@ export const useBoardStore = defineStore('board', () => {
     inviteMember,
     revokeInvite,
     removeMember,
+    listAgents,
+    createAgent,
+    updateAgent,
+    removeAgent,
+    regenerateAgentToken,
     setPublicLink,
     setProjectTheme,
     setMyProjectTheme,

@@ -110,6 +110,7 @@ const taskDateRangeModel = computed<Date[]>({
 const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
 const renameValue = ref('')
+const renameDescription = ref('')
 
 const deleteDialog = ref(false)
 const deleteTarget = ref<Column | null>(null)
@@ -580,13 +581,16 @@ watch(
 function onRename(column: Column) {
   renameTarget.value = column
   renameValue.value = column.name
+  renameDescription.value = column.description ?? ''
   renameDialog.value = true
 }
 
 async function commitRename() {
   if (!renameTarget.value) return
+  const name = renameValue.value.trim()
+  if (!name) return
   try {
-    await board.renameColumn(renameTarget.value.id, renameValue.value.trim())
+    await board.renameColumn(renameTarget.value.id, name, renameDescription.value.trim() || null)
     renameDialog.value = false
   } catch (e) {
     console.warn('[board] rename failed', e)
@@ -1145,12 +1149,25 @@ const boardBackgroundStyle = computed(() => ({
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card rounded="xl">
         <v-card-title class="md-headline-small px-6 pt-6">Переименовать колонку</v-card-title>
-        <v-card-text class="px-6 pt-2">
+        <v-card-text class="px-6 pt-2 flex flex-col gap-4">
           <v-text-field
             v-model="renameValue"
+            label="название"
             variant="filled"
             density="comfortable"
             autofocus
+            hide-details
+            @keydown.enter.exact.prevent="commitRename"
+            @keydown.escape.prevent="renameDialog = false"
+          />
+          <v-textarea
+            v-model="renameDescription"
+            label="описание"
+            placeholder="Зачем эта колонка и куда переносить задачу дальше — подсказка для агентов"
+            variant="filled"
+            density="comfortable"
+            rows="3"
+            auto-grow
             hide-details
           />
         </v-card-text>

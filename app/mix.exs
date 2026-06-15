@@ -57,7 +57,9 @@ defmodule Kaska.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:sweet_xml, "~> 0.7"},
       {:cors_plug, "~> 3.0"},
-      {:y_ex, "~> 0.10"}
+      {:y_ex, "~> 0.10"},
+      {:mdex, "~> 0.13"},
+      {:open_api_spex, "~> 3.22"}
     ]
   end
 

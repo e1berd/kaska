@@ -28,7 +28,8 @@ defmodule KaskaWeb.ProjectsChannel do
 
   @impl true
   def handle_in("list_projects", _payload, %{assigns: %{current_user: user}} = socket) do
-    {:reply, {:ok, %{projects: Enum.map(Projects.list_projects(user.id), &project_view/1)}}, socket}
+    {:reply, {:ok, %{projects: Enum.map(Projects.list_projects(user.id), &project_view/1)}},
+     socket}
   end
 
   def handle_in("accept_invite", %{"token" => token}, %{assigns: %{current_user: user}} = socket) do
@@ -67,9 +68,10 @@ defmodule KaskaWeb.ProjectsChannel do
       attrs =
         %{
           name: Map.get(payload, "name"),
-          description: normalize_optional(Map.get(payload, "description"))
+          description: normalize_optional(Map.get(payload, "description")),
+          agent_instructions: normalize_optional(Map.get(payload, "agent_instructions"))
         }
-        |> drop_unset(payload, ["name", "description"])
+        |> drop_unset(payload, ["name", "description", "agent_instructions"])
 
       case Projects.update_project(project, attrs) do
         {:ok, updated} ->
@@ -172,9 +174,14 @@ defmodule KaskaWeb.ProjectsChannel do
         Endpoint.broadcast("board:#{view.id}", "project_updated", view)
         {:reply, {:ok, view}, socket}
       else
-        false -> {:reply, {:error, %{message: "forbidden"}}, socket}
-        {:error, %Ecto.Changeset{} = cs} -> {:reply, {:error, %{errors: format_errors(cs)}}, socket}
-        {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+        false ->
+          {:reply, {:error, %{message: "forbidden"}}, socket}
+
+        {:error, %Ecto.Changeset{} = cs} ->
+          {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+
+        {:error, reason} ->
+          {:reply, {:error, %{message: to_string(reason)}}, socket}
       end
     end)
   end
@@ -231,6 +238,7 @@ defmodule KaskaWeb.ProjectsChannel do
       slug: p.slug,
       name: p.name,
       description: p.description,
+      agent_instructions: p.agent_instructions,
       owner_id: p.owner_id,
       public_link: p.public_link,
       theme_slug: p.theme_slug,

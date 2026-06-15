@@ -17,6 +17,7 @@ defmodule Kaska.Projects.Project do
     field :background_key, :string
     field :public_link, :boolean, default: false
     field :theme_slug, :string
+    field :agent_instructions, :string
 
     belongs_to :owner, User
     has_many :columns, Column
@@ -45,10 +46,11 @@ defmodule Kaska.Projects.Project do
 
   def update_changeset(project, attrs) do
     project
-    |> cast(attrs, [:name, :description])
+    |> cast(attrs, [:name, :description, :agent_instructions])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 120)
     |> validate_length(:description, max: 4000)
+    |> validate_length(:agent_instructions, max: 8000)
   end
 
   def visibility_changeset(project, attrs) do

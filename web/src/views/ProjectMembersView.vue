@@ -2,8 +2,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSysStore } from '@/stores/sys'
-import { useBoardStore, type ProjectInvite, type ProjectMember } from '@/stores/board'
-import { PhPlus, PhMagnifyingGlass, PhCopy, PhDotsThreeVertical, PhUserMinus } from '@phosphor-icons/vue'
+import { useBoardStore, type ProjectInvite, type ProjectMember, type Agent } from '@/stores/board'
+import {
+  PhPlus,
+  PhMagnifyingGlass,
+  PhCopy,
+  PhDotsThreeVertical,
+  PhUserMinus,
+  PhRobot,
+  PhPencilSimple,
+  PhArrowsClockwise,
+} from '@phosphor-icons/vue'
 
 defineProps<{ slug?: string }>()
 
@@ -22,10 +31,12 @@ const invites = ref<ProjectInvite[]>([])
 
 const isOwner = computed(() => board.isOwner)
 
+const humanMembers = computed(() => members.value.filter((m) => !m.is_agent))
+
 const filteredMembers = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if (!q) return members.value
-  return members.value.filter(
+  if (!q) return humanMembers.value
+  return humanMembers.value.filter(
     (m) =>
       (m.display_name ?? '').toLowerCase().includes(q) ||
       (m.email ?? '').toLowerCase().includes(q),
@@ -58,9 +69,74 @@ function memberLabel(m: ProjectMember) {
 const isOnline = (m: ProjectMember) => sys.isUserOnline(m.user_id)
 const lastOnlineAt = (m: ProjectMember) => sys.userLastOnlineAt(m.user_id)
 
+const agents = ref<Agent[]>([])
+const agentDialog = ref(false)
+const agentEditing = ref<Agent | null>(null)
+const agentCallsign = ref('')
+const agentLoading = ref(false)
+const agentError = ref<string | null>(null)
+const revealedToken = ref('')
+
 async function reload() {
   members.value = await board.listMembers()
-  if (isOwner.value) invites.value = await board.listInvites()
+  if (isOwner.value) {
+    invites.value = await board.listInvites()
+    agents.value = await board.listAgents()
+  }
+}
+
+function openCreateAgent() {
+  agentEditing.value = null
+  agentCallsign.value = ''
+  agentError.value = null
+  revealedToken.value = ''
+  agentDialog.value = true
+}
+
+function openEditAgent(a: Agent) {
+  agentEditing.value = a
+  agentCallsign.value = a.display_name ?? ''
+  agentError.value = null
+  revealedToken.value = ''
+  agentDialog.value = true
+}
+
+async function submitAgent() {
+  const name = agentCallsign.value.trim()
+  if (!name) return
+  agentError.value = null
+  agentLoading.value = true
+  try {
+    if (agentEditing.value) {
+      const { agent } = await board.updateAgent(agentEditing.value.id, { display_name: name })
+      agents.value = agents.value.map((a) => (a.id === agent.id ? agent : a))
+      if (!revealedToken.value) agentDialog.value = false
+    } else {
+      const { agent, token } = await board.createAgent(name)
+      agents.value = [...agents.value, agent]
+      revealedToken.value = token
+    }
+  } catch (e: unknown) {
+    agentError.value = (e as { message?: string })?.message || 'Не удалось сохранить агента'
+  } finally {
+    agentLoading.value = false
+  }
+}
+
+async function regenerateToken(a: Agent) {
+  if (!confirm(`Выпустить новый токен для «${a.display_name}»? Старый перестанет работать.`)) return
+  const { token } = await board.regenerateAgentToken(a.id)
+  agentEditing.value = a
+  agentCallsign.value = a.display_name ?? ''
+  revealedToken.value = token
+  agentError.value = null
+  agentDialog.value = true
+}
+
+async function removeAgent(a: Agent) {
+  if (!confirm(`Убрать агента «${a.display_name}» из проекта?`)) return
+  await board.removeAgent(a.id)
+  agents.value = agents.value.filter((x) => x.id !== a.id)
 }
 
 onMounted(async () => {
@@ -232,6 +308,94 @@ async function remove(member: ProjectMember) {
         </v-list>
       </v-card>
     </template>
+
+    <template v-if="isOwner">
+      <div class="d-flex align-center justify-space-between mt-8 mb-2">
+        <h2 class="md-title-medium">Агенты</h2>
+        <v-btn variant="tonal" color="primary" @click="openCreateAgent">
+          <template #prepend><ph-robot :size="20" weight="bold" /></template>
+          Добавить агента
+        </v-btn>
+      </div>
+      <p class="md-body-small text-medium-emphasis mb-3">
+        Агент — бот-участник с собственным позывным и токеном для REST/MCP. Его комментарии и
+        действия отображаются от его лица.
+      </p>
+      <v-card variant="outlined">
+        <v-list v-if="agents.length" class="bg-transparent">
+          <v-list-item v-for="a in agents" :key="a.id" class="py-2">
+            <template #prepend>
+              <v-avatar size="32" class="mr-3" color="secondary">
+                <img v-if="a.avatar_url" width="32" height="32" :src="a.avatar_url" />
+                <span v-else class="text-white">{{ (a.display_name ?? 'A').slice(0, 1).toUpperCase() }}</span>
+              </v-avatar>
+            </template>
+            <v-list-item-title class="md-body-medium">{{ a.display_name }}</v-list-item-title>
+            <v-list-item-subtitle>агент</v-list-item-subtitle>
+            <template #append>
+              <v-btn variant="text" size="small" :icon="true" title="Позывной" @click="openEditAgent(a)">
+                <ph-pencil-simple :size="18" weight="regular" />
+              </v-btn>
+              <v-btn variant="text" size="small" :icon="true" title="Новый токен" @click="regenerateToken(a)">
+                <ph-arrows-clockwise :size="18" weight="regular" />
+              </v-btn>
+              <v-btn variant="text" size="small" :icon="true" color="error" title="Убрать" @click="removeAgent(a)">
+                <ph-user-minus :size="18" weight="regular" />
+              </v-btn>
+            </template>
+          </v-list-item>
+        </v-list>
+        <v-card-text v-else class="text-medium-emphasis md-body-medium">Пока нет агентов.</v-card-text>
+      </v-card>
+    </template>
+
+    <v-dialog v-model="agentDialog" max-width="500">
+      <v-card>
+        <v-card-title>{{ agentEditing ? 'Агент' : 'Новый агент' }}</v-card-title>
+        <v-card-text class="pt-4">
+          <v-text-field
+            v-model="agentCallsign"
+            label="Позывной"
+            placeholder="например, Клод"
+            variant="filled"
+            density="comfortable"
+            autofocus
+            @keydown.enter.exact.prevent="submitAgent"
+          />
+          <template v-if="revealedToken">
+            <v-alert type="warning" variant="tonal" class="mt-2 md-body-small">
+              Токен показывается один раз — скопируй его сейчас.
+            </v-alert>
+            <v-text-field
+              :model-value="revealedToken"
+              readonly
+              variant="filled"
+              density="comfortable"
+              class="mt-2"
+            >
+              <template #append-inner>
+                <v-btn variant="text" size="small" :icon="true" @click="copy(revealedToken)">
+                  <ph-copy :size="18" weight="bold" />
+                </v-btn>
+              </template>
+            </v-text-field>
+          </template>
+          <v-alert v-if="agentError" type="error" variant="tonal" class="mt-4">{{ agentError }}</v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="agentDialog = false">Закрыть</v-btn>
+          <v-btn
+            color="primary"
+            :loading="agentLoading"
+            :disabled="!agentCallsign.trim()"
+            @click="submitAgent"
+          >
+            {{ agentEditing ? 'Сохранить' : 'Создать' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="inviteDialog" max-width="500">
       <v-card>

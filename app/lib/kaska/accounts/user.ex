@@ -16,8 +16,38 @@ defmodule Kaska.Accounts.User do
     field :avatar_key, :string
     field :theme_slug, :string
     field :theme_mode, Ecto.Enum, values: [:light, :dark, :system]
+    field :is_agent, :boolean, default: false
+    field :agent_description, :string
+    field :agent_role, :string
+
+    belongs_to :agent_owner, __MODULE__
 
     timestamps()
+  end
+
+  def agent_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:display_name, :avatar_key, :agent_description, :agent_role])
+    |> update_change(:display_name, fn
+      nil -> nil
+      name -> String.trim(name)
+    end)
+    |> update_change(:agent_role, &normalize_optional/1)
+    |> update_change(:agent_description, &normalize_optional/1)
+    |> validate_required([:display_name])
+    |> validate_length(:display_name, min: 1, max: 60)
+    |> validate_length(:avatar_key, max: 512)
+    |> validate_length(:agent_role, max: 80)
+    |> validate_length(:agent_description, max: 2000)
+  end
+
+  defp normalize_optional(nil), do: nil
+
+  defp normalize_optional(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   def theme_changeset(user, attrs) do

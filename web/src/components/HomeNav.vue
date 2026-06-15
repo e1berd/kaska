@@ -2,7 +2,7 @@
 import { computed, type Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { PhSquaresFour, PhGear } from '@phosphor-icons/vue'
+import { PhSquaresFour, PhGear, PhRobot } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 
@@ -24,6 +24,12 @@ const navItems = computed<NavItem[]>(() => {
   ]
 
   if (auth.isAuthed) {
+    items.push({
+      key: 'scouts',
+      label: 'Скауты',
+      icon: PhRobot,
+      to: { name: 'scouts' },
+    })
     items.push({
       key: 'settings',
       label: 'Настройки',

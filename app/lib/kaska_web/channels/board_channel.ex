@@ -11,7 +11,7 @@ defmodule KaskaWeb.BoardChannel do
 
   use Phoenix.Channel
 
-  alias Kaska.{Accounts, Attachments, Projects}
+  alias Kaska.{Accounts, Agents, Attachments, Projects}
   alias Kaska.Accounts.UserNotifier
   alias KaskaWeb.Endpoint
   alias KaskaWeb.Presence
@@ -178,7 +178,9 @@ defmodule KaskaWeb.BoardChannel do
 
       expires_at =
         if is_integer(expires_in_minutes) do
-          DateTime.utc_now() |> DateTime.add(expires_in_minutes, :minute) |> DateTime.truncate(:second)
+          DateTime.utc_now()
+          |> DateTime.add(expires_in_minutes, :minute)
+          |> DateTime.truncate(:second)
         end
 
       attrs = %{
@@ -223,6 +225,73 @@ defmodule KaskaWeb.BoardChannel do
       broadcast_users(project)
       Endpoint.broadcast("projects:user:#{user_id}", "project_deleted", %{id: project.id})
       {:reply, {:ok, %{user_id: user_id}}, socket}
+    end)
+  end
+
+  def handle_in("list_agents", _payload, socket) do
+    with_owned_project(socket, fn project ->
+      agents = Agents.list_agents(project.id)
+      {:reply, {:ok, %{agents: Enum.map(agents, &agent_view/1)}}, socket}
+    end)
+  end
+
+  def handle_in("create_agent", payload, socket) do
+    with_owned_project(socket, fn project ->
+      attrs = %{display_name: Map.get(payload, "display_name")}
+
+      case Agents.create_agent(socket.assigns.current_user.id, project.id, attrs) do
+        {:ok, %{agent: agent, token: token}} ->
+          broadcast_users(project)
+          {:reply, {:ok, %{agent: agent_view(agent), token: token}}, socket}
+
+        {:error, %Ecto.Changeset{} = cs} ->
+          {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("update_agent", %{"id" => id} = payload, socket) do
+    with_owned_project(socket, fn project ->
+      attrs = take_present(payload, ["display_name", "avatar_key"])
+
+      with %Kaska.Accounts.User{} = agent <- Agents.get_agent(project.id, id),
+           {:ok, updated} <- Agents.update_agent(agent, attrs) do
+        broadcast_users(project)
+        {:reply, {:ok, %{agent: agent_view(updated)}}, socket}
+      else
+        nil ->
+          {:reply, {:error, %{message: "agent_not_found"}}, socket}
+
+        {:error, %Ecto.Changeset{} = cs} ->
+          {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("remove_agent", %{"id" => id}, socket) do
+    with_owned_project(socket, fn project ->
+      case Agents.get_agent(project.id, id) do
+        nil ->
+          {:reply, {:error, %{message: "agent_not_found"}}, socket}
+
+        agent ->
+          :ok = Agents.remove_agent(project.id, agent)
+          broadcast_users(project)
+          {:reply, {:ok, %{id: id}}, socket}
+      end
+    end)
+  end
+
+  def handle_in("regenerate_agent_token", %{"id" => id}, socket) do
+    with_owned_project(socket, fn project ->
+      case Agents.get_agent(project.id, id) do
+        nil ->
+          {:reply, {:error, %{message: "agent_not_found"}}, socket}
+
+        agent ->
+          {:ok, token} = Agents.regenerate_token(agent)
+          {:reply, {:ok, %{id: id, token: token}}, socket}
+      end
     end)
   end
 
@@ -292,8 +361,10 @@ defmodule KaskaWeb.BoardChannel do
   end
 
   def handle_in("rename_column", %{"id" => id} = payload, socket) do
+    attrs = take_present(payload, ["name", "description"])
+
     with %Column{} = column <- get_owned_column(id, socket),
-         {:ok, column} <- Projects.rename_column(column, %{name: Map.get(payload, "name")}) do
+         {:ok, column} <- Projects.rename_column(column, attrs) do
       view = column_view(column)
       broadcast!(socket, "column_updated", view)
       {:reply, {:ok, view}, socket}
@@ -592,6 +663,7 @@ defmodule KaskaWeb.BoardChannel do
       slug: p.slug,
       name: p.name,
       description: p.description,
+      agent_instructions: p.agent_instructions,
       owner_id: p.owner_id,
       public_link: p.public_link,
       theme_slug: p.theme_slug,
@@ -607,7 +679,20 @@ defmodule KaskaWeb.BoardChannel do
       email: m.user && m.user.email,
       display_name: m.user && m.user.display_name,
       avatar_url: m.user && avatar_url(m.user),
+      is_agent: m.user && m.user.is_agent,
       inserted_at: m.inserted_at
+    }
+  end
+
+  defp agent_view(%Kaska.Accounts.User{} = u) do
+    %{
+      id: u.id,
+      user_id: u.id,
+      display_name: u.display_name,
+      email: u.email,
+      avatar_url: avatar_url(u),
+      is_agent: true,
+      inserted_at: u.inserted_at
     }
   end
 
@@ -632,7 +717,7 @@ defmodule KaskaWeb.BoardChannel do
   end
 
   defp column_view(%Column{} = c) do
-    %{id: c.id, project_id: c.project_id, name: c.name, rank: c.rank}
+    %{id: c.id, project_id: c.project_id, name: c.name, rank: c.rank, description: c.description}
   end
 
   def task_view(%Task{} = t) do
@@ -686,7 +771,8 @@ defmodule KaskaWeb.BoardChannel do
       role: u.role,
       confirmed_at: u.confirmed_at,
       display_name: u.display_name,
-      avatar_url: avatar_url(u)
+      avatar_url: avatar_url(u),
+      is_agent: u.is_agent
     }
   end
 
@@ -715,7 +801,7 @@ defmodule KaskaWeb.BoardChannel do
     }
   end
 
-  defp task_comment_view(%TaskComment{} = c) do
+  def task_comment_view(%TaskComment{} = c) do
     %{
       id: c.id,
       task_id: c.task_id,

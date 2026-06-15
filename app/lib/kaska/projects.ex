@@ -129,11 +129,11 @@ defmodule Kaska.Projects do
 
     case project |> Project.media_changeset(attrs) |> Repo.update() do
       {:ok, updated} = ok ->
-        if Map.has_key?(attrs, :avatar_key) and old_avatar &&
+        if (Map.has_key?(attrs, :avatar_key) and old_avatar) &&
              old_avatar != updated.avatar_key,
            do: Kaska.Storage.delete_object(old_avatar)
 
-        if Map.has_key?(attrs, :background_key) and old_background &&
+        if (Map.has_key?(attrs, :background_key) and old_background) &&
              old_background != updated.background_key,
            do: Kaska.Storage.delete_object(old_background)
 
@@ -242,8 +242,7 @@ defmodule Kaska.Projects do
     {count, _} =
       Repo.delete_all(
         from m in ProjectMember,
-          where:
-            m.project_id == ^project_id and m.user_id == ^user_id and m.role != :owner
+          where: m.project_id == ^project_id and m.user_id == ^user_id and m.role != :owner
       )
 
     {:ok, count}
@@ -444,6 +443,46 @@ defmodule Kaska.Projects do
 
   def get_task(_), do: nil
 
+  @task_api_preloads [:column, :task_type, :assignee, :creator]
+
+  def list_tasks(project_id) when is_binary(project_id) do
+    Repo.all(
+      from t in Task,
+        where: t.project_id == ^project_id,
+        order_by: [asc: t.rank],
+        preload: ^@task_api_preloads
+    )
+  end
+
+  def get_project_task(project_id, id) when is_binary(project_id) and is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _} ->
+        Repo.one(
+          from t in Task,
+            where: t.id == ^id and t.project_id == ^project_id,
+            preload: ^@task_api_preloads
+        )
+
+      :error ->
+        nil
+    end
+  end
+
+  def get_project_task(_, _), do: nil
+
+  def last_task_id(column_id, except_id \\ nil) when is_binary(column_id) do
+    base =
+      from t in Task,
+        where: t.column_id == ^column_id,
+        order_by: [desc: t.rank],
+        limit: 1,
+        select: t.id
+
+    query = if is_binary(except_id), do: from(t in base, where: t.id != ^except_id), else: base
+
+    Repo.one(query)
+  end
+
   @empty_doc %{"type" => "doc", "content" => []}
 
   @doc """
@@ -519,6 +558,16 @@ defmodule Kaska.Projects do
     Repo.all(
       from c in TaskComment,
         where: c.project_id == ^project_id,
+        order_by: [asc: c.inserted_at],
+        preload: [:author]
+    )
+  end
+
+  def list_task_comments_for(project_id, task_id)
+      when is_binary(project_id) and is_binary(task_id) do
+    Repo.all(
+      from c in TaskComment,
+        where: c.project_id == ^project_id and c.task_id == ^task_id,
         order_by: [asc: c.inserted_at],
         preload: [:author]
     )

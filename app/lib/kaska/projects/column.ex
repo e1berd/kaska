@@ -11,6 +11,7 @@ defmodule Kaska.Projects.Column do
   schema "columns" do
     field :name, :string
     field :rank, :string
+    field :description, :string
 
     belongs_to :project, Project
     has_many :tasks, Task
@@ -20,17 +21,19 @@ defmodule Kaska.Projects.Column do
 
   def create_changeset(column, attrs) do
     column
-    |> cast(attrs, [:name, :rank, :project_id])
+    |> cast(attrs, [:name, :rank, :project_id, :description])
     |> validate_required([:name, :rank, :project_id])
     |> validate_length(:name, min: 1, max: 64)
+    |> validate_length(:description, max: 2000)
     |> assoc_constraint(:project)
   end
 
   def rename_changeset(column, attrs) do
     column
-    |> cast(attrs, [:name])
+    |> cast(attrs, [:name, :description])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 64)
+    |> validate_length(:description, max: 2000)
   end
 
   def rank_changeset(column, attrs) do
