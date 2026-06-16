@@ -280,16 +280,23 @@ onBeforeUnmount(() => {
       Пока комментариев нет.
     </div>
     <div v-else v-auto-animate class="ks-comments__list">
-      <template v-for="root in rootComments" :key="root.id">
+      <div
+        v-for="root in rootComments"
+        :key="root.id"
+        class="ks-comments__thread"
+        :class="{ 'ks-comments__thread--with-replies': repliesOf(root.id).length > 0 }"
+      >
         <CommentItem :comment="root" @reply="startReply" />
-        <CommentItem
-          v-for="reply in repliesOf(root.id)"
-          :key="reply.id"
-          :comment="reply"
-          reply
-          @reply="startReply"
-        />
-      </template>
+        <div v-if="repliesOf(root.id).length" class="ks-comments__replies">
+          <CommentItem
+            v-for="reply in repliesOf(root.id)"
+            :key="reply.id"
+            :comment="reply"
+            reply
+            @reply="startReply"
+          />
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -387,9 +394,30 @@ onBeforeUnmount(() => {
 }
 .ks-comments__list {
   display: grid;
-  gap: 2px;
+  gap: 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
   max-height: 48dvh;
+}
+.ks-comments__thread {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+.ks-comments__thread--with-replies::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 48px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: var(--md-shape-full, 999px);
+  background: rgba(var(--v-theme-outline-variant), 0.95);
+}
+.ks-comments__replies {
+  display: grid;
+  gap: 4px;
+  margin-left: 40px;
+  padding-left: 14px;
 }
 </style>

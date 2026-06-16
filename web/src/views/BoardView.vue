@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
@@ -153,7 +153,7 @@ const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
 let taskProvider: PhoenixYProvider | null = null
 let taskDocTopic: string | null = null
-const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
+const richEditorRef = ref<{ getJSON: () => TiptapDoc; focus: () => boolean } | null>(null)
 
 type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
 const taskDocPresences = shallowRef<PresenceState>({})
@@ -230,6 +230,9 @@ function isFormSyncedWithTask(task: Task): boolean {
 
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
+const newTaskDialog = ref(false)
+const newTaskTitle = ref('')
+const newTaskSubmitting = ref(false)
 
 const orderedTasks = computed<Task[]>(() => {
   const colIndex = new Map(board.orderedColumns.map((c, i) => [c.id, i]))
@@ -278,7 +281,7 @@ const filteredTasks = computed<Task[]>(() => {
 const listHeaders = computed(() => [
   { title: 'Карточка', key: 'title', sortable: true, minWidth: '260px' },
   { title: 'Тип', key: 'task_type_id', sortable: true, width: '180px' },
-  { title: 'Колонка', key: 'column_id', sortable: false, width: '200px' },
+  { title: 'Статус', key: 'column_id', sortable: false, width: '200px' },
   { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: '200px' },
   { title: 'Сроки', key: 'dates', sortable: false, width: '200px' },
 ])
@@ -630,6 +633,12 @@ async function openTask(task: Task) {
   await setupCollab(actualTask.id)
 }
 
+async function editDescription() {
+  editingDescription.value = true
+  await nextTick()
+  richEditorRef.value?.focus()
+}
+
 async function setupCollab(taskId: string) {
   tearDownCollab()
   const topic = `task_doc:${taskId}`
@@ -783,6 +792,11 @@ function openNewColumn() {
   newColumnDialog.value = true
 }
 
+function openNewTask() {
+  newTaskTitle.value = ''
+  newTaskDialog.value = true
+}
+
 async function commitNewColumn() {
   const name = newColumnName.value.trim()
   if (!name) return
@@ -791,6 +805,22 @@ async function commitNewColumn() {
     newColumnDialog.value = false
   } catch (e) {
     console.warn('[board] create column failed', e)
+  }
+}
+
+async function commitNewTask() {
+  const title = newTaskTitle.value.trim()
+  const firstColumn = board.orderedColumns[0]
+  if (!title || !firstColumn) return
+  newTaskSubmitting.value = true
+  try {
+    await board.createTask(firstColumn.id, { title })
+    newTaskTitle.value = ''
+    newTaskDialog.value = false
+  } catch (e) {
+    console.warn('[board] create task failed', e)
+  } finally {
+    newTaskSubmitting.value = false
   }
 }
 
@@ -931,13 +961,23 @@ const boardBackgroundStyle = computed(() => ({
       </v-btn>
       <v-btn
         v-if="board.canWrite"
+        v-show="viewMode === 'list'"
+        prepend-icon="mdi-plus"
+        variant="tonal"
+        rounded="pill"
+        @click="openNewTask"
+      >
+        Новая задача
+      </v-btn>
+      <v-btn
+        v-if="board.canWrite"
         prepend-icon="mdi-plus"
         key="board.canWrite"
-        variant="tonal"
+        variant="text"
         rounded="pill"
         @click="openNewColumn"
       >
-        Новая колонка
+        Новый статус
       </v-btn>
     </header>
 
@@ -1149,7 +1189,7 @@ const boardBackgroundStyle = computed(() => ({
 
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Переименовать колонку</v-card-title>
+        <v-card-title class="md-headline-small px-6 pt-6">Переименовать статус</v-card-title>
         <v-card-text class="px-6 pt-2 flex flex-col gap-4">
           <v-text-field
             v-model="renameValue"
@@ -1164,7 +1204,7 @@ const boardBackgroundStyle = computed(() => ({
           <v-textarea
             v-model="renameDescription"
             label="описание"
-            placeholder="Зачем эта колонка и куда переносить задачу дальше — подсказка для агентов"
+            placeholder="Зачем этот статус и куда переносить задачу дальше — подсказка для агентов"
             variant="filled"
             density="comfortable"
             rows="3"
@@ -1184,7 +1224,7 @@ const boardBackgroundStyle = computed(() => ({
 
     <v-dialog v-model="deleteDialog" max-width="460">
       <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Удалить колонку?</v-card-title>
+        <v-card-title class="md-headline-small px-6 pt-6">Удалить статус?</v-card-title>
         <v-card-text class="px-6 pt-2 md-body-medium text-medium-emphasis">
           Все её карточки тоже исчезнут. Действие нельзя отменить.
         </v-card-text>
@@ -1200,7 +1240,7 @@ const boardBackgroundStyle = computed(() => ({
 
     <v-dialog v-model="newColumnDialog" max-width="460">
       <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Новая колонка</v-card-title>
+        <v-card-title class="md-headline-small px-6 pt-6">Новый статус</v-card-title>
         <v-card-text class="px-6 pt-2">
           <v-text-field
             v-model="newColumnName"
@@ -1216,6 +1256,37 @@ const boardBackgroundStyle = computed(() => ({
           <v-spacer />
           <v-btn variant="text" rounded="pill" @click="newColumnDialog = false">Отмена</v-btn>
           <v-btn color="primary" variant="flat" rounded="pill" @click="commitNewColumn">
+            Создать
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="newTaskDialog" max-width="460">
+      <v-card rounded="xl">
+        <v-card-title class="md-headline-small px-6 pt-6">Новая задача</v-card-title>
+        <v-card-text class="px-6 pt-2">
+          <v-text-field
+            v-model="newTaskTitle"
+            label="название"
+            variant="filled"
+            density="comfortable"
+            autofocus
+            hide-details
+            @keydown.enter.exact.prevent="commitNewTask"
+          />
+        </v-card-text>
+        <v-card-actions class="px-6 pb-6">
+          <v-spacer />
+          <v-btn variant="text" rounded="pill" @click="newTaskDialog = false">Отмена</v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            rounded="pill"
+            :loading="newTaskSubmitting"
+            :disabled="!board.orderedColumns.length"
+            @click="commitNewTask"
+          >
             Создать
           </v-btn>
         </v-card-actions>
@@ -1261,7 +1332,7 @@ const boardBackgroundStyle = computed(() => ({
                   size="small"
                   rounded="pill"
                   prepend-icon="mdi-pencil-outline"
-                  @click="editingDescription = true"
+                  @click="editDescription"
                 >
                   Редактировать
                 </v-btn>
@@ -1367,6 +1438,11 @@ const boardBackgroundStyle = computed(() => ({
               />
             </div>
           </div>
+          <TaskCommentsSection
+            v-if="taskTarget"
+            :task-id="taskTarget.id"
+            class="ks-task-content__comments"
+          />
             </section>
 
             <aside class="ks-task-meta">
@@ -1400,7 +1476,7 @@ const boardBackgroundStyle = computed(() => ({
                 :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                 @click="metaOpen = !metaOpen"
               >
-                Свойства и комментарии
+                Свойства
               </v-btn>
 
               <div v-show="!mobile || metaOpen" class="ks-task-meta__body">
@@ -1479,12 +1555,6 @@ const boardBackgroundStyle = computed(() => ({
                   </v-select>
                 </div>
               </div>
-              <v-divider class="ks-task-meta__divider" />
-              <TaskCommentsSection
-                v-if="taskTarget"
-                :task-id="taskTarget.id"
-                class="ks-task-meta__comments"
-              />
               </div>
 
               <footer v-show="!mobile || metaOpen" class="ks-task-meta__foot">
@@ -1738,6 +1808,9 @@ const boardBackgroundStyle = computed(() => ({
   min-width: 0;
   overflow-y: auto;
   padding: 16px 24px 24px;
+}
+.ks-task-content__comments {
+  margin-top: 28px;
 }
 .ks-task-mbar {
   display: flex;

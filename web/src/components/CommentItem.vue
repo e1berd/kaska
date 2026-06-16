@@ -216,8 +216,7 @@ async function removeAttachment(att: Attachment) {
   background: rgb(var(--v-theme-surface-container-low));
 }
 .ks-comment--reply {
-  margin-left: 28px;
-  border-left: 2px solid rgba(var(--v-theme-primary), 0.35);
+  padding-left: 10px;
 }
 .ks-comment__avatar {
   margin-top: 2px;

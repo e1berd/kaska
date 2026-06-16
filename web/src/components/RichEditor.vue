@@ -318,10 +318,22 @@ const bubbleOptions = {
 function bubbleAppendTo(): HTMLElement {
   return document.body
 }
+
+function focusEditableSurface(event: MouseEvent) {
+  if (!resolveEditable()) return
+  const target = event.target as HTMLElement | null
+  const proseMirror = target?.closest('.ProseMirror')
+  if (proseMirror && target !== proseMirror) return
+  editor.commands.focus('end')
+}
 </script>
 
 <template>
-  <div class="ks-rich" :class="{ 'ks-rich--ro': !resolveEditable(), 'ks-rich--compact': compact }">
+  <div
+    class="ks-rich"
+    :class="{ 'ks-rich--ro': !resolveEditable(), 'ks-rich--compact': compact }"
+    @mousedown.self="focusEditableSurface"
+  >
     <BubbleMenu
       v-if="bubble && resolveEditable()"
       :editor="editor"
@@ -365,7 +377,7 @@ function bubbleAppendTo(): HTMLElement {
       </template>
     </div>
 
-    <EditorContent :editor="editor" class="ks-rich__content" />
+    <EditorContent :editor="editor" class="ks-rich__content" @mousedown="focusEditableSurface" />
   </div>
 </template>
 

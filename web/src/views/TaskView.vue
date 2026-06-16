@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import * as Y from 'yjs'
@@ -51,7 +51,7 @@ const taskYDoc = shallowRef<Y.Doc | null>(null)
 const taskAwareness = shallowRef<Awareness | null>(null)
 let taskProvider: PhoenixYProvider | null = null
 let taskDocTopic: string | null = null
-const richEditorRef = ref<{ getJSON: () => TiptapDoc } | null>(null)
+const richEditorRef = ref<{ getJSON: () => TiptapDoc; focus: () => boolean } | null>(null)
 
 type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
 const taskDocPresences = shallowRef<PresenceState>({})
@@ -240,6 +240,12 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function editDescription() {
+  editingDescription.value = true
+  await nextTick()
+  richEditorRef.value?.focus()
 }
 
 onMounted(() => {
@@ -466,7 +472,7 @@ watch(
             size="small"
             rounded="pill"
             prepend-icon="mdi-pencil-outline"
-            @click="editingDescription = true"
+            @click="editDescription"
           >
             Редактировать
           </v-btn>
@@ -567,6 +573,11 @@ watch(
             />
           </div>
         </div>
+        <TaskCommentsSection
+          v-if="currentTask"
+          :task-id="currentTask.id"
+          class="ks-task-page__comments"
+        />
       </div>
       <aside class="ks-task-page__meta">
         <v-btn
@@ -579,7 +590,7 @@ watch(
           :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
           @click="metaOpen = !metaOpen"
         >
-          Свойства и комментарии
+          Свойства
         </v-btn>
         <div v-show="!mobile || metaOpen" class="ks-task-page__meta-body">
         <div class="ks-task-page__group">
@@ -629,12 +640,6 @@ watch(
             Удалить карточку
           </v-btn>
         </div>
-        <v-divider class="ks-task-page__divider" />
-        <TaskCommentsSection
-          v-if="currentTask"
-          :task-id="currentTask.id"
-          class="ks-task-page__comments"
-        />
         </div>
       </aside>
     </div>
@@ -672,6 +677,9 @@ watch(
   min-width: 0;
   overflow-y: auto;
   padding: 8px 24px 24px;
+}
+.ks-task-page__comments {
+  margin-top: 28px;
 }
 .ks-attach__media {
   background: rgb(var(--v-theme-surface-container));
