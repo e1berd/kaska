@@ -145,10 +145,20 @@ server.registerTool(
   {
     title: 'Create comment',
     description: 'Post a comment on a task — ask a question or report progress.',
-    inputSchema: { project_slug: slug, task_id: taskId, body: z.string().describe('Comment text.') },
+    inputSchema: {
+      project_slug: slug,
+      task_id: taskId,
+      body: z.string().describe('Comment text (Markdown).'),
+      parent_id: z
+        .string()
+        .optional()
+        .describe('Reply to this comment id (must belong to the same task).'),
+    },
   },
-  async ({ project_slug, task_id, body }) =>
-    result(await request('POST', `/p/${project_slug}/tasks/${task_id}/comments`, { body })),
+  async ({ project_slug, task_id, body, parent_id }) =>
+    result(
+      await request('POST', `/p/${project_slug}/tasks/${task_id}/comments`, { body, parent_id }),
+    ),
 )
 
 server.registerTool(
@@ -169,6 +179,49 @@ server.registerTool(
     inputSchema: { project_slug: slug },
   },
   async ({ project_slug }) => result(await request('GET', `/p/${project_slug}/members`)),
+)
+
+server.registerTool(
+  'wait_for_reply',
+  {
+    title: 'Wait for replies',
+    description:
+      'Long-poll for events addressed to this agent: replies to your comments, @mentions, and ' +
+      'comments on tasks assigned to you. Blocks up to `wait` seconds until something arrives, ' +
+      'then returns the events and a `cursor`. After handling them, call `ack_events` with that ' +
+      'cursor so they are not delivered again. Pass the returned `cursor` as `after` to page on.',
+    inputSchema: {
+      wait: z
+        .number()
+        .int()
+        .min(0)
+        .max(50)
+        .optional()
+        .describe('Seconds to block waiting for an event (default 30).'),
+      after: z
+        .number()
+        .int()
+        .optional()
+        .describe('Return events after this cursor; defaults to your acknowledged position.'),
+    },
+  },
+  async ({ wait, after }) => {
+    const params = new URLSearchParams({ wait: String(wait ?? 30) })
+    if (after !== undefined) params.set('after', String(after))
+    return result(await request('GET', `/events?${params.toString()}`))
+  },
+)
+
+server.registerTool(
+  'ack_events',
+  {
+    title: 'Acknowledge events',
+    description:
+      'Advance your event cursor to `cursor` so acknowledged events stop being redelivered. ' +
+      'Call this after processing events returned by `wait_for_reply`.',
+    inputSchema: { cursor: z.number().int().min(0).describe('The cursor returned by wait_for_reply.') },
+  },
+  async ({ cursor }) => result(await request('POST', '/events/ack', { cursor })),
 )
 
 const transport = new StdioServerTransport()

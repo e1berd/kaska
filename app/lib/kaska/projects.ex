@@ -14,6 +14,8 @@ defmodule Kaska.Projects do
   alias Kaska.Repo
   alias Kaska.Rank
   alias Kaska.TaskBody
+  alias Kaska.AgentEvents
+  alias Kaska.Accounts.User
 
   alias Kaska.Projects.{
     Column,
@@ -599,14 +601,82 @@ defmodule Kaska.Projects do
       |> TaskComment.create_changeset(payload)
       |> Repo.insert()
       |> case do
-        {:ok, comment} -> {:ok, Repo.preload(comment, :author)}
-        other -> other
+        {:ok, comment} ->
+          notify_comment_recipients(comment)
+          {:ok, Repo.preload(comment, :author)}
+
+        other ->
+          other
       end
     else
       {:error, _} = err -> err
       _ -> {:error, :task_not_found}
     end
   end
+
+  defp notify_comment_recipients(%TaskComment{} = comment) do
+    task = get_task(comment.task_id)
+
+    recipients =
+      [
+        parent_author_agent_id(comment.parent_id),
+        agent_id_if_agent(task && task.assignee_id)
+        | mention_agent_ids(comment.body_doc)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.reject(&(&1 == comment.author_id))
+      |> Enum.uniq()
+
+    if recipients != [] do
+      slug = Repo.one(from p in Project, where: p.id == ^comment.project_id, select: p.slug)
+
+      payload = %{
+        comment_id: comment.id,
+        task_id: comment.task_id,
+        project_slug: slug,
+        author_id: comment.author_id
+      }
+
+      AgentEvents.record_many(recipients, comment.project_id, "comment_created", payload)
+    end
+
+    :ok
+  end
+
+  defp parent_author_agent_id(nil), do: nil
+
+  defp parent_author_agent_id(parent_id) do
+    case get_task_comment(parent_id) do
+      %TaskComment{author_id: author_id} -> agent_id_if_agent(author_id)
+      _ -> nil
+    end
+  end
+
+  defp agent_id_if_agent(nil), do: nil
+
+  defp agent_id_if_agent(user_id) do
+    Repo.one(from u in User, where: u.id == ^user_id and u.is_agent == true, select: u.id)
+  end
+
+  defp mention_agent_ids(body_doc) do
+    body_doc
+    |> collect_mention_ids()
+    |> Enum.uniq()
+    |> Enum.filter(&agent_id_if_agent/1)
+  end
+
+  defp collect_mention_ids(%{"type" => "mention"} = node) do
+    case get_in(node, ["attrs", "id"]) do
+      id when is_binary(id) -> [id]
+      _ -> []
+    end
+  end
+
+  defp collect_mention_ids(%{"content" => content}) when is_list(content) do
+    Enum.flat_map(content, &collect_mention_ids/1)
+  end
+
+  defp collect_mention_ids(_), do: []
 
   defp normalize_comment_body(attrs) do
     case Map.get(attrs, :body_doc) || Map.get(attrs, "body_doc") do
