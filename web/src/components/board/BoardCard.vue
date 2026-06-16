@@ -29,7 +29,6 @@ const props = defineProps<{ task: Task }>()
 const emit = defineEmits<{ (e: 'open', task: Task): void }>()
 
 const preview = computed(() => docPreview(props.task.body_doc, 220))
-const shortTaskId = computed(() => props.task.id.slice(0, 8))
 const attachmentCount = computed(() => board.attachmentsFor(props.task.id).length)
 const firstImageUrl = computed(() => {
   const first = board.attachmentsFor(props.task.id).find((a) => a.kind === 'image')
@@ -464,10 +463,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="ks-card__title md-body-large">{{ task.title }}</div>
     <div v-if="preview" class="ks-card__preview md-body-small">{{ preview }}</div>
-    <div class="ks-card__meta">
-      <span class="ks-card__chip ks-card__id">
-        ID {{ shortTaskId }}
-      </span>
+    <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="ks-card__meta">
       <span v-if="taskType" class="ks-card__chip" :style="taskTypeChipStyle">
         {{ taskType.name }}
       </span>
@@ -644,11 +640,7 @@ onBeforeUnmount(() => {
 .ks-card__meta {
   margin-top: 8px;
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
-}
-.ks-card__id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .ks-card__chip {
   display: inline-flex;

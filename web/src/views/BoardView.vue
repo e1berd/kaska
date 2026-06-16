@@ -186,6 +186,7 @@ const currentTask = computed<Task | null>(() => {
   if (!taskTargetId.value) return null
   return board.tasks.find((t) => t.id === taskTargetId.value) ?? null
 })
+const shortTaskId = computed(() => currentTask.value?.id.slice(0, 8) ?? taskTargetId.value?.slice(0, 8) ?? '')
 
 type TaskFormState = {
   title: string
@@ -1229,6 +1230,7 @@ const boardBackgroundStyle = computed(() => ({
       <v-card v-if="taskTarget" rounded="xl" class="ks-task-dialog">
         <header v-if="mobile" class="ks-task-mbar">
           <span class="md-title-large">Карточка</span>
+          <span v-if="shortTaskId" class="ks-task-id md-label-large">ID {{ shortTaskId }}</span>
           <PresenceGroup
             v-if="taskViewers.length"
             class="ml-1"
@@ -1369,6 +1371,7 @@ const boardBackgroundStyle = computed(() => ({
 
             <aside class="ks-task-meta">
               <header v-if="!mobile" class="ks-task-meta__bar">
+                <span v-if="shortTaskId" class="ks-task-id md-label-large">ID {{ shortTaskId }}</span>
                 <PresenceGroup
                   v-if="taskViewers.length"
                   :users="taskViewers"
@@ -1742,6 +1745,11 @@ const boardBackgroundStyle = computed(() => ({
   gap: 8px;
   padding: 10px 8px 10px 16px;
   border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
+}
+.ks-task-id {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
 }
 .ks-task-meta {
   min-width: 0;
