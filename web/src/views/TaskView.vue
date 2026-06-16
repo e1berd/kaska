@@ -247,7 +247,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   tearDownCollab()
-  if (taskSaveTimer) clearTimeout(taskSaveTimer)
+  if (taskSaveTimer) {
+    clearTimeout(taskSaveTimer)
+    taskSaveTimer = null
+    if (auth.isAuthed && currentTask.value && !isFormSyncedWithTask(currentTask.value)) {
+      void saveTask()
+    }
+  }
 })
 
 function backToBoard() {
