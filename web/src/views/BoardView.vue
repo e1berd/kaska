@@ -23,6 +23,7 @@ import {
 import { useProjectsStore } from '@/stores/projects'
 import { useSocketStore, pushAsync } from '@/stores/socket'
 import BoardColumn from '@/components/board/BoardColumn.vue'
+import ListColumnControl from '@/components/board/ListColumnControl.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
@@ -64,6 +65,24 @@ const filterAssignee = ref<string | null>(null)
 const filterStartDate = ref<string | null>(null)
 const filterEndDate = ref<string | null>(null)
 const syncingFiltersFromRoute = ref(false)
+
+const listColumnDefaults = [
+  { title: 'Карточка', key: 'title', sortable: true, minWidth: 260, width: 320 },
+  { title: 'Тип', key: 'task_type_id', sortable: true, width: 180 },
+  { title: 'Статус', key: 'column_id', sortable: false, width: 200 },
+  { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: 200 },
+  { title: 'Сроки', key: 'dates', sortable: false, width: 200 },
+] as const
+
+type ListColumnKey = (typeof listColumnDefaults)[number]['key']
+
+const listColumnOrder = ref<ListColumnKey[]>(listColumnDefaults.map((column) => column.key))
+const listColumnWidths = ref<Record<ListColumnKey, number>>(
+  Object.fromEntries(listColumnDefaults.map((column) => [column.key, column.width])) as Record<
+    ListColumnKey,
+    number
+  >,
+)
 
 const filterDateRangeModel = computed<Date[]>({
   get: () => {
@@ -278,13 +297,16 @@ const filteredTasks = computed<Task[]>(() => {
   return [...titleMatches, ...descriptionMatches]
 })
 
-const listHeaders = computed(() => [
-  { title: 'Карточка', key: 'title', sortable: true, minWidth: '260px' },
-  { title: 'Тип', key: 'task_type_id', sortable: true, width: '180px' },
-  { title: 'Статус', key: 'column_id', sortable: false, width: '200px' },
-  { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: '200px' },
-  { title: 'Сроки', key: 'dates', sortable: false, width: '200px' },
-])
+const listColumnMap = computed(() => new Map(listColumnDefaults.map((column) => [column.key, column])))
+
+const listHeaders = computed(() =>
+  listColumnOrder.value.flatMap((key) => {
+    const column = listColumnMap.value.get(key)
+    if (!column) return []
+    const width = `${listColumnWidths.value[key]}px`
+    return [{ ...column, width, minWidth: 'minWidth' in column ? `${column.minWidth}px` : width }]
+  }),
+)
 
 function taskTypeFor(id: string | null | undefined) {
   if (!id) return null
@@ -755,11 +777,15 @@ async function onAttachmentPicked(e: Event) {
   input.value = ''
   if (!taskTarget.value) return
 
+  await uploadTaskFiles(taskTarget.value.id, files)
+}
+
+async function uploadTaskFiles(taskId: string, files: File[]) {
   for (const file of files) {
     taskUploading.value = true
     taskUploadProgress.value = 0
     try {
-      await board.uploadTaskAttachment(taskTarget.value.id, file, (f) => {
+      await board.uploadTaskAttachment(taskId, file, (f) => {
         taskUploadProgress.value = f
       })
     } catch (err) {
@@ -769,6 +795,16 @@ async function onAttachmentPicked(e: Event) {
       taskUploadProgress.value = 0
     }
   }
+}
+
+async function onTaskPaste(e: ClipboardEvent) {
+  if (!board.canWrite || !taskTarget.value) return
+  const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
+    file.type.startsWith('image/'),
+  )
+  if (!files.length) return
+  e.preventDefault()
+  await uploadTaskFiles(taskTarget.value.id, files)
 }
 
 async function removeAttachmentClick(att: Attachment) {
@@ -861,6 +897,80 @@ function clearFilters() {
   filterAssignee.value = null
   filterStartDate.value = null
   filterEndDate.value = null
+}
+
+const listPrefsKey = computed(() => `kaska.board.list_columns.${slug.value}`)
+
+watch(
+  listPrefsKey,
+  (key) => {
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as {
+        order?: string[]
+        widths?: Record<string, number>
+      }
+      const allowed = new Set(listColumnDefaults.map((column) => column.key))
+      const order = (parsed.order ?? []).filter((value): value is ListColumnKey =>
+        allowed.has(value as ListColumnKey),
+      )
+      if (order.length) {
+        listColumnOrder.value = [
+          ...order,
+          ...listColumnDefaults
+            .map((column) => column.key)
+            .filter((key) => !order.includes(key)),
+        ]
+      }
+      listColumnWidths.value = {
+        ...listColumnWidths.value,
+        ...Object.fromEntries(
+          Object.entries(parsed.widths ?? {}).flatMap(([key, value]) => {
+            if (!allowed.has(key as ListColumnKey) || typeof value !== 'number') return []
+            return [[key, clampListColumnWidth(value)]]
+          }),
+        ),
+      }
+    } catch {
+      localStorage.removeItem(key)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  [listColumnOrder, listColumnWidths],
+  () => {
+    localStorage.setItem(
+      listPrefsKey.value,
+      JSON.stringify({ order: listColumnOrder.value, widths: listColumnWidths.value }),
+    )
+  },
+  { deep: true },
+)
+
+function clampListColumnWidth(value: number): number {
+  return Math.min(520, Math.max(120, Math.round(value)))
+}
+
+function moveListColumn(sourceKey: string, targetKey: string) {
+  if (sourceKey === targetKey) return
+  const source = sourceKey as ListColumnKey
+  const target = targetKey as ListColumnKey
+  const order = listColumnOrder.value.filter((key) => key !== source)
+  const targetIndex = order.indexOf(target)
+  if (targetIndex === -1) return
+  order.splice(targetIndex, 0, source)
+  listColumnOrder.value = order
+}
+
+function resizeListColumn(key: string, delta: number) {
+  const columnKey = key as ListColumnKey
+  listColumnWidths.value = {
+    ...listColumnWidths.value,
+    [columnKey]: clampListColumnWidth((listColumnWidths.value[columnKey] ?? 180) + delta),
+  }
 }
 
 async function changeColumn(task: Task, newColumnId: unknown) {
@@ -1090,6 +1200,17 @@ const boardBackgroundStyle = computed(() => ({
     </div>
 
     <div v-else-if="viewMode === 'list'" class="ks-board__list">
+      <div class="ks-board__list-controls">
+        <ListColumnControl
+          v-for="key in listColumnOrder"
+          :key="key"
+          :column-key="key"
+          :title="listColumnMap.get(key)?.title ?? key"
+          :width="listColumnWidths[key]"
+          @move="moveListColumn"
+          @resize="resizeListColumn"
+        />
+      </div>
       <v-card class="ks-board__table" rounded="lg" variant="elevated" :elevation="1">
         <v-data-table
           :headers="listHeaders"
@@ -1315,7 +1436,7 @@ const boardBackgroundStyle = computed(() => ({
           <v-btn icon="mdi-close" variant="text" size="small" @click="closeTaskDialog" />
         </header>
         <div class="ks-task-split">
-            <section class="ks-task-content">
+            <section class="ks-task-content" @paste.capture="onTaskPaste">
               <v-text-field
                 v-model="taskTitle"
                 label="Название"
@@ -1746,6 +1867,12 @@ const boardBackgroundStyle = computed(() => ({
   flex: 1;
   padding: 8px 16px 20px;
   overflow: auto;
+}
+.ks-board__list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .ks-board__table {
   background: rgb(var(--v-theme-surface-container-low));

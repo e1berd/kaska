@@ -20,6 +20,7 @@ const saving = ref(false)
 
 const name = ref('')
 const description = ref('')
+const agentInstructions = ref('')
 const avatarUploading = ref(false)
 const backgroundUploading = ref(false)
 const deleteConfirm = ref(false)
@@ -58,6 +59,7 @@ onMounted(async () => {
     await board.joinBySlug(slug.value)
     name.value = board.project?.name ?? ''
     description.value = board.project?.description ?? ''
+    agentInstructions.value = board.project?.agent_instructions ?? ''
     publicLink.value = board.project?.public_link ?? false
   } catch (err: unknown) {
     const reason = (err as { reason?: string })?.reason
@@ -80,6 +82,7 @@ async function save() {
       id: projectId.value,
       name: name.value.trim(),
       description: description.value.trim(),
+      agent_instructions: agentInstructions.value.trim(),
     })
   } catch (e: unknown) {
     error.value = (e as { message?: string })?.message ?? 'Не удалось сохранить'
@@ -151,7 +154,8 @@ function copyPublicUrl() {
 </script>
 
 <template>
-  <div class="pa-4 pa-sm-6 pa-md-8 mx-auto" style="max-width: 720px">
+  <div class="ks-project-settings-wrapper">
+    <div class="ks-project-settings pa-4 pa-sm-6 pa-md-8 mx-auto">
     <h1 class="md-headline-medium mb-6">Настройки проекта</h1>
 
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
@@ -159,12 +163,12 @@ function copyPublicUrl() {
 
     <v-card v-if="isOwner" variant="outlined" rounded="lg" class="mb-6">
       <v-card-text>
-        <div class="d-flex align-center mb-4" style="gap: 16px">
+        <div class="ks-project-settings__media mb-4">
           <v-avatar size="64" color="primary-container">
             <v-img v-if="project?.avatar_url" :src="project.avatar_url" cover alt="" />
             <span v-else class="md-headline-small">{{ (name || '?').slice(0, 1).toUpperCase() }}</span>
           </v-avatar>
-          <div class="d-flex" style="gap: 8px">
+          <div class="ks-project-settings__actions">
             <v-btn variant="tonal" size="small" :loading="avatarUploading" @click="pickMedia('avatar')">
               <template #prepend><ph-upload-simple :size="18" weight="bold" /></template>
               Аватар
@@ -183,8 +187,17 @@ function copyPublicUrl() {
 
         <v-text-field v-model="name" label="Название" variant="filled" density="comfortable" class="mb-2" />
         <v-textarea v-model="description" label="Описание" variant="filled" density="comfortable" rows="3" auto-grow />
+        <v-textarea
+          v-model="agentInstructions"
+          label="Инструкции для агентов"
+          variant="filled"
+          density="comfortable"
+          rows="5"
+          auto-grow
+          class="mt-2"
+        />
 
-        <div class="d-flex mt-2" style="gap: 8px">
+        <div class="ks-project-settings__footer mt-2">
           <v-btn variant="tonal" size="small" :loading="backgroundUploading" @click="pickMedia('background')">
             <template #prepend><ph-upload-simple :size="18" weight="bold" /></template>
             Фон
@@ -198,7 +211,7 @@ function copyPublicUrl() {
           >
             Убрать фон
           </v-btn>
-          <v-spacer />
+          <v-spacer class="ks-project-settings__spacer" />
           <v-btn color="primary" rounded="pill" :loading="saving" @click="save">Сохранить</v-btn>
         </div>
 
@@ -256,8 +269,8 @@ function copyPublicUrl() {
     </v-card>
 
     <v-card v-if="isOwner" variant="outlined" rounded="lg" color="error" class="border-error">
-      <v-card-text class="d-flex align-center justify-space-between">
-        <div>
+      <v-card-text class="ks-project-settings__danger">
+        <div class="ks-project-settings__danger-text">
           <div class="md-title-small">Удалить проект</div>
           <div class="md-body-small text-medium-emphasis">Действие необратимо.</div>
         </div>
@@ -279,5 +292,73 @@ function copyPublicUrl() {
         </v-card-actions>
       </v-card>
     </v-dialog>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.ks-project-settings-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.ks-project-settings {
+  width: min(720px, 100%);
+  min-width: 0;
+}
+
+.ks-project-settings :deep(.v-card) {
+  min-width: 0;
+}
+
+.ks-project-settings__media,
+.ks-project-settings__actions,
+.ks-project-settings__footer,
+.ks-project-settings__danger {
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+}
+
+.ks-project-settings__media,
+.ks-project-settings__danger {
+  align-items: center;
+}
+
+.ks-project-settings__actions,
+.ks-project-settings__footer,
+.ks-project-settings__danger {
+  flex-wrap: wrap;
+}
+
+.ks-project-settings__footer {
+  align-items: center;
+  gap: 8px;
+}
+
+.ks-project-settings__danger {
+  justify-content: space-between;
+}
+
+.ks-project-settings__danger-text {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .ks-project-settings__media {
+    align-items: flex-start;
+  }
+
+  .ks-project-settings__footer,
+  .ks-project-settings__danger {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ks-project-settings__spacer {
+    display: none;
+  }
+}
+</style>

@@ -103,7 +103,14 @@ watch(
 
 const authScreen = computed(() => route.meta.authScreen === true)
 
-const projectScopeRoutes = ['board', 'task', 'board_types', 'board_members', 'board_settings']
+const projectScopeRoutes = [
+  'board',
+  'task',
+  'board_types',
+  'board_members',
+  'board_history',
+  'board_settings',
+]
 
 const inProjectScope = computed(() => projectScopeRoutes.includes(route.name as string))
 

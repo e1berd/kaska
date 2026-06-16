@@ -326,11 +326,15 @@ async function onAttachmentPicked(e: Event) {
   input.value = ''
   if (!currentTask.value) return
 
+  await uploadTaskFiles(currentTask.value.id, files)
+}
+
+async function uploadTaskFiles(taskId: string, files: File[]) {
   for (const file of files) {
     taskUploading.value = true
     taskUploadProgress.value = 0
     try {
-      await board.uploadTaskAttachment(currentTask.value.id, file, (f) => {
+      await board.uploadTaskAttachment(taskId, file, (f) => {
         taskUploadProgress.value = f
       })
     } catch (err) {
@@ -340,6 +344,16 @@ async function onAttachmentPicked(e: Event) {
       taskUploadProgress.value = 0
     }
   }
+}
+
+async function onTaskPaste(e: ClipboardEvent) {
+  if (!auth.isAuthed || !currentTask.value) return
+  const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
+    file.type.startsWith('image/'),
+  )
+  if (!files.length) return
+  e.preventDefault()
+  await uploadTaskFiles(currentTask.value.id, files)
 }
 
 async function removeAttachmentClick(att: Attachment) {
@@ -457,7 +471,7 @@ watch(
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal" class="ma-4">{{ error }}</v-alert>
     <div v-else class="ks-task-page__content">
-      <div class="ks-task-page__main">
+      <div class="ks-task-page__main" @paste.capture="onTaskPaste">
         <v-text-field
           v-model="taskTitle"
           label="Название"

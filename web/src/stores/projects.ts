@@ -10,6 +10,7 @@ export interface Project {
   slug: string
   name: string
   description: string | null
+  agent_instructions: string | null
   owner_id: string
   public_link: boolean
   theme_slug: string | null
@@ -76,11 +77,19 @@ export const useProjectsStore = defineStore('projects', () => {
     return pushAsync<Project>(ch, 'create_project', input)
   }
 
-  async function updateProject(input: { id: string; name?: string; description?: string | null }) {
+  async function updateProject(input: {
+    id: string
+    name?: string
+    description?: string | null
+    agent_instructions?: string | null
+  }) {
     const ch = await requireChannel()
     const payload: Record<string, unknown> = { id: input.id }
     if (input.name !== undefined) payload.name = input.name
     if (input.description !== undefined) payload.description = input.description ?? ''
+    if (input.agent_instructions !== undefined) {
+      payload.agent_instructions = input.agent_instructions ?? ''
+    }
     return pushAsync<Project>(ch, 'update_project', payload)
   }
 

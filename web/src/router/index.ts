@@ -24,6 +24,12 @@ const routes: RouteRecordRaw[] = [
     props: true,
   },
   {
+    path: '/p/:slug/history',
+    name: 'board_history',
+    component: () => import('@/views/ProjectHistoryView.vue'),
+    props: true,
+  },
+  {
     path: '/p/:slug/settings',
     name: 'board_settings',
     component: () => import('@/views/ProjectSettingsView.vue'),
