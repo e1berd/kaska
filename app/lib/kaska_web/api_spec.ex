@@ -313,9 +313,20 @@ defmodule KaskaWeb.ApiSpec do
       properties: %{
         id: %Schema{type: :string, format: :uuid},
         task_id: %Schema{type: :string, format: :uuid},
-        body: %Schema{type: :string},
+        parent_id: %Schema{
+          type: :string,
+          format: :uuid,
+          nullable: true,
+          description: "Parent comment id when this comment is a reply."
+        },
+        body: %Schema{
+          type: :string,
+          description: "Comment body as Markdown, or the raw tiptap document when `?task_format=json`."
+        },
+        body_format: %Schema{type: :string, enum: ["markdown", "json"]},
         author: nullable(user_schema()),
         guest_name: %Schema{type: :string, nullable: true},
+        attachments: array(attachment_schema()),
         inserted_at: %Schema{type: :string, format: :"date-time"},
         updated_at: %Schema{type: :string, format: :"date-time"}
       }
@@ -326,7 +337,20 @@ defmodule KaskaWeb.ApiSpec do
     %Schema{
       type: :object,
       required: [:body],
-      properties: %{body: %Schema{type: :string, minLength: 1, maxLength: 5000}}
+      properties: %{
+        body: %Schema{
+          type: :string,
+          minLength: 1,
+          maxLength: 5000,
+          description: "Comment body as Markdown. Alternatively send `body_doc` as a raw tiptap document."
+        },
+        body_doc: %Schema{type: :object, description: "Raw tiptap document (alternative to `body`)."},
+        parent_id: %Schema{
+          type: :string,
+          format: :uuid,
+          description: "Reply to this comment. Must belong to the same task."
+        }
+      }
     }
   end
 

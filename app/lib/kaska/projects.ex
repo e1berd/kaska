@@ -13,6 +13,7 @@ defmodule Kaska.Projects do
   alias Ecto.Multi
   alias Kaska.Repo
   alias Kaska.Rank
+  alias Kaska.TaskBody
 
   alias Kaska.Projects.{
     Column,
@@ -583,12 +584,15 @@ defmodule Kaska.Projects do
   def get_task_comment(_), do: nil
 
   def create_task_comment(project_id, task_id, attrs, author_id) do
-    with %Task{project_id: ^project_id} <- get_task(task_id) do
+    with %Task{project_id: ^project_id} <- get_task(task_id),
+         {:ok, parent_id} <- resolve_comment_parent(attrs, project_id, task_id) do
       payload =
         attrs
         |> Map.new()
+        |> normalize_comment_body()
         |> Map.put(:project_id, project_id)
         |> Map.put(:task_id, task_id)
+        |> Map.put(:parent_id, parent_id)
         |> maybe_put_comment_author(author_id)
 
       %TaskComment{}
@@ -599,7 +603,42 @@ defmodule Kaska.Projects do
         other -> other
       end
     else
+      {:error, _} = err -> err
       _ -> {:error, :task_not_found}
+    end
+  end
+
+  defp normalize_comment_body(attrs) do
+    case Map.get(attrs, :body_doc) || Map.get(attrs, "body_doc") do
+      %{} = doc ->
+        attrs
+        |> Map.put(:body_doc, doc)
+        |> Map.put(:body, TaskBody.to_markdown(doc))
+
+      _ ->
+        body = Map.get(attrs, :body) || Map.get(attrs, "body") || ""
+        attrs
+        |> Map.put(:body, body)
+        |> Map.put(:body_doc, TaskBody.from_markdown(body))
+    end
+  end
+
+  defp resolve_comment_parent(attrs, project_id, task_id) do
+    case Map.get(attrs, :parent_id) || Map.get(attrs, "parent_id") do
+      nil ->
+        {:ok, nil}
+
+      "" ->
+        {:ok, nil}
+
+      parent_id when is_binary(parent_id) ->
+        case get_task_comment(parent_id) do
+          %TaskComment{project_id: ^project_id, task_id: ^task_id} -> {:ok, parent_id}
+          _ -> {:error, :parent_not_found}
+        end
+
+      _ ->
+        {:error, :parent_not_found}
     end
   end
 

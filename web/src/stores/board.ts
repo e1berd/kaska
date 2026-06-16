@@ -45,6 +45,7 @@ export interface TaskType {
 export interface Attachment {
   id: string
   task_id: string
+  comment_id?: string
   kind: 'image' | 'video' | 'file'
   filename: string
   mime: string
@@ -66,13 +67,16 @@ export interface TaskComment {
   id: string
   task_id: string
   project_id: string
+  parent_id: string | null
   body: string
+  body_doc: TiptapDoc | null
   author_id: string | null
   guest_name: string | null
   author_display_name: string | null
   author_email: string | null
   author_avatar_url: string | null
   author_role: User['role'] | null
+  attachments: Attachment[]
   inserted_at?: string
   updated_at?: string
 }
@@ -228,6 +232,10 @@ export const useBoardStore = defineStore('board', () => {
     ch.on('task_attachment_removed', ({ id }: { id: string }) => removeAttachment(id))
     ch.on('task_comment_created', (c: TaskComment) => upsertTaskComment(c))
     ch.on('task_comment_deleted', ({ id }: { id: string }) => removeTaskComment(id))
+    ch.on('comment_attachment_added', (a: Attachment) => upsertCommentAttachment(a))
+    ch.on('comment_attachment_removed', (p: { id: string; comment_id: string }) =>
+      removeCommentAttachment(p.comment_id, p.id),
+    )
 
     ch.on('task_type_created', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_updated', (tt: TaskType) => upsertTaskType(tt))
@@ -291,6 +299,22 @@ export const useBoardStore = defineStore('board', () => {
 
   function removeTaskComment(id: string) {
     taskComments.value = taskComments.value.filter((c) => c.id !== id)
+  }
+
+  function upsertCommentAttachment(a: Attachment) {
+    if (!a.comment_id) return
+    const comment = taskComments.value.find((c) => c.id === a.comment_id)
+    if (!comment) return
+    const list = comment.attachments ?? []
+    const idx = list.findIndex((x) => x.id === a.id)
+    if (idx === -1) comment.attachments = [...list, a]
+    else comment.attachments = list.map((x) => (x.id === a.id ? a : x))
+  }
+
+  function removeCommentAttachment(commentId: string, attachmentId: string) {
+    const comment = taskComments.value.find((c) => c.id === commentId)
+    if (!comment) return
+    comment.attachments = (comment.attachments ?? []).filter((a) => a.id !== attachmentId)
   }
 
   function removeAttachment(id: string) {
@@ -397,16 +421,53 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task', { id })
   }
 
-  function createTaskComment(taskId: string, body: string, guestName?: string | null) {
+  function createTaskComment(
+    taskId: string,
+    input: {
+      body_doc?: TiptapDoc
+      body?: string
+      parentId?: string | null
+      guestName?: string | null
+    },
+  ) {
     return pushAsync<TaskComment>(ch(), 'create_task_comment', {
       task_id: taskId,
-      body,
-      guest_name: guestName ?? null,
+      body_doc: input.body_doc,
+      body: input.body,
+      parent_id: input.parentId ?? null,
+      guest_name: input.guestName ?? null,
     })
   }
 
   function deleteTaskComment(id: string) {
     return pushAsync(ch(), 'delete_task_comment', { id })
+  }
+
+  async function uploadCommentAttachment(
+    commentId: string,
+    file: File,
+    onProgress?: (fraction: number) => void,
+  ): Promise<Attachment> {
+    const meta = await pushAsync<{
+      attachment_id: string
+      put_url: string
+      mime: string
+    }>(ch(), 'request_comment_attachment_upload', {
+      comment_id: commentId,
+      filename: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+    })
+
+    await uploadToPresignedUrl(meta.put_url, file, onProgress)
+
+    return await pushAsync<Attachment>(ch(), 'confirm_comment_attachment_upload', {
+      attachment_id: meta.attachment_id,
+    })
+  }
+
+  function deleteCommentAttachment(id: string) {
+    return pushAsync(ch(), 'delete_comment_attachment', { id })
   }
 
   const localMoves = new Map<string, number>()
@@ -578,6 +639,8 @@ export const useBoardStore = defineStore('board', () => {
     deleteTaskType,
     uploadTaskAttachment,
     deleteTaskAttachment,
+    uploadCommentAttachment,
+    deleteCommentAttachment,
     listMembers,
     listInvites,
     inviteMember,

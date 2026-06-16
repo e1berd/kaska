@@ -8,7 +8,7 @@ defmodule Kaska.Attachments.Attachment do
   @foreign_key_type :binary_id
   @timestamps_opts [type: :utc_datetime]
 
-  @parent_types ~w(task user project)
+  @parent_types ~w(task user project comment)
   @kinds ~w(image video file)
   @statuses ~w(pending ready)
 

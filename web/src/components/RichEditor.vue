@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, watch, type Component } from 'vue'
 import { Editor, EditorContent, type FocusPosition } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
 import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -19,11 +20,27 @@ import {
   PhListBullets as ListBullets,
   PhListNumbers as ListNumbers,
   PhQuotes as Quote,
-  PhCode as Code,
+  PhCode as InlineCode,
+  PhCodeBlock as CodeBlock,
   PhLink as LinkIcon,
 } from '@phosphor-icons/vue'
 
 import type { TiptapDoc } from '@/stores/board'
+
+type ToolSep = { sep: true }
+type ToolButton = {
+  id: string
+  icon: Component
+  title: string
+  run: () => void
+  active?: () => boolean
+  disabled?: () => boolean
+}
+type ToolItem = ToolSep | ToolButton
+
+function isSep(item: ToolItem): item is ToolSep {
+  return 'sep' in item
+}
 
 type CollabUser = { name: string; color: string }
 
@@ -33,6 +50,9 @@ const props = withDefaults(
     placeholder?: string
     readonly?: boolean
     editable?: boolean
+    headings?: boolean
+    compact?: boolean
+    bubble?: boolean
     autofocus?: FocusPosition
     ydoc?: Y.Doc | null
     awareness?: Awareness | null
@@ -43,6 +63,9 @@ const props = withDefaults(
     autofocus: false,
     readonly: false,
     editable: undefined,
+    headings: true,
+    compact: false,
+    bubble: false,
     modelValue: null,
     ydoc: null,
     awareness: null,
@@ -65,7 +88,7 @@ function resolveEditable(): boolean {
 const baseExtensions: AnyExtension[] = [
   StarterKit.configure({
     link: false,
-    heading: { levels: [2, 3] },
+    heading: props.headings ? { levels: [2, 3] } : false,
     ...(collabMode ? { undoRedo: false as const } : {}),
   }),
   Placeholder.configure({ placeholder: props.placeholder }),
@@ -180,10 +203,6 @@ defineExpose({
   focus: (position: FocusPosition = 'end') => editor.commands.focus(position),
 })
 
-function isActive(name: string, attrs?: Record<string, unknown>) {
-  return editor.isActive(name, attrs)
-}
-
 function toggleLink() {
   if (editor.isActive('link')) {
     editor.chain().focus().unsetLink().run()
@@ -193,105 +212,157 @@ function toggleLink() {
   if (!url) return
   editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
+
+const tools = computed<ToolItem[]>(() => {
+  const items: ToolItem[] = [
+    {
+      id: 'bold',
+      icon: TextB,
+      title: 'Жирный (Ctrl+B)',
+      run: () => editor.chain().focus().toggleBold().run(),
+      active: () => editor.isActive('bold'),
+    },
+    {
+      id: 'italic',
+      icon: TextItalic,
+      title: 'Курсив (Ctrl+I)',
+      run: () => editor.chain().focus().toggleItalic().run(),
+      active: () => editor.isActive('italic'),
+    },
+    {
+      id: 'strike',
+      icon: TextStrikethrough,
+      title: 'Зачёркнутый',
+      run: () => editor.chain().focus().toggleStrike().run(),
+      active: () => editor.isActive('strike'),
+    },
+    {
+      id: 'code',
+      icon: InlineCode,
+      title: 'Код',
+      run: () => editor.chain().focus().toggleCode().run(),
+      active: () => editor.isActive('code'),
+    },
+  ]
+
+  if (props.headings) {
+    items.push(
+      { sep: true },
+      {
+        id: 'h2',
+        icon: H2,
+        title: 'Заголовок',
+        run: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+        active: () => editor.isActive('heading', { level: 2 }),
+      },
+      {
+        id: 'h3',
+        icon: H3,
+        title: 'Подзаголовок',
+        run: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+        active: () => editor.isActive('heading', { level: 3 }),
+      },
+    )
+  }
+
+  items.push(
+    { sep: true },
+    {
+      id: 'bulletList',
+      icon: ListBullets,
+      title: 'Список',
+      run: () => editor.chain().focus().toggleBulletList().run(),
+      active: () => editor.isActive('bulletList'),
+    },
+    {
+      id: 'orderedList',
+      icon: ListNumbers,
+      title: 'Нумерованный список',
+      run: () => editor.chain().focus().toggleOrderedList().run(),
+      active: () => editor.isActive('orderedList'),
+    },
+    { sep: true },
+    {
+      id: 'blockquote',
+      icon: Quote,
+      title: 'Цитата',
+      run: () => editor.chain().focus().toggleBlockquote().run(),
+      active: () => editor.isActive('blockquote'),
+    },
+    {
+      id: 'codeBlock',
+      icon: CodeBlock,
+      title: 'Блок кода',
+      run: () => editor.chain().focus().toggleCodeBlock().run(),
+      active: () => editor.isActive('codeBlock'),
+    },
+    {
+      id: 'link',
+      icon: LinkIcon,
+      title: 'Ссылка',
+      run: toggleLink,
+      active: () => editor.isActive('link'),
+    },
+  )
+
+  return items
+})
+
+const bubbleOptions = {
+  placement: 'top' as const,
+  offset: 8,
+  flip: true,
+  shift: { padding: 8 },
+}
+
+function bubbleAppendTo(): HTMLElement {
+  return document.body
+}
 </script>
 
 <template>
-  <div class="ks-rich" :class="{ 'ks-rich--ro': !resolveEditable() }">
-    <div v-if="resolveEditable()" class="ks-rich__toolbar">
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('bold') }"
-        :disabled="!editor.can().chain().focus().toggleBold().run()"
-        @click="editor.chain().focus().toggleBold().run()"
-        title="Жирный (Ctrl+B)"
-      >
-        <TextB :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('italic') }"
-        @click="editor.chain().focus().toggleItalic().run()"
-        title="Курсив (Ctrl+I)"
-      >
-        <TextItalic :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('strike') }"
-        @click="editor.chain().focus().toggleStrike().run()"
-        title="Зачёркнутый"
-      >
-        <TextStrikethrough :size="18" />
-      </button>
-      <span class="ks-rich__sep" />
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('heading', { level: 2 }) }"
-        @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
-        title="Заголовок"
-      >
-        <H2 :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('heading', { level: 3 }) }"
-        @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-        title="Подзаголовок"
-      >
-        <H3 :size="18" />
-      </button>
-      <span class="ks-rich__sep" />
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('bulletList') }"
-        @click="editor.chain().focus().toggleBulletList().run()"
-        title="Список"
-      >
-        <ListBullets :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('orderedList') }"
-        @click="editor.chain().focus().toggleOrderedList().run()"
-        title="Нумерованный список"
-      >
-        <ListNumbers :size="18" />
-      </button>
-      <span class="ks-rich__sep" />
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('blockquote') }"
-        @click="editor.chain().focus().toggleBlockquote().run()"
-        title="Цитата"
-      >
-        <Quote :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('codeBlock') }"
-        @click="editor.chain().focus().toggleCodeBlock().run()"
-        title="Блок кода"
-      >
-        <Code :size="18" />
-      </button>
-      <button
-        type="button"
-        class="ks-rich__btn"
-        :class="{ 'is-active': isActive('link') }"
-        @click="toggleLink"
-        title="Ссылка"
-      >
-        <LinkIcon :size="18" />
-      </button>
+  <div class="ks-rich" :class="{ 'ks-rich--ro': !resolveEditable(), 'ks-rich--compact': compact }">
+    <BubbleMenu
+      v-if="bubble && resolveEditable()"
+      :editor="editor"
+      :options="bubbleOptions"
+      :append-to="bubbleAppendTo"
+      class="ks-rich__bubble"
+      :style="{ zIndex: 2500 }"
+    >
+      <div class="ks-rich__toolbar ks-rich__toolbar--bubble">
+        <template v-for="(item, i) in tools" :key="i">
+          <span v-if="isSep(item)" class="ks-rich__sep" />
+          <button
+            v-else
+            type="button"
+            class="ks-rich__btn"
+            :class="{ 'is-active': item.active?.() }"
+            :disabled="item.disabled?.()"
+            :title="item.title"
+            @click="item.run()"
+          >
+            <component :is="item.icon" :size="18" />
+          </button>
+        </template>
+      </div>
+    </BubbleMenu>
+
+    <div v-else-if="resolveEditable()" class="ks-rich__toolbar">
+      <template v-for="(item, i) in tools" :key="i">
+        <span v-if="isSep(item)" class="ks-rich__sep" />
+        <button
+          v-else
+          type="button"
+          class="ks-rich__btn"
+          :class="{ 'is-active': item.active?.() }"
+          :disabled="item.disabled?.()"
+          :title="item.title"
+          @click="item.run()"
+        >
+          <component :is="item.icon" :size="18" />
+        </button>
+      </template>
     </div>
 
     <EditorContent :editor="editor" class="ks-rich__content" />
@@ -324,6 +395,8 @@ function toggleLink() {
   :deep(.tiptap) {
     outline: none;
     color: rgb(var(--v-theme-on-surface));
+    padding: 12px 16px;
+    min-height: 170px;
 
     p {
       margin: 0 0 8px;
@@ -437,6 +510,37 @@ function toggleLink() {
   border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
 
+.ks-rich__bubble {
+  z-index: 30;
+}
+
+.ks-rich__toolbar--bubble {
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: none;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-surface-container));
+  box-shadow: var(--md-elev-2);
+}
+
+.ks-rich__toolbar--bubble .ks-rich__btn {
+  height: 36px;
+  width: 36px;
+  border-radius: var(--md-shape-full);
+}
+
+.ks-rich__toolbar--bubble .ks-rich__btn.is-active:hover {
+  background: rgb(var(--v-theme-secondary-container));
+  box-shadow: inset 0 0 0 999px rgba(var(--v-theme-on-secondary-container), var(--md-state-hover));
+}
+
+.ks-rich__toolbar--bubble .ks-rich__sep {
+  height: 18px;
+  margin: 0 2px;
+  background: rgba(var(--v-theme-outline-variant), 0.6);
+}
+
 .ks-rich__btn {
   display: inline-flex;
   align-items: center;
@@ -477,8 +581,18 @@ function toggleLink() {
 }
 
 .ks-rich__content {
-  padding: 12px 16px;
-  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  cursor: text;
   font-family: 'Roboto Flex', 'Roboto', sans-serif;
+}
+
+.ks-rich__content :deep(.tiptap) {
+  flex: 1;
+}
+
+.ks-rich--compact :deep(.tiptap) {
+  min-height: 84px;
+  padding: 10px 12px;
 }
 </style>

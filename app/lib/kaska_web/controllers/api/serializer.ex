@@ -43,7 +43,7 @@ defmodule KaskaWeb.Api.Serializer do
       end_date: task.end_date,
       inserted_at: task.inserted_at,
       updated_at: task.updated_at,
-      comments: comments_by_task |> Map.get(task.id, []) |> Enum.map(&comment/1),
+      comments: comments_by_task |> Map.get(task.id, []) |> Enum.map(&comment(&1, format)),
       attachments: attachments_by_task |> Map.get(task.id, []) |> Enum.map(&attachment/1)
     }
   end
@@ -66,13 +66,16 @@ defmodule KaskaWeb.Api.Serializer do
 
   def task_type(_), do: nil
 
-  def comment(%TaskComment{} = c) do
+  def comment(%TaskComment{} = c, format \\ :markdown) do
     %{
       id: c.id,
       task_id: c.task_id,
-      body: c.body,
+      parent_id: c.parent_id,
+      body: TaskBody.body_view(c.body_doc, format),
+      body_format: format,
       author: user_brief(maybe_loaded(c.author)),
       guest_name: c.guest_name,
+      attachments: "comment" |> Attachments.list_for(c.id) |> Enum.map(&attachment/1),
       inserted_at: c.inserted_at,
       updated_at: c.updated_at
     }

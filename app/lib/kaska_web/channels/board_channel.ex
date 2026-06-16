@@ -60,6 +60,11 @@ defmodule KaskaWeb.BoardChannel do
           attachment_view(a)
         end
 
+      comment_attachments =
+        "comment"
+        |> Attachments.list_for_many(Enum.map(task_comments, & &1.id))
+        |> Map.new(fn {cid, atts} -> {cid, Enum.map(atts, &attachment_view/1)} end)
+
       {:ok,
        %{
          project: project_view(project),
@@ -69,7 +74,8 @@ defmodule KaskaWeb.BoardChannel do
          columns: Enum.map(columns, &column_view/1),
          tasks: Enum.map(tasks, &task_view/1),
          task_types: Enum.map(task_types, &task_type_view/1),
-         task_comments: Enum.map(task_comments, &task_comment_view/1),
+         task_comments:
+           Enum.map(task_comments, &task_comment_view(&1, Map.get(comment_attachments, &1.id, []))),
          settings: %{allow_guest_comments: allow_guest_comments},
          users: Enum.map(users, &user_view/1),
          attachments: attachments
@@ -107,7 +113,9 @@ defmodule KaskaWeb.BoardChannel do
       |> to_string()
       |> String.trim()
 
+    body_doc = Map.get(payload, "body_doc")
     guest_name = Map.get(payload, "guest_name")
+    parent_id = Map.get(payload, "parent_id")
     allow_guest_comments = Accounts.get_setting("allow_guest_comments", "false") == "true"
     actor = socket.assigns[:current_user]
 
@@ -122,7 +130,10 @@ defmodule KaskaWeb.BoardChannel do
         {:reply, {:error, %{message: "guest_comment_rate_limited"}}, socket}
 
       true ->
-        attrs = %{body: body, guest_name: guest_name}
+        attrs =
+          %{guest_name: guest_name, parent_id: parent_id}
+          |> put_comment_content(body_doc, body)
+
         author_id = if actor, do: actor.id, else: nil
 
         case Projects.create_task_comment(socket.assigns.project_id, task_id, attrs, author_id) do
@@ -608,6 +619,63 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
+  def handle_in("request_comment_attachment_upload", %{"comment_id" => comment_id} = payload, socket) do
+    with %TaskComment{} = comment <- get_owned_task_comment(comment_id, socket),
+         attrs = %{
+           filename: Map.get(payload, "filename"),
+           mime: Map.get(payload, "mime"),
+           size: Map.get(payload, "size")
+         },
+         {:ok, %{attachment: attachment, put_url: put_url}} <-
+           Attachments.request_upload("comment", comment.id, attrs, socket.assigns.current_user.id) do
+      {:reply,
+       {:ok,
+        %{
+          attachment_id: attachment.id,
+          put_url: put_url,
+          storage_key: attachment.storage_key,
+          mime: attachment.mime
+        }}, socket}
+    else
+      nil -> {:reply, {:error, %{message: "task_comment_not_found"}}, socket}
+      {:error, %Ecto.Changeset{} = cs} -> {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+    end
+  end
+
+  def handle_in("confirm_comment_attachment_upload", %{"attachment_id" => id}, socket) do
+    user_id = socket.assigns.current_user.id
+
+    case Attachments.confirm_upload(id, user_id) do
+      {:ok, %Attachment{parent_type: "comment"} = attachment} ->
+        case get_owned_task_comment(attachment.parent_id, socket) do
+          %TaskComment{task_id: task_id} ->
+            view = comment_attachment_view(attachment, task_id)
+            broadcast!(socket, "comment_attachment_added", view)
+            {:reply, {:ok, view}, socket}
+
+          _ ->
+            {:reply, {:error, %{message: "task_comment_not_found"}}, socket}
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, %{message: to_string(reason)}}, socket}
+    end
+  end
+
+  def handle_in("delete_comment_attachment", %{"id" => id}, socket) do
+    with %Attachment{parent_type: "comment", parent_id: comment_id} = attachment <-
+           Attachments.get(id),
+         %TaskComment{task_id: task_id} <- get_owned_task_comment(comment_id, socket),
+         {:ok, _} <- Attachments.delete_attachment(attachment) do
+      payload = %{id: id, comment_id: comment_id, task_id: task_id}
+      broadcast!(socket, "comment_attachment_removed", payload)
+      {:reply, {:ok, %{id: id}}, socket}
+    else
+      _ -> {:reply, {:error, %{message: "attachment_not_found"}}, socket}
+    end
+  end
+
   defp with_owned_project(socket, fun) do
     user = socket.assigns[:current_user]
     project = Projects.get_project(socket.assigns.project_id)
@@ -801,22 +869,36 @@ defmodule KaskaWeb.BoardChannel do
     }
   end
 
+  defp comment_attachment_view(%Attachment{} = a, task_id) do
+    a |> attachment_view() |> Map.merge(%{comment_id: a.parent_id, task_id: task_id})
+  end
+
   def task_comment_view(%TaskComment{} = c) do
+    task_comment_view(c, Enum.map(Attachments.list_for("comment", c.id), &attachment_view/1))
+  end
+
+  def task_comment_view(%TaskComment{} = c, attachments) when is_list(attachments) do
     %{
       id: c.id,
       task_id: c.task_id,
       project_id: c.project_id,
+      parent_id: c.parent_id,
       body: c.body,
+      body_doc: c.body_doc,
       author_id: c.author_id,
       guest_name: c.guest_name,
       author_display_name: c.author && c.author.display_name,
       author_email: c.author && c.author.email,
       author_avatar_url: c.author && avatar_url(c.author),
       author_role: c.author && c.author.role,
+      attachments: attachments,
       inserted_at: c.inserted_at,
       updated_at: c.updated_at
     }
   end
+
+  defp put_comment_content(attrs, %{} = body_doc, _body), do: Map.put(attrs, :body_doc, body_doc)
+  defp put_comment_content(attrs, _body_doc, body), do: Map.put(attrs, :body, body)
 
   defp can_delete_comment?(_comment, nil), do: false
 

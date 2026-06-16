@@ -22,7 +22,7 @@ defmodule Kaska.Attachments do
   @video_max 300 * 1024 * 1024
   @file_max 50 * 1024 * 1024
 
-  @parent_types ~w(task user project)
+  @parent_types ~w(task user project comment)
 
   @doc """
   Creates a `pending` attachment + a pre-signed PUT URL.

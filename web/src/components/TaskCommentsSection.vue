@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { PhDetective } from '@phosphor-icons/vue'
-import { format, isValid, parseISO } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { PhArrowBendUpLeft, PhPaperclip, PhX, PhFile } from '@phosphor-icons/vue'
 import { useAuthStore } from '@/stores/auth'
-import { useBoardStore, type TaskComment } from '@/stores/board'
+import { useBoardStore, type TaskComment, type TiptapDoc } from '@/stores/board'
+import { isDocEmpty } from '@/utils/tiptap'
+import RichEditor from '@/components/RichEditor.vue'
+import CommentItem from '@/components/CommentItem.vue'
 
 const props = defineProps<{
   taskId: string
@@ -13,47 +14,48 @@ const props = defineProps<{
 const auth = useAuthStore()
 const board = useBoardStore()
 
-const body = ref('')
-const guestName = ref('')
-const sending = ref(false)
-const guestCooldownUntil = ref(0)
-const nowTs = ref(Date.now())
-const visibleCount = ref(20)
-let cooldownTimer: ReturnType<typeof setInterval> | null = null
+const emptyDoc: TiptapDoc = { type: 'doc', content: [] }
 
-const comments = computed(() =>
-  [...board.commentsFor(props.taskId)].sort((a, b) => {
-    const ai = a.inserted_at ? Date.parse(a.inserted_at) : 0
-    const bi = b.inserted_at ? Date.parse(b.inserted_at) : 0
-    return bi - ai
-  }),
-)
-const visibleComments = computed(() => comments.value.slice(0, visibleCount.value))
-const hasMoreComments = computed(() => visibleComments.value.length < comments.value.length)
-const canGuestComment = computed(() => board.settings.allow_guest_comments)
-const canSend = computed(() => {
-  if (auth.isAuthed) return true
-  return canGuestComment.value
-})
-const cooldownActive = computed(
-  () => !auth.isAuthed && nowTs.value < guestCooldownUntil.value,
-)
-const cooldownSeconds = computed(() =>
-  Math.max(0, Math.ceil((guestCooldownUntil.value - nowTs.value) / 1000)),
-)
-
-function roleRank(role: string | null | undefined): number {
-  if (role === 'superadmin') return 3
-  if (role === 'admin') return 2
-  if (role === 'user') return 1
-  return 0
+interface PendingFile {
+  file: File
+  preview: string | null
 }
 
-function canDelete(comment: TaskComment): boolean {
-  if (!auth.isAuthed || !auth.user) return false
-  if (!comment.author_id) return true
-  if (comment.author_id === auth.user.id) return true
-  return roleRank(auth.user.role) > roleRank(comment.author_role)
+const draft = ref<TiptapDoc>(structuredClone(emptyDoc))
+const guestBody = ref('')
+const guestName = ref('')
+const pendingFiles = ref<PendingFile[]>([])
+const replyTo = ref<TaskComment | null>(null)
+const sending = ref(false)
+const uploading = ref(false)
+const guestCooldownUntil = ref(0)
+const nowTs = ref(Date.now())
+const fileInput = ref<HTMLInputElement | null>(null)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+const comments = computed(() => board.commentsFor(props.taskId))
+
+const sortedAsc = computed(() => [...comments.value].sort((a, b) => sortKey(a) - sortKey(b)))
+
+const rootComments = computed(() => sortedAsc.value.filter((c) => !c.parent_id))
+
+const repliesByParent = computed(() => {
+  const map = new Map<string, TaskComment[]>()
+  for (const c of sortedAsc.value) {
+    if (!c.parent_id) continue
+    const list = map.get(c.parent_id) ?? []
+    list.push(c)
+    map.set(c.parent_id, list)
+  }
+  return map
+})
+
+function repliesOf(id: string): TaskComment[] {
+  return repliesByParent.value.get(id) ?? []
+}
+
+function sortKey(c: TaskComment): number {
+  return c.inserted_at ? Date.parse(c.inserted_at) : 0
 }
 
 function authorLabel(comment: TaskComment): string {
@@ -62,52 +64,94 @@ function authorLabel(comment: TaskComment): string {
   return comment.guest_name?.trim() || 'Гость'
 }
 
-function authorInitial(comment: TaskComment): string {
-  return authorLabel(comment).slice(0, 1).toUpperCase()
+const canGuestComment = computed(() => board.settings.allow_guest_comments)
+const canSend = computed(() => auth.isAuthed || canGuestComment.value)
+const cooldownActive = computed(() => !auth.isAuthed && nowTs.value < guestCooldownUntil.value)
+const cooldownSeconds = computed(() =>
+  Math.max(0, Math.ceil((guestCooldownUntil.value - nowTs.value) / 1000)),
+)
+
+const hasContent = computed(() => {
+  if (auth.isAuthed) return !isDocEmpty(draft.value) || pendingFiles.value.length > 0
+  return guestBody.value.trim().length > 0
+})
+
+function startReply(comment: TaskComment) {
+  replyTo.value = comment
 }
 
-function isGuestComment(comment: TaskComment): boolean {
-  return !comment.author_id
+function cancelReply() {
+  replyTo.value = null
 }
 
-function formatCommentDate(iso: string | undefined): string {
-  if (!iso) return ''
-  const parsed = parseISO(iso)
-  if (!isValid(parsed)) return ''
-  return format(parsed, 'd MMM yyyy, HH:mm', { locale: ru })
+function pickFiles() {
+  fileInput.value?.click()
 }
 
-function loadMoreComments() {
-  if (!hasMoreComments.value) return
-  visibleCount.value = Math.min(visibleCount.value + 20, comments.value.length)
+function onFilesPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const added: PendingFile[] = Array.from(input.files ?? []).map((file) => ({
+    file,
+    preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+  }))
+  pendingFiles.value = [...pendingFiles.value, ...added]
+  input.value = ''
 }
 
-function onCommentsScroll(e: Event) {
-  const node = e.target as HTMLElement
-  if (node.scrollTop + node.clientHeight >= node.scrollHeight - 28) {
-    loadMoreComments()
+function removePendingFile(index: number) {
+  const item = pendingFiles.value[index]
+  if (item?.preview) URL.revokeObjectURL(item.preview)
+  pendingFiles.value = pendingFiles.value.filter((_, i) => i !== index)
+}
+
+function clearPending() {
+  for (const item of pendingFiles.value) {
+    if (item.preview) URL.revokeObjectURL(item.preview)
   }
+  pendingFiles.value = []
+}
+
+function resetComposer() {
+  draft.value = structuredClone(emptyDoc)
+  guestBody.value = ''
+  clearPending()
+  replyTo.value = null
 }
 
 async function submitComment() {
-  if (!canSend.value) return
-  const text = body.value.trim()
-  if (!text) return
-  if (sending.value) return
-  if (cooldownActive.value) return
-  if (!auth.isAuthed && text.length > 255) return
+  if (!canSend.value || !hasContent.value) return
+  if (sending.value || cooldownActive.value) return
+
+  const guestText = guestBody.value.trim()
+  if (!auth.isAuthed && guestText.length > 255) return
 
   sending.value = true
   try {
-    await board.createTaskComment(
-      props.taskId,
-      text,
-      auth.isAuthed ? null : guestName.value.trim() || null,
-    )
-    body.value = ''
+    const created = await board.createTaskComment(props.taskId, {
+      body_doc: auth.isAuthed ? draft.value : undefined,
+      body: auth.isAuthed ? undefined : guestText,
+      parentId: replyTo.value?.id ?? null,
+      guestName: auth.isAuthed ? null : guestName.value.trim() || null,
+    })
+
+    const files = pendingFiles.value.map((p) => p.file)
+    resetComposer()
+
+    if (auth.isAuthed && files.length > 0) {
+      uploading.value = true
+      for (const file of files) {
+        try {
+          await board.uploadCommentAttachment(created.id, file)
+        } catch (err) {
+          console.warn('[comment] upload failed', err)
+        }
+      }
+      uploading.value = false
+    }
+
     if (!auth.isAuthed) guestCooldownUntil.value = Date.now() + 4000
-  } catch (e: any) {
-    const message = e?.message || 'Не удалось отправить комментарий'
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Не удалось отправить комментарий'
     if (message === 'guest_comment_rate_limited') {
       guestCooldownUntil.value = Date.now() + 4000
       alert('Слишком часто. Попробуйте отправить комментарий через пару секунд.')
@@ -121,15 +165,6 @@ async function submitComment() {
   }
 }
 
-async function removeComment(comment: TaskComment) {
-  if (!canDelete(comment)) return
-  try {
-    await board.deleteTaskComment(comment.id)
-  } catch (e: any) {
-    alert(e?.message || 'Не удалось удалить комментарий')
-  }
-}
-
 onMounted(() => {
   cooldownTimer = setInterval(() => {
     nowTs.value = Date.now()
@@ -138,14 +173,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (cooldownTimer) clearInterval(cooldownTimer)
+  clearPending()
 })
-
-watch(
-  () => props.taskId,
-  () => {
-    visibleCount.value = 20
-  },
-)
 </script>
 
 <template>
@@ -164,36 +193,85 @@ watch(
         variant="filled"
         hide-details
       />
+
+      <div v-if="replyTo" class="ks-comments__reply-chip">
+        <PhArrowBendUpLeft :size="15" />
+        <span class="md-label-medium">Ответ для {{ authorLabel(replyTo) }}</span>
+        <button type="button" class="ks-comments__chip-x" @click="cancelReply">
+          <PhX :size="13" />
+        </button>
+      </div>
+
+      <RichEditor
+        v-if="auth.isAuthed"
+        v-model="draft"
+        :headings="false"
+        compact
+        bubble
+        placeholder="Написать комментарий…"
+      />
       <v-textarea
-        v-model="body"
+        v-else
+        v-model="guestBody"
         label="Написать комментарий"
         density="comfortable"
         variant="filled"
         rows="3"
         hide-details
         auto-grow
-        :maxlength="auth.isAuthed ? 5000 : 255"
+        :maxlength="255"
         :readonly="!canSend"
         :hint="
           !canSend
             ? 'Только авторизованные пользователи могут оставлять комментарии'
-            : !auth.isAuthed
-              ? `Для гостей: до 255 символов и пауза 4 сек. ${cooldownActive ? `Подождите ${cooldownSeconds} сек.` : ''}`
-              : undefined
+            : `Для гостей: до 255 символов и пауза 4 сек. ${cooldownActive ? `Подождите ${cooldownSeconds} сек.` : ''}`
         "
-        :persistent-hint="!canSend || !auth.isAuthed"
+        :persistent-hint="!canSend"
       />
+
+      <div v-if="pendingFiles.length" class="ks-comments__pending">
+        <div
+          v-for="(item, i) in pendingFiles"
+          :key="`${item.file.name}-${i}`"
+          class="ks-comments__pending-item"
+          :class="{ 'ks-comments__pending-item--image': item.preview }"
+        >
+          <img v-if="item.preview" :src="item.preview" :alt="item.file.name" />
+          <template v-else>
+            <PhFile :size="15" />
+            <span class="ks-comments__pending-name md-label-medium">{{ item.file.name }}</span>
+          </template>
+          <button type="button" class="ks-comments__chip-x" @click="removePendingFile(i)">
+            <PhX :size="12" />
+          </button>
+        </div>
+      </div>
+
+      <input
+        ref="fileInput"
+        type="file"
+        multiple
+        accept="image/*,video/*,.pdf,.zip,.txt,.md"
+        class="ks-comments__file-input"
+        @change="onFilesPicked"
+      />
+
       <div class="ks-comments__actions">
+        <v-btn v-if="auth.isAuthed" variant="text" size="small" rounded="pill" @click="pickFiles">
+          <template #prepend><PhPaperclip :size="16" /></template>
+          Файл
+        </v-btn>
+        <v-spacer />
         <v-btn
           color="primary"
           variant="flat"
           size="small"
           rounded="pill"
-          :loading="sending"
-          :disabled="!canSend || !body.trim() || cooldownActive"
+          :loading="sending || uploading"
+          :disabled="!canSend || !hasContent || cooldownActive"
           @click="submitComment"
         >
-          Отправить
+          {{ replyTo ? 'Ответить' : 'Отправить' }}
         </v-btn>
       </div>
     </div>
@@ -201,59 +279,17 @@ watch(
     <div v-if="comments.length === 0" class="ks-comments__empty md-body-small">
       Пока комментариев нет.
     </div>
-    <div
-      v-else
-      v-auto-animate
-      class="ks-comments__list"
-      @scroll.passive="onCommentsScroll"
-    >
-      <article
-        v-for="comment in visibleComments"
-        :key="comment.id"
-        class="ks-comments__item"
-      >
-        <v-avatar size="30" color="secondary-container" class="ks-comments__avatar">
-          <PhDetective
-            v-if="isGuestComment(comment)"
-            :size="16"
-            weight="duotone"
-          />
-          <img
-            v-else-if="comment.author_avatar_url"
-            :src="comment.author_avatar_url"
-            :alt="authorLabel(comment)"
-            width="30"
-            height="30"
-          />
-          <span v-else class="md-label-medium">{{ authorInitial(comment) }}</span>
-        </v-avatar>
-
-        <div class="ks-comments__content">
-          <div class="ks-comments__meta-row">
-            <span class="ks-comments__author md-label-medium">{{ authorLabel(comment) }}</span>
-            <time class="ks-comments__meta md-label-small">
-              {{ formatCommentDate(comment.inserted_at) }}
-            </time>
-          </div>
-          <p class="ks-comments__body md-body-small">
-            {{ comment.body }}
-          </p>
-        </div>
-
-        <v-btn
-          v-if="canDelete(comment)"
-          icon="mdi-delete-outline"
-          variant="text"
-          color="error"
-          density="comfortable"
-          size="x-small"
-          class="ks-comments__delete"
-          @click="removeComment(comment)"
+    <div v-else v-auto-animate class="ks-comments__list">
+      <template v-for="root in rootComments" :key="root.id">
+        <CommentItem :comment="root" @reply="startReply" />
+        <CommentItem
+          v-for="reply in repliesOf(root.id)"
+          :key="reply.id"
+          :comment="reply"
+          reply
+          @reply="startReply"
         />
-      </article>
-      <div v-if="hasMoreComments" class="ks-comments__more md-label-small">
-        Прокрутите вниз, чтобы загрузить ещё
-      </div>
+      </template>
     </div>
   </section>
 </template>
@@ -261,7 +297,7 @@ watch(
 <style scoped>
 .ks-comments {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .ks-comments__head {
   display: flex;
@@ -275,9 +311,74 @@ watch(
   display: grid;
   gap: 10px;
 }
+.ks-comments__reply-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 6px 4px 12px;
+  border-radius: var(--md-shape-full, 999px);
+  background: rgb(var(--v-theme-secondary-container));
+  color: rgb(var(--v-theme-on-secondary-container));
+}
+.ks-comments__pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ks-comments__pending-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--md-shape-m, 12px);
+  background: rgb(var(--v-theme-surface-container-high));
+  color: rgb(var(--v-theme-on-surface));
+}
+.ks-comments__pending-item--image {
+  padding: 0;
+  overflow: hidden;
+}
+.ks-comments__pending-item--image img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+}
+.ks-comments__pending-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ks-comments__chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--md-shape-full, 999px);
+}
+.ks-comments__pending-item--image .ks-comments__chip-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background: rgba(var(--v-theme-surface), 0.85);
+}
+.ks-comments__chip-x:hover {
+  background: rgba(var(--v-theme-on-surface), 0.12);
+}
+.ks-comments__file-input {
+  display: none;
+}
 .ks-comments__actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 .ks-comments__empty {
   color: rgba(var(--v-theme-on-surface), 0.65);
@@ -285,57 +386,10 @@ watch(
   padding: 10px 0;
 }
 .ks-comments__list {
+  display: grid;
+  gap: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  max-height: 38dvh;
-}
-.ks-comments__item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 8px;
-  border-radius: var(--md-shape-s);
-}
-.ks-comments__item + .ks-comments__item {
-  margin-top: 4px;
-}
-.ks-comments__item:hover {
-  background: rgba(var(--v-theme-primary), 0.04);
-}
-.ks-comments__avatar {
-  margin-top: 2px;
-}
-.ks-comments__content {
-  min-width: 0;
-}
-.ks-comments__meta-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.ks-comments__author {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ks-comments__meta {
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  flex-shrink: 0;
-}
-.ks-comments__body {
-  margin: 4px 0 0;
-  white-space: pre-wrap;
-  color: rgba(var(--v-theme-on-surface), 0.88);
-}
-.ks-comments__delete {
-  margin-top: 1px;
-}
-.ks-comments__more {
-  padding: 6px 8px 4px;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.55);
+  max-height: 48dvh;
 }
 </style>
