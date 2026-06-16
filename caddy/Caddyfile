@@ -48,6 +48,10 @@
 		reverse_proxy api:4000
 	}
 
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
 	handle {
 		root * /srv/app
 
