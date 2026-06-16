@@ -75,7 +75,10 @@ defmodule KaskaWeb.BoardChannel do
          tasks: Enum.map(tasks, &task_view/1),
          task_types: Enum.map(task_types, &task_type_view/1),
          task_comments:
-           Enum.map(task_comments, &task_comment_view(&1, Map.get(comment_attachments, &1.id, []))),
+           Enum.map(
+             task_comments,
+             &task_comment_view(&1, Map.get(comment_attachments, &1.id, []))
+           ),
          settings: %{allow_guest_comments: allow_guest_comments},
          users: Enum.map(users, &user_view/1),
          attachments: attachments
@@ -619,7 +622,11 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
-  def handle_in("request_comment_attachment_upload", %{"comment_id" => comment_id} = payload, socket) do
+  def handle_in(
+        "request_comment_attachment_upload",
+        %{"comment_id" => comment_id} = payload,
+        socket
+      ) do
     with %TaskComment{} = comment <- get_owned_task_comment(comment_id, socket),
          attrs = %{
            filename: Map.get(payload, "filename"),
@@ -627,7 +634,12 @@ defmodule KaskaWeb.BoardChannel do
            size: Map.get(payload, "size")
          },
          {:ok, %{attachment: attachment, put_url: put_url}} <-
-           Attachments.request_upload("comment", comment.id, attrs, socket.assigns.current_user.id) do
+           Attachments.request_upload(
+             "comment",
+             comment.id,
+             attrs,
+             socket.assigns.current_user.id
+           ) do
       {:reply,
        {:ok,
         %{

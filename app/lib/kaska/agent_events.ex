@@ -101,9 +101,7 @@ defmodule Kaska.AgentEvents do
 
         acked = cursor(agent_id)
 
-        Repo.delete_all(
-          from e in AgentEvent, where: e.agent_id == ^agent_id and e.seq <= ^acked
-        )
+        Repo.delete_all(from e in AgentEvent, where: e.agent_id == ^agent_id and e.seq <= ^acked)
 
         %{cursor: acked}
       end)

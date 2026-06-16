@@ -321,7 +321,8 @@ defmodule KaskaWeb.ApiSpec do
         },
         body: %Schema{
           type: :string,
-          description: "Comment body as Markdown, or the raw tiptap document when `?task_format=json`."
+          description:
+            "Comment body as Markdown, or the raw tiptap document when `?task_format=json`."
         },
         body_format: %Schema{type: :string, enum: ["markdown", "json"]},
         author: nullable(user_schema()),
@@ -342,9 +343,13 @@ defmodule KaskaWeb.ApiSpec do
           type: :string,
           minLength: 1,
           maxLength: 5000,
-          description: "Comment body as Markdown. Alternatively send `body_doc` as a raw tiptap document."
+          description:
+            "Comment body as Markdown. Alternatively send `body_doc` as a raw tiptap document."
         },
-        body_doc: %Schema{type: :object, description: "Raw tiptap document (alternative to `body`)."},
+        body_doc: %Schema{
+          type: :object,
+          description: "Raw tiptap document (alternative to `body`)."
+        },
         parent_id: %Schema{
           type: :string,
           format: :uuid,

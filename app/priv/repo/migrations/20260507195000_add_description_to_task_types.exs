@@ -7,4 +7,3 @@ defmodule Kaska.Repo.Migrations.AddDescriptionToTaskTypes do
     end
   end
 end
-

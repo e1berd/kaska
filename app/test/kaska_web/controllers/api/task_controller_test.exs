@@ -78,6 +78,22 @@ defmodule KaskaWeb.Api.TaskControllerTest do
       assert task["column"]["name"] == "Todo"
     end
 
+    test "lists newly created tasks before older tasks", %{
+      conn: conn,
+      project: project,
+      token: token,
+      todo: todo,
+      owner: owner
+    } do
+      {:ok, second} = Projects.create_task(project.id, todo.id, %{title: "Second"}, owner.id)
+
+      conn = conn |> auth(token) |> get(~p"/api/v1/p/#{project.slug}/tasks")
+      [first, older] = json_response(conn, 200)["tasks"]
+
+      assert first["id"] == second.id
+      assert first["rank"] < older["rank"]
+    end
+
     test "task_format=json returns the raw tiptap document", %{
       conn: conn,
       project: project,

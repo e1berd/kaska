@@ -15,7 +15,9 @@ defmodule Kaska.Themes do
   import Ecto.Query
 
   def list_index do
-    Repo.all(from t in Theme, order_by: [asc: t.inserted_at], select: %{slug: t.slug, name: t.name})
+    Repo.all(
+      from t in Theme, order_by: [asc: t.inserted_at], select: %{slug: t.slug, name: t.name}
+    )
   end
 
   def get_by_slug(slug) when is_binary(slug) do
@@ -298,7 +300,9 @@ defmodule Kaska.Themes do
     r = round(ra + (rb - ra) * ratio)
     g = round(ga + (gb - ga) * ratio)
     b = round(ba + (bb - ba) * ratio)
-    "#" <> Enum.map_join([r, g, b], "", &Integer.to_string(&1, 16) |> String.pad_leading(2, "0"))
+
+    "#" <>
+      Enum.map_join([r, g, b], "", &(Integer.to_string(&1, 16) |> String.pad_leading(2, "0")))
   end
 
   defp parse_hex("#" <> rest), do: parse_hex(rest)

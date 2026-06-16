@@ -6,7 +6,10 @@ defmodule Kaska.Repo.Migrations.CreateAgentEvents do
       add :id, :binary_id, primary_key: true
       add :seq, :bigserial, null: false
       add :agent_id, references(:users, type: :binary_id, on_delete: :delete_all), null: false
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :type, :string, null: false
       add :payload, :map, null: false, default: %{}
 

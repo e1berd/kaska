@@ -66,6 +66,7 @@ const collabUser = computed(() => {
 })
 
 const currentTask = computed<Task | null>(() => board.tasks.find((t) => t.id === taskId.value) ?? null)
+const shortTaskId = computed(() => currentTask.value?.id.slice(0, 8) ?? taskId.value.slice(0, 8))
 const taskAttachments = computed<Attachment[]>(() => {
   if (!currentTask.value) return []
   return board.attachmentsFor(currentTask.value.id)
@@ -422,6 +423,7 @@ watch(
     <header class="ks-task-page__bar">
       <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <span class="md-title-large">Задача</span>
+      <span class="ks-task-page__id md-label-large">ID {{ shortTaskId }}</span>
       <PresenceGroup
         v-if="taskViewers.length"
         class="ml-2"
@@ -650,6 +652,10 @@ watch(
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
+}
+.ks-task-page__id {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .ks-task-page__state {
   display: flex;

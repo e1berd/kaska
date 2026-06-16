@@ -71,7 +71,9 @@ defmodule KaskaWeb.Api.EventController do
   end
 
   defp parse_wait(params) do
-    params["wait"] |> parse_int() |> case do
+    params["wait"]
+    |> parse_int()
+    |> case do
       nil -> 0
       n when n <= 0 -> 0
       n -> min(n * 1000, @max_wait_ms)

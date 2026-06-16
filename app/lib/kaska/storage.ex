@@ -8,8 +8,6 @@ defmodule Kaska.Storage do
   browser hits RustFS from outside the docker network.
   """
 
-  require Logger
-
   @doc "Returns the S3 bucket name configured for this app."
   def bucket, do: config(:bucket, "kaska")
 
@@ -80,6 +78,7 @@ defmodule Kaska.Storage do
     expires_in = Keyword.get(opts, :expires_in, 3600)
     headers = Keyword.get(opts, :headers, [])
     config = public_aws_config()
+
     ExAws.S3.presigned_url(config, method, bucket(), key,
       expires_in: expires_in,
       virtual_host: false,

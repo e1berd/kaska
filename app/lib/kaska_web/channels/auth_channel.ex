@@ -13,6 +13,7 @@ defmodule KaskaWeb.AuthChannel do
   @impl true
   def handle_in("settings", _payload, socket) do
     allow_reg = Accounts.get_setting("allow_registration", "true")
+
     {:reply,
      {:ok,
       %{
@@ -110,7 +111,8 @@ defmodule KaskaWeb.AuthChannel do
       _ -> :ok
     end
 
-    {:reply, {:ok, %{message: "if account exists and is unverified, verification email sent"}}, socket}
+    {:reply, {:ok, %{message: "if account exists and is unverified, verification email sent"}},
+     socket}
   end
 
   def handle_in("forgot_password", %{"email" => email}, socket) do

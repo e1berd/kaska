@@ -69,7 +69,10 @@ defmodule Kaska.Accounts.UserNotifier do
         {:ok, email}
 
       {:error, reason} ->
-        Logger.error("[mail] FAILED to=#{to} subject=#{inspect(subject)} reason=#{inspect(reason)}")
+        Logger.error(
+          "[mail] FAILED to=#{to} subject=#{inspect(subject)} reason=#{inspect(reason)}"
+        )
+
         {:error, reason}
     end
   end
