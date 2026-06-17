@@ -368,15 +368,14 @@ async function processEvent(
 
     await postComment(clerk.token, project.slug, task.id, response)
 
-    const acked = await ackEventWithRetry(clerk.token, event.id)
-    if (!acked) {
-      console.error(`[${name}] Comment posted but ack failed for event ${event.id} — will retry on next poll`)
-      return false
-    }
-
     state.processed[event.id] = new Date().toISOString()
     state.last_error = undefined
     saveState(name, state)
+
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (!acked) {
+      console.warn(`[${name}] Comment posted, ack failed for event ${event.id} — event is processed but unacked`)
+    }
 
     console.log(`[${name}] Processed event ${event.id} (${event.event_type})`)
     return true
