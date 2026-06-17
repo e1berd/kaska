@@ -2,6 +2,8 @@ defmodule Kaska.Repo.Migrations.CreateAgentEvents do
   use Ecto.Migration
 
   def up do
+    drop index(:agent_events, [:agent_id, :seq])
+
     alter table(:agent_events) do
       add :event_type, :string, null: false, default: "comment_reply"
       add :task_id, references(:tasks, type: :binary_id, on_delete: :delete_all)
@@ -14,8 +16,6 @@ defmodule Kaska.Repo.Migrations.CreateAgentEvents do
 
     drop table(:agent_event_cursors)
 
-    drop index(:agent_events, [:agent_id, :seq])
-
     create index(:agent_events, [:agent_id, :inserted_at])
     create index(:agent_events, [:agent_id, :acked_at])
     create index(:agent_events, [:project_id])
@@ -26,6 +26,16 @@ defmodule Kaska.Repo.Migrations.CreateAgentEvents do
     drop index(:agent_events, [:agent_id, :acked_at])
     drop index(:agent_events, [:agent_id, :inserted_at])
 
+    alter table(:agent_events) do
+      add :seq, :bigserial, null: false
+      add :type, :string, null: false
+      remove :event_type
+      remove :task_id
+      remove :comment_id
+      remove :acked_at
+      remove :updated_at
+    end
+
     create index(:agent_events, [:agent_id, :seq])
 
     create table(:agent_event_cursors, primary_key: false) do
@@ -35,16 +45,6 @@ defmodule Kaska.Repo.Migrations.CreateAgentEvents do
       add :acked_seq, :bigint, null: false, default: 0
 
       timestamps(type: :utc_datetime)
-    end
-
-    alter table(:agent_events) do
-      add :seq, :bigserial, null: false
-      add :type, :string, null: false
-      remove :event_type
-      remove :task_id
-      remove :comment_id
-      remove :acked_at
-      remove :updated_at
     end
   end
 end
