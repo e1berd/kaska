@@ -85,6 +85,26 @@ interface Project {
   agent_instructions: string | null
 }
 
+function removeFileIfExists(path: string): boolean {
+  try {
+    unlinkSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw e
+  }
+}
+
+function removeDirIfExists(path: string): boolean {
+  try {
+    rmdirSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTEMPTY') return false
+    throw e
+  }
+}
+
 const MAX_PROCESSED = 500
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -181,8 +201,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch { /* skip */ }
-    try { rmdirSync(tmpDir) } catch { /* skip */ }
+    removeFileIfExists(tmpFile)
+    removeDirIfExists(tmpDir)
   }
 }
 
@@ -353,16 +373,16 @@ async function pollAndProcess(
   clerk: ClerkConfig,
   state: State,
 ): Promise<void> {
-  let lastEventId: string | undefined
+  let cursor: string | undefined
   let backoffMs = 1000
   const maxBackoffMs = 60_000
 
   while (true) {
     try {
       const params = new URLSearchParams({ wait: 'true' })
-      if (lastEventId) params.set('since', lastEventId)
+      if (cursor) params.set('since', cursor)
 
-      const { events } = await apiRequest<{ events: Event[]; cursor: string | null }>(
+      const { events, cursor: responseCursor } = await apiRequest<{ events: Event[]; cursor: string | null }>(
         'GET',
         `/agent/events?${params.toString()}`,
         clerk.token,
@@ -374,8 +394,8 @@ async function pollAndProcess(
         await processEvent(name, clerk, event, state)
       }
 
-      if (events.length > 0) {
-        lastEventId = events[events.length - 1].id
+      if (responseCursor) {
+        cursor = responseCursor
       }
     } catch (error) {
       console.error(`[${name}] Poll error:`, error)
