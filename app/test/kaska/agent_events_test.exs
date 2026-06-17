@@ -26,28 +26,27 @@ defmodule Kaska.AgentEventsTest do
     agent
   end
 
-  defp user_fixture do
-    email = "user#{System.unique_integer([:positive])}@example.com"
-    {:ok, user} = Accounts.register_user(%{email: email, password: "correct horse battery"})
-    user
-  end
-
   defp task_fixture(project, assignee_id \\ nil) do
     {_p, [todo | _], _t} = Projects.board_snapshot(project.id)
 
     {:ok, task} =
-      Projects.create_task(project.id, todo.id, %{title: "T", assignee_id: assignee_id})
+      Projects.create_task(
+        project.id,
+        todo.id,
+        %{title: "T", assignee_id: assignee_id},
+        project.owner_id
+      )
 
     task
   end
 
   describe "emit/1" do
     test "inserts an event and broadcasts via PubSub" do
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
-
       owner = owner_fixture()
       project = project_fixture(owner)
       agent = agent_fixture(owner, project)
+
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       assert {:ok, event} =
                AgentEvents.emit(%{
@@ -189,7 +188,7 @@ defmodule Kaska.AgentEventsTest do
       assert_receive {:agent_event_new, event}
       assert event.event_type == "comment_reply"
       assert event.agent_id == agent.id
-      assert event.payload["reply_by_id"] == owner.id
+      assert event.payload[:reply_by_id] == owner.id
     end
 
     test "does not emit self-notify when agent replies to own comment" do

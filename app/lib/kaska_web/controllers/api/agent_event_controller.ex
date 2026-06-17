@@ -10,32 +10,35 @@ defmodule KaskaWeb.Api.AgentEventController do
   def index(conn, params) do
     agent = conn.assigns.current_user
 
-    unless agent.is_agent do
-      conn |> put_status(:forbidden) |> json(%{error: "not an agent"}) |> halt()
-    end
+    if agent.is_agent do
+      since = parse_since(params["since"])
+      limit = min(parse_limit(params["limit"]), 100)
 
-    since = parse_since(params["since"])
-    limit = min(parse_limit(params["limit"]), 100)
+      events = AgentEvents.pending_events(agent.id, since: since, limit: limit)
 
-    events = AgentEvents.pending_events(agent.id, since: since, limit: limit)
-
-    if events == [] and params["wait"] != "false" do
-      wait_for_events(conn, agent, since, limit)
+      if events == [] and params["wait"] != "false" do
+        wait_for_events(conn, agent, since, limit)
+      else
+        json(conn, %{events: Enum.map(events, &event_view/1), cursor: cursor(events)})
+      end
     else
-      json(conn, %{events: Enum.map(events, &event_view/1), cursor: cursor(events)})
+      conn |> put_status(:forbidden) |> json(%{error: "not an agent"})
     end
   end
 
   def ack(conn, %{"id" => id}) do
     agent = conn.assigns.current_user
 
-    unless agent.is_agent do
-      conn |> put_status(:forbidden) |> json(%{error: "not an agent"}) |> halt()
-    end
+    if agent.is_agent do
+      case AgentEvents.ack_event(agent.id, id) do
+        {:ok, :acked} ->
+          json(conn, %{ok: true})
 
-    case AgentEvents.ack_event(agent.id, id) do
-      {:ok, :acked} -> json(conn, %{ok: true})
-      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "event not found"})
+        {:error, :not_found} ->
+          conn |> put_status(:not_found) |> json(%{error: "event not found"})
+      end
+    else
+      conn |> put_status(:forbidden) |> json(%{error: "not an agent"})
     end
   end
 
@@ -67,9 +70,15 @@ defmodule KaskaWeb.Api.AgentEventController do
   defp parse_since(nil), do: nil
 
   defp parse_since(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> DateTime.truncate(dt, :second)
-      _ -> nil
+    case Ecto.UUID.cast(value) do
+      {:ok, id} ->
+        id
+
+      :error ->
+        case DateTime.from_iso8601(value) do
+          {:ok, dt, _} -> DateTime.truncate(dt, :second)
+          _ -> nil
+        end
     end
   end
 
@@ -91,7 +100,7 @@ defmodule KaskaWeb.Api.AgentEventController do
 
   defp cursor(events) do
     last = List.last(events)
-    last.inserted_at |> DateTime.to_iso8601()
+    last.id
   end
 
   defp event_view(event) do

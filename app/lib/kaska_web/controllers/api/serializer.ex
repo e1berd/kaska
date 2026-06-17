@@ -10,7 +10,6 @@ defmodule KaskaWeb.Api.Serializer do
   alias Kaska.TaskBody
 
   alias Kaska.Accounts.User
-  alias Kaska.AgentEvents.AgentEvent
   alias Kaska.Attachments.Attachment
   alias Kaska.Projects.{Column, Project, Task, TaskComment, TaskType}
 
@@ -79,16 +78,6 @@ defmodule KaskaWeb.Api.Serializer do
       attachments: "comment" |> Attachments.list_for(c.id) |> Enum.map(&attachment/1),
       inserted_at: c.inserted_at,
       updated_at: c.updated_at
-    }
-  end
-
-  def event(%AgentEvent{} = e) do
-    %{
-      id: e.id,
-      seq: e.seq,
-      type: e.type,
-      payload: e.payload,
-      inserted_at: e.inserted_at
     }
   end
 

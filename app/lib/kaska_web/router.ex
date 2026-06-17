@@ -45,9 +45,6 @@ defmodule KaskaWeb.Router do
 
     get "/projects", ProjectController, :index
 
-    get "/events", EventController, :index
-    post "/events/ack", EventController, :ack
-
     get "/p/:project_slug/tasks", TaskController, :index
     post "/p/:project_slug/tasks", TaskController, :create
     get "/p/:project_slug/tasks/:id", TaskController, :show

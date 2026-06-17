@@ -622,6 +622,7 @@ defmodule Kaska.Projects do
 
       _ ->
         body = Map.get(attrs, :body) || Map.get(attrs, "body") || ""
+
         attrs
         |> Map.put(:body, body)
         |> Map.put(:body_doc, TaskBody.from_markdown(body))

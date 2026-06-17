@@ -23,7 +23,13 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
 
     {:ok, agent_token_record, _} = ApiTokens.create_token(owner, "owner_token")
 
-    %{owner: owner, project: project, agent: agent, agent_token: agent_token, owner_token: agent_token_record}
+    %{
+      owner: owner,
+      project: project,
+      agent: agent,
+      agent_token: agent_token,
+      owner_token: agent_token_record
+    }
   end
 
   defp auth(conn, token), do: put_req_header(conn, "authorization", "Bearer #{token}")
@@ -52,7 +58,7 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
       assert returned["id"] == event.id
       assert returned["event_type"] == "task_comment"
       assert returned["project_id"] == project.id
-      assert body["cursor"] != nil
+      assert body["cursor"] == event.id
     end
 
     test "returns empty list when no pending events", %{
@@ -68,7 +74,6 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
     test "does not return events for other agents", %{
       conn: conn,
       project: project,
-      agent: agent,
       owner: owner,
       agent_token: agent_token
     } do
@@ -88,7 +93,7 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
       assert body["events"] == []
     end
 
-    test "non-agent gets 403", %{conn: conn, project: project, owner: owner} do
+    test "non-agent gets 403", %{conn: conn, owner: owner} do
       {:ok, owner_token, _} = ApiTokens.create_token(owner, "owner")
 
       conn = conn |> auth(owner_token) |> get(~p"/api/v1/agent/events")
@@ -122,12 +127,10 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
           payload: %{}
         })
 
-      since = DateTime.to_iso8601(event1.inserted_at)
-
       conn =
         conn
         |> auth(agent_token)
-        |> get(~p"/api/v1/agent/events?since=#{since}")
+        |> get(~p"/api/v1/agent/events?since=#{event1.id}")
 
       body = json_response(conn, 200)
       assert [returned] = body["events"]
@@ -155,7 +158,7 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
       conn = conn |> auth(agent_token) |> post(~p"/api/v1/agent/events/#{event.id}/ack")
       assert json_response(conn, 200)["ok"] == true
 
-      conn = conn |> auth(agent_token) |> get(~p"/api/v1/agent/events")
+      conn = conn |> recycle() |> auth(agent_token) |> get(~p"/api/v1/agent/events")
       assert json_response(conn, 200)["events"] == []
     end
 
@@ -171,7 +174,6 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
     test "cannot ack another agent's event", %{
       conn: conn,
       project: project,
-      agent: agent,
       owner: owner,
       agent_token: agent_token
     } do

@@ -238,7 +238,9 @@ defmodule KaskaWeb.ApiSpec do
               schema: %Schema{type: :integer, default: 50, maximum: 100}
             }
           ],
-          responses: %{200 => json_response("Agent events", array(agent_event_schema()), "events")}
+          responses: %{
+            200 => json_response("Agent events", array(agent_event_schema()), "events")
+          }
         }
       },
       "/agent/events/{id}/ack" => %PathItem{
@@ -370,7 +372,10 @@ defmodule KaskaWeb.ApiSpec do
         column_id: %Schema{type: :string, format: :uuid},
         title: %Schema{type: :string},
         body: %Schema{type: :string, description: "Markdown body."},
-        body_doc: %Schema{type: :object, description: "Raw tiptap document (alternative to body)."},
+        body_doc: %Schema{
+          type: :object,
+          description: "Raw tiptap document (alternative to body)."
+        },
         assignee_id: %Schema{type: :string, format: :uuid, nullable: true},
         task_type_id: %Schema{type: :string, format: :uuid, nullable: true},
         start_date: %Schema{type: :string, format: :date, nullable: true},

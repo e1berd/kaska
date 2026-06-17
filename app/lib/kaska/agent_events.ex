@@ -55,14 +55,28 @@ defmodule Kaska.AgentEvents do
         order_by: [asc: e.inserted_at],
         limit: ^limit
 
-    query =
-      if since do
-        from e in query, where: e.inserted_at > ^since
-      else
-        query
-      end
+    query
+    |> apply_since(agent_id, since)
+    |> Repo.all()
+  end
 
-    Repo.all(query)
+  defp apply_since(query, _agent_id, nil), do: query
+
+  defp apply_since(query, _agent_id, %DateTime{} = since) do
+    from e in query, where: e.inserted_at > ^since
+  end
+
+  defp apply_since(query, agent_id, since) when is_binary(since) do
+    case Repo.get_by(AgentEvent, id: since, agent_id: agent_id) do
+      %AgentEvent{} = event ->
+        from e in query,
+          where:
+            e.inserted_at > ^event.inserted_at or
+              (e.inserted_at == ^event.inserted_at and e.id != ^event.id)
+
+      nil ->
+        query
+    end
   end
 
   @doc """
