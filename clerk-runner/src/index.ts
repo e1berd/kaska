@@ -373,16 +373,16 @@ async function pollAndProcess(
   clerk: ClerkConfig,
   state: State,
 ): Promise<void> {
-  let lastEventId: string | undefined
+  let cursor: string | undefined
   let backoffMs = 1000
   const maxBackoffMs = 60_000
 
   while (true) {
     try {
       const params = new URLSearchParams({ wait: 'true' })
-      if (lastEventId) params.set('since', lastEventId)
+      if (cursor) params.set('since', cursor)
 
-      const { events } = await apiRequest<{ events: Event[]; cursor: string | null }>(
+      const { events, cursor: responseCursor } = await apiRequest<{ events: Event[]; cursor: string | null }>(
         'GET',
         `/agent/events?${params.toString()}`,
         clerk.token,
@@ -394,8 +394,8 @@ async function pollAndProcess(
         await processEvent(name, clerk, event, state)
       }
 
-      if (events.length > 0) {
-        lastEventId = events[events.length - 1].id
+      if (responseCursor) {
+        cursor = responseCursor
       }
     } catch (error) {
       console.error(`[${name}] Poll error:`, error)
