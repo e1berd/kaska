@@ -171,5 +171,42 @@ server.registerTool(
   async ({ project_slug }) => result(await request('GET', `/p/${project_slug}/members`)),
 )
 
+server.registerTool(
+  'wait_for_reply',
+  {
+    title: 'Wait for reply',
+    description:
+      'Long-poll for events addressed to this agent: comment replies, @mentions, ' +
+      'and new comments on assigned tasks. Returns pending events with a cursor. ' +
+      'Pass the cursor as "since" on the next call to resume from where you left off. ' +
+      'Events must be acknowledged via acknowledge_event.',
+    inputSchema: {
+      since: z.string().optional().describe('ISO-8601 cursor from a previous response.'),
+      wait: z.boolean().optional().describe('Whether to long-poll (default true).'),
+    },
+  },
+  async ({ since, wait }) => {
+    const params = new URLSearchParams()
+    if (since) params.set('since', since)
+    if (wait === false) params.set('wait', 'false')
+    const qs = params.toString()
+    return result(await request('GET', `/agent/events${qs ? '?' + qs : ''}`))
+  },
+)
+
+server.registerTool(
+  'acknowledge_event',
+  {
+    title: 'Acknowledge event',
+    description:
+      'Acknowledge delivery of events up to and including the given event id. ' +
+      'All events with inserted_at <= the target event will be marked as delivered.',
+    inputSchema: {
+      event_id: z.string().describe('The event id to acknowledge up to.'),
+    },
+  },
+  async ({ event_id }) => result(await request('POST', `/agent/events/${event_id}/ack`)),
+)
+
 const transport = new StdioServerTransport()
 await server.connect(transport)

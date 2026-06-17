@@ -57,6 +57,9 @@ defmodule KaskaWeb.Router do
     get "/p/:project_slug/columns", BoardController, :columns
     get "/p/:project_slug/task_types", BoardController, :task_types
     get "/p/:project_slug/members", BoardController, :members
+
+    get "/agent/events", AgentEventController, :index
+    post "/agent/events/:id/ack", AgentEventController, :ack
   end
 
   if Application.compile_env(:kaska, :dev_routes) do
