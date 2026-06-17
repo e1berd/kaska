@@ -26,34 +26,6 @@ defmodule KaskaWeb.Api.TaskController do
     })
   end
 
-  def create(conn, params) do
-    project = conn.assigns.project
-    author = conn.assigns.author
-    column_id = Map.get(params, "column_id")
-
-    attrs =
-      %{}
-      |> put_present(params, "title", :title)
-      |> put_body(params)
-      |> put_present(params, "assignee_id", :assignee_id)
-      |> put_present(params, "task_type_id", :task_type_id)
-      |> put_present(params, "start_date", :start_date)
-      |> put_present(params, "end_date", :end_date)
-
-    case Projects.create_task(project.id, column_id, attrs, author.id) do
-      {:ok, task} ->
-        reloaded = Projects.get_project_task(project.id, task.id)
-        BoardBroadcast.task(project, "task_created", reloaded)
-        json(conn, %{task: render_task(project, reloaded, format(params))})
-
-      {:error, %Ecto.Changeset{} = cs} ->
-        {:error, cs}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
   def show(conn, %{"id" => id} = params) do
     project = conn.assigns.project
 
@@ -77,6 +49,49 @@ defmodule KaskaWeb.Api.TaskController do
     end
   end
 
+  def create(conn, %{"column_id" => column_id} = params) do
+    project = conn.assigns.project
+    creator = conn.assigns.current_user
+
+    attrs = %{
+      title: Map.get(params, "title"),
+      start_date: Map.get(params, "start_date"),
+      end_date: Map.get(params, "end_date"),
+      assignee_id: Map.get(params, "assignee_id"),
+      task_type_id: Map.get(params, "task_type_id")
+    }
+
+    body_doc =
+      cond do
+        Map.has_key?(params, "body_doc") -> params["body_doc"]
+        Map.has_key?(params, "body") -> TaskBody.from_markdown(params["body"])
+        true -> nil
+      end
+
+    attrs = if body_doc, do: Map.put(attrs, :body_doc, body_doc), else: attrs
+
+    case Projects.create_task(project.id, column_id, attrs, creator.id) do
+      {:ok, task} ->
+        BoardBroadcast.task(project, "task_created", task)
+
+        conn
+        |> put_status(:created)
+        |> json(%{task: render_task(project, task, format(params))})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:error, cs}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def create(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: "column_id_required"})
+  end
+
   def move(conn, %{"id" => id, "column_id" => column_id} = params) do
     project = conn.assigns.project
 
@@ -95,19 +110,12 @@ defmodule KaskaWeb.Api.TaskController do
   def delete(conn, %{"id" => id}) do
     project = conn.assigns.project
 
-    with %Task{} = task <- Projects.get_project_task(project.id, id),
-         {:ok, _} <- Projects.delete_task(task) do
-      payload = %{id: id, task_id: id}
-      KaskaWeb.Endpoint.broadcast("board:#{project.id}", "task_deleted", payload)
-
-      if is_binary(project.slug) do
-        KaskaWeb.Endpoint.broadcast("board_slug:#{project.slug}", "task_deleted", payload)
-      end
-
-      json(conn, %{id: id})
+    with %Task{} = task <- Projects.get_project_task(project.id, id) do
+      Projects.delete_task(task)
+      BoardBroadcast.task(project, "task_deleted", task)
+      json(conn, %{ok: true})
     else
       nil -> {:error, :not_found}
-      other -> other
     end
   end
 

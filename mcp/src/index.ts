@@ -215,44 +215,38 @@ server.registerTool(
 server.registerTool(
   'wait_for_reply',
   {
-    title: 'Wait for replies',
+    title: 'Wait for reply',
     description:
-      'Long-poll for events addressed to this agent: replies to your comments, @mentions, and ' +
-      'comments on tasks assigned to you. Blocks up to `wait` seconds until something arrives, ' +
-      'then returns the events and a `cursor`. After handling them, call `ack_events` with that ' +
-      'cursor so they are not delivered again. Pass the returned `cursor` as `after` to page on.',
+      'Long-poll for events addressed to this agent: comment replies, @mentions, ' +
+      'and new comments on assigned tasks. Returns pending events with a cursor. ' +
+      'Pass the cursor as "since" on the next call to resume from where you left off. ' +
+      'Events must be acknowledged via acknowledge_event.',
     inputSchema: {
-      wait: z
-        .number()
-        .int()
-        .min(0)
-        .max(50)
-        .optional()
-        .describe('Seconds to block waiting for an event (default 30).'),
-      after: z
-        .number()
-        .int()
-        .optional()
-        .describe('Return events after this cursor; defaults to your acknowledged position.'),
+      since: z.string().optional().describe('ISO-8601 cursor from a previous response.'),
+      wait: z.boolean().optional().describe('Whether to long-poll (default true).'),
     },
   },
-  async ({ wait, after }) => {
-    const params = new URLSearchParams({ wait: String(wait ?? 30) })
-    if (after !== undefined) params.set('after', String(after))
-    return result(await request('GET', `/events?${params.toString()}`))
+  async ({ since, wait }) => {
+    const params = new URLSearchParams()
+    if (since) params.set('since', since)
+    if (wait === false) params.set('wait', 'false')
+    const qs = params.toString()
+    return result(await request('GET', `/agent/events${qs ? '?' + qs : ''}`))
   },
 )
 
 server.registerTool(
-  'ack_events',
+  'acknowledge_event',
   {
-    title: 'Acknowledge events',
+    title: 'Acknowledge event',
     description:
-      'Advance your event cursor to `cursor` so acknowledged events stop being redelivered. ' +
-      'Call this after processing events returned by `wait_for_reply`.',
-    inputSchema: { cursor: z.number().int().min(0).describe('The cursor returned by wait_for_reply.') },
+      'Acknowledge delivery of events up to and including the given event id. ' +
+      'All events with inserted_at <= the target event will be marked as delivered.',
+    inputSchema: {
+      event_id: z.string().describe('The event id to acknowledge up to.'),
+    },
   },
-  async ({ cursor }) => result(await request('POST', '/events/ack', { cursor })),
+  async ({ event_id }) => result(await request('POST', `/agent/events/${event_id}/ack`)),
 )
 
 const transport = new StdioServerTransport()

@@ -3,27 +3,33 @@ defmodule Kaska.AgentEvents.AgentEvent do
   import Ecto.Changeset
 
   alias Kaska.Accounts.User
-  alias Kaska.Projects.Project
+  alias Kaska.Projects.{Project, Task, TaskComment}
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @timestamps_opts [type: :utc_datetime]
 
   schema "agent_events" do
-    field :seq, :integer, read_after_writes: true
-    field :type, :string
+    field :event_type, :string
     field :payload, :map, default: %{}
-    belongs_to :agent, User
-    belongs_to :project, Project
+    field :acked_at, :utc_datetime
 
-    timestamps(updated_at: false)
+    belongs_to :project, Project
+    belongs_to :task, Task
+    belongs_to :comment, TaskComment
+    belongs_to :agent, User
+
+    timestamps()
   end
 
-  def changeset(event, attrs) do
+  def create_changeset(event, attrs) do
     event
-    |> cast(attrs, [:agent_id, :project_id, :type, :payload])
-    |> validate_required([:agent_id, :project_id, :type])
-    |> foreign_key_constraint(:agent_id)
-    |> foreign_key_constraint(:project_id)
+    |> cast(attrs, [:event_type, :payload, :project_id, :task_id, :comment_id, :agent_id])
+    |> validate_required([:event_type, :project_id, :agent_id])
+  end
+
+  def ack_changeset(event) do
+    event
+    |> change(%{acked_at: DateTime.utc_now() |> DateTime.truncate(:second)})
   end
 end

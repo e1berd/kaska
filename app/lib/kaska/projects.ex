@@ -14,8 +14,6 @@ defmodule Kaska.Projects do
   alias Kaska.Repo
   alias Kaska.Rank
   alias Kaska.TaskBody
-  alias Kaska.AgentEvents
-  alias Kaska.Accounts.User
 
   alias Kaska.Projects.{
     Column,
@@ -489,12 +487,12 @@ defmodule Kaska.Projects do
   @empty_doc %{"type" => "doc", "content" => []}
 
   @doc """
-  Creates a task at the start of `column_id` (which must belong to `project_id`).
+  Creates a task at the end of `column_id` (which must belong to `project_id`).
   """
   def create_task(project_id, column_id, attrs, creator_id) do
     with %Column{project_id: ^project_id} <- get_column(column_id) do
-      first_rank = first_task_rank(column_id)
-      rank = Rank.between(nil, first_rank)
+      last_rank = last_task_rank(column_id)
+      rank = Rank.between(last_rank, nil)
 
       attrs =
         attrs
@@ -504,7 +502,7 @@ defmodule Kaska.Projects do
         |> Map.put(:creator_id, creator_id)
         |> Map.put(:rank, rank)
         |> Map.put_new(:body_doc, @empty_doc)
-        |> Map.put_new(:start_date, DateTime.utc_now() |> DateTime.truncate(:second))
+        |> Map.put_new(:start_date, Date.utc_today())
 
       %Task{}
       |> Task.create_changeset(attrs)
@@ -602,8 +600,9 @@ defmodule Kaska.Projects do
       |> Repo.insert()
       |> case do
         {:ok, comment} ->
-          notify_comment_recipients(comment)
-          {:ok, Repo.preload(comment, :author)}
+          comment = Repo.preload(comment, :author)
+          Kaska.AgentEvents.notify_on_comment_created(comment, project_id)
+          {:ok, comment}
 
         other ->
           other
@@ -614,70 +613,6 @@ defmodule Kaska.Projects do
     end
   end
 
-  defp notify_comment_recipients(%TaskComment{} = comment) do
-    task = get_task(comment.task_id)
-
-    recipients =
-      [
-        parent_author_agent_id(comment.parent_id),
-        agent_id_if_agent(task && task.assignee_id)
-        | mention_agent_ids(comment.body_doc)
-      ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.reject(&(&1 == comment.author_id))
-      |> Enum.uniq()
-
-    if recipients != [] do
-      slug = Repo.one(from p in Project, where: p.id == ^comment.project_id, select: p.slug)
-
-      payload = %{
-        comment_id: comment.id,
-        task_id: comment.task_id,
-        project_slug: slug,
-        author_id: comment.author_id
-      }
-
-      AgentEvents.record_many(recipients, comment.project_id, "comment_created", payload)
-    end
-
-    :ok
-  end
-
-  defp parent_author_agent_id(nil), do: nil
-
-  defp parent_author_agent_id(parent_id) do
-    case get_task_comment(parent_id) do
-      %TaskComment{author_id: author_id} -> agent_id_if_agent(author_id)
-      _ -> nil
-    end
-  end
-
-  defp agent_id_if_agent(nil), do: nil
-
-  defp agent_id_if_agent(user_id) do
-    Repo.one(from u in User, where: u.id == ^user_id and u.is_agent == true, select: u.id)
-  end
-
-  defp mention_agent_ids(body_doc) do
-    body_doc
-    |> collect_mention_ids()
-    |> Enum.uniq()
-    |> Enum.filter(&agent_id_if_agent/1)
-  end
-
-  defp collect_mention_ids(%{"type" => "mention"} = node) do
-    case get_in(node, ["attrs", "id"]) do
-      id when is_binary(id) -> [id]
-      _ -> []
-    end
-  end
-
-  defp collect_mention_ids(%{"content" => content}) when is_list(content) do
-    Enum.flat_map(content, &collect_mention_ids/1)
-  end
-
-  defp collect_mention_ids(_), do: []
-
   defp normalize_comment_body(attrs) do
     case Map.get(attrs, :body_doc) || Map.get(attrs, "body_doc") do
       %{} = doc ->
@@ -687,7 +622,6 @@ defmodule Kaska.Projects do
 
       _ ->
         body = Map.get(attrs, :body) || Map.get(attrs, "body") || ""
-
         attrs
         |> Map.put(:body, body)
         |> Map.put(:body_doc, TaskBody.from_markdown(body))
@@ -735,11 +669,11 @@ defmodule Kaska.Projects do
     end
   end
 
-  defp first_task_rank(column_id) do
+  defp last_task_rank(column_id) do
     Repo.one(
       from t in Task,
         where: t.column_id == ^column_id,
-        order_by: [asc: t.rank],
+        order_by: [desc: t.rank],
         limit: 1,
         select: t.rank
     )

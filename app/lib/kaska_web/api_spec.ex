@@ -83,6 +83,20 @@ defmodule KaskaWeb.ApiSpec do
           summary: "List all tasks in a project",
           parameters: [slug_param(), format_param()],
           responses: %{200 => json_response("Tasks", array(task_schema()), "tasks")}
+        },
+        post: %Operation{
+          tags: ["Tasks"],
+          operationId: "createTask",
+          summary: "Create a new task in a column",
+          description:
+            "Creates a task at the end of the specified column. " <>
+              "Send `body` as Markdown, or `body_doc` as a raw tiptap document.",
+          parameters: [slug_param(), format_param()],
+          requestBody: json_body(task_create_schema()),
+          responses: %{
+            201 => json_response("Task", task_schema(), "task"),
+            422 => unprocessable()
+          }
         }
       },
       "/p/{project_slug}/tasks/{id}" => %PathItem{
@@ -109,6 +123,16 @@ defmodule KaskaWeb.ApiSpec do
             200 => json_response("Task", task_schema(), "task"),
             404 => not_found(),
             422 => unprocessable()
+          }
+        },
+        delete: %Operation{
+          tags: ["Tasks"],
+          operationId: "deleteTask",
+          summary: "Delete a task",
+          parameters: [slug_param(), id_param()],
+          responses: %{
+            200 => json_response("Ok", %{ok: %Schema{type: :boolean}}, "ok"),
+            404 => not_found()
           }
         }
       },
@@ -181,6 +205,49 @@ defmodule KaskaWeb.ApiSpec do
           summary: "List the project's members",
           parameters: [slug_param()],
           responses: %{200 => json_response("Members", array(user_schema()), "members")}
+        }
+      },
+      "/agent/events" => %PathItem{
+        get: %Operation{
+          tags: ["Agent Events"],
+          operationId: "listAgentEvents",
+          summary: "Long-poll for events addressed to this agent",
+          description:
+            "Returns pending events (comment replies, @mentions, new comments on assigned tasks). " <>
+              "Blocks up to 30s if no events are available (long-poll). Pass `since` cursor to resume.",
+          parameters: [
+            %Parameter{
+              name: :since,
+              in: :query,
+              required: false,
+              description: "ISO-8601 cursor from a previous response.",
+              schema: %Schema{type: :string, format: :"date-time"}
+            },
+            %Parameter{
+              name: :wait,
+              in: :query,
+              required: false,
+              description: "Whether to long-poll (default true).",
+              schema: %Schema{type: :boolean, default: true}
+            },
+            %Parameter{
+              name: :limit,
+              in: :query,
+              required: false,
+              description: "Max events to return (default 50, max 100).",
+              schema: %Schema{type: :integer, default: 50, maximum: 100}
+            }
+          ],
+          responses: %{200 => json_response("Agent events", array(agent_event_schema()), "events")}
+        }
+      },
+      "/agent/events/{id}/ack" => %PathItem{
+        post: %Operation{
+          tags: ["Agent Events"],
+          operationId: "ackAgentEvent",
+          summary: "Acknowledge delivery of events up to the given event id",
+          parameters: [id_param()],
+          responses: %{200 => json_response("Ack", %{ok: %Schema{type: :boolean}}, "ok")}
         }
       }
     }
@@ -287,6 +354,23 @@ defmodule KaskaWeb.ApiSpec do
         title: %Schema{type: :string},
         body: %Schema{type: :string, description: "Markdown"},
         body_doc: %Schema{type: :object, description: "Raw tiptap document"},
+        assignee_id: %Schema{type: :string, format: :uuid, nullable: true},
+        task_type_id: %Schema{type: :string, format: :uuid, nullable: true},
+        start_date: %Schema{type: :string, format: :date, nullable: true},
+        end_date: %Schema{type: :string, format: :date, nullable: true}
+      }
+    }
+  end
+
+  defp task_create_schema do
+    %Schema{
+      type: :object,
+      required: [:column_id, :title],
+      properties: %{
+        column_id: %Schema{type: :string, format: :uuid},
+        title: %Schema{type: :string},
+        body: %Schema{type: :string, description: "Markdown body."},
+        body_doc: %Schema{type: :object, description: "Raw tiptap document (alternative to body)."},
         assignee_id: %Schema{type: :string, format: :uuid, nullable: true},
         task_type_id: %Schema{type: :string, format: :uuid, nullable: true},
         start_date: %Schema{type: :string, format: :date, nullable: true},
@@ -439,6 +523,28 @@ defmodule KaskaWeb.ApiSpec do
         size: %Schema{type: :integer},
         kind: %Schema{type: :string},
         url: %Schema{type: :string, nullable: true}
+      }
+    }
+  end
+
+  defp agent_event_schema do
+    %Schema{
+      type: :object,
+      properties: %{
+        id: %Schema{type: :string, format: :uuid},
+        event_type: %Schema{
+          type: :string,
+          enum: ["comment_reply", "comment_mention", "task_comment"],
+          description: "Type of event."
+        },
+        payload: %Schema{
+          type: :object,
+          description: "Event-specific data (author ids, names, etc)."
+        },
+        project_id: %Schema{type: :string, format: :uuid},
+        task_id: %Schema{type: :string, format: :uuid, nullable: true},
+        comment_id: %Schema{type: :string, format: :uuid, nullable: true},
+        inserted_at: %Schema{type: :string, format: :"date-time"}
       }
     }
   end

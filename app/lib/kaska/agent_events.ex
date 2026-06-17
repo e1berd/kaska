@@ -1,111 +1,210 @@
 defmodule Kaska.AgentEvents do
   @moduledoc """
-  Durable per-agent event outbox with at-least-once delivery.
+  Outbox for events that need realtime delivery to agents.
 
-  Each event is persisted with a monotonic `seq`. An agent consumes its stream
-  by reading events with `seq` greater than its acknowledged cursor; the cursor
-  only advances on an explicit ack, so an event keeps being redelivered until
-  the agent confirms it. A `Phoenix.PubSub` broadcast lets a parked long-poll
-  wake up the instant a new event lands.
+  When a comment is created, the system checks three trigger conditions:
+
+    1. Reply to an agent's comment → `comment_reply`
+    2. @mention an agent → `comment_mention`
+    3. Comment on a task assigned to an agent → `task_comment`
+
+  Agents consume events via long-poll REST and acknowledge with an ack cursor.
+  Long-poll wakes via Phoenix.PubSub on emit, not polling.
   """
+
+  require Logger
 
   import Ecto.Query
 
-  alias Kaska.Repo
-  alias Kaska.AgentEvents.{AgentEvent, EventCursor}
+  alias Kaska.{Projects, Repo}
+  alias Kaska.AgentEvents.AgentEvent
+  alias Kaska.Projects.TaskComment
 
-  @pubsub Kaska.PubSub
+  def topic_for(agent_id), do: "agent_events:#{agent_id}"
 
-  def topic(agent_id) when is_binary(agent_id), do: "agent_events:" <> agent_id
-
-  def subscribe(agent_id) when is_binary(agent_id) do
-    Phoenix.PubSub.subscribe(@pubsub, topic(agent_id))
-  end
-
-  def unsubscribe(agent_id) when is_binary(agent_id) do
-    Phoenix.PubSub.unsubscribe(@pubsub, topic(agent_id))
-  end
-
-  @doc "Persists one event for `agent_id` and notifies any parked listener."
-  def record(agent_id, project_id, type, payload \\ %{}) do
+  @doc """
+  Emits an event to the agent events outbox and notifies the target agent via PubSub.
+  Returns `{:ok, event}` on success. Logs and returns error on failure.
+  """
+  def emit(%{agent_id: agent_id} = attrs) when is_map(attrs) do
     %AgentEvent{}
-    |> AgentEvent.changeset(%{
-      agent_id: agent_id,
-      project_id: project_id,
-      type: type,
-      payload: payload
-    })
+    |> AgentEvent.create_changeset(attrs)
     |> Repo.insert()
     |> case do
       {:ok, event} ->
-        Phoenix.PubSub.broadcast(@pubsub, topic(agent_id), {:agent_event, event.seq})
+        Phoenix.PubSub.broadcast(Kaska.PubSub, topic_for(agent_id), {:agent_event_new, event})
         {:ok, event}
 
-      other ->
-        other
+      {:error, changeset} ->
+        Logger.error("Failed to emit agent event: #{inspect(changeset.errors)}")
+        {:error, changeset}
     end
   end
 
-  @doc "Records the same event for several agents. Returns the number stored."
-  def record_many(agent_ids, project_id, type, payload \\ %{}) when is_list(agent_ids) do
-    agent_ids
-    |> Enum.uniq()
-    |> Enum.reduce(0, fn agent_id, acc ->
-      case record(agent_id, project_id, type, payload) do
-        {:ok, _} -> acc + 1
-        _ -> acc
-      end
-    end)
-  end
+  @doc """
+  Fetches pending events for an agent, ordered by insertion time.
+  Returns events that have not been acked yet.
+  """
+  def pending_events(agent_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    since = Keyword.get(opts, :since)
 
-  @doc "Acknowledged cursor for `agent_id` (0 when the agent has none yet)."
-  def cursor(agent_id) when is_binary(agent_id) do
-    Repo.one(from c in EventCursor, where: c.agent_id == ^agent_id, select: c.acked_seq) || 0
-  end
-
-  @doc "Unacknowledged events for `agent_id` with `seq` greater than `after_seq`."
-  def pending(agent_id, after_seq, limit \\ 100)
-      when is_binary(agent_id) and is_integer(after_seq) do
-    Repo.all(
+    query =
       from e in AgentEvent,
-        where: e.agent_id == ^agent_id and e.seq > ^after_seq,
-        order_by: [asc: e.seq],
+        where: e.agent_id == ^agent_id and is_nil(e.acked_at),
+        order_by: [asc: e.inserted_at],
         limit: ^limit
-    )
+
+    query =
+      if since do
+        from e in query, where: e.inserted_at > ^since
+      else
+        query
+      end
+
+    Repo.all(query)
   end
 
   @doc """
-  Advances the agent's cursor to `seq` (never backwards) and prunes events the
-  agent has now acknowledged. Returns the resulting cursor.
+  Acknowledges delivery of a specific event by id.
   """
-  def ack(agent_id, seq) when is_binary(agent_id) and is_integer(seq) do
+  def ack_event(agent_id, event_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    on_conflict =
-      from c in EventCursor,
-        update: [
-          set: [
-            acked_seq: fragment("GREATEST(?, EXCLUDED.acked_seq)", c.acked_seq),
-            updated_at: ^now
-          ]
-        ]
+    {count, _} =
+      from(e in AgentEvent,
+        where: e.id == ^event_id and e.agent_id == ^agent_id and is_nil(e.acked_at)
+      )
+      |> Repo.update_all(set: [acked_at: now])
 
-    {:ok, %{cursor: cursor}} =
-      Repo.transaction(fn ->
-        Repo.insert_all(
-          EventCursor,
-          [[agent_id: agent_id, acked_seq: seq, inserted_at: now, updated_at: now]],
-          on_conflict: on_conflict,
-          conflict_target: :agent_id
-        )
+    if count > 0, do: {:ok, :acked}, else: {:error, :not_found}
+  end
 
-        acked = cursor(agent_id)
+  @doc """
+  Called after a task comment is created. Emits events to agents that should
+  be notified. Returns `:ok` — emit failures are logged but do not fail
+  the comment creation (comment succeeds, events are best-effort).
+  """
+  def notify_on_comment_created(%TaskComment{} = comment, project_id) do
+    task = Projects.get_task(comment.task_id)
+    author_id = comment.author_id
 
-        Repo.delete_all(from e in AgentEvent, where: e.agent_id == ^agent_id and e.seq <= ^acked)
+    if comment.parent_id do
+      notify_reply(comment, project_id, author_id)
+    end
 
-        %{cursor: acked}
-      end)
+    notify_mentions(comment, project_id, author_id)
+    notify_task_assignment(comment, project_id, author_id, task)
 
-    cursor
+    :ok
+  end
+
+  defp notify_reply(comment, project_id, author_id) do
+    case Projects.get_task_comment(comment.parent_id) do
+      %TaskComment{author_id: agent_id} when not is_nil(agent_id) ->
+        if agent_id != author_id and agent?(agent_id) do
+          emit(%{
+            event_type: "comment_reply",
+            project_id: project_id,
+            task_id: comment.task_id,
+            comment_id: comment.id,
+            agent_id: agent_id,
+            payload: %{
+              reply_by_id: author_id,
+              reply_by_name: comment.author && comment.author.display_name,
+              parent_comment_id: comment.parent_id
+            }
+          })
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp notify_mentions(comment, project_id, author_id) do
+    mentioned_agent_ids = extract_mentioned_agent_ids(comment)
+
+    for agent_id <- mentioned_agent_ids, agent_id != author_id do
+      emit(%{
+        event_type: "comment_mention",
+        project_id: project_id,
+        task_id: comment.task_id,
+        comment_id: comment.id,
+        agent_id: agent_id,
+        payload: %{
+          mentioned_by_id: author_id,
+          mentioned_by_name: comment.author && comment.author.display_name
+        }
+      })
+    end
+  end
+
+  defp notify_task_assignment(comment, project_id, author_id, task) do
+    if task && task.assignee_id && task.assignee_id != author_id && agent?(task.assignee_id) do
+      emit(%{
+        event_type: "task_comment",
+        project_id: project_id,
+        task_id: comment.task_id,
+        comment_id: comment.id,
+        agent_id: task.assignee_id,
+        payload: %{
+          commented_by_id: author_id,
+          commented_by_name: comment.author && comment.author.display_name
+        }
+      })
+    end
+  end
+
+  defp agent?(user_id) do
+    case Kaska.Accounts.get_user(user_id) do
+      %{is_agent: true} -> true
+      _ -> false
+    end
+  end
+
+  defp extract_mentioned_agent_ids(%TaskComment{} = comment) do
+    project_agents = Kaska.Agents.list_agents(comment.project_id)
+    doc_mentions = mentions_from_doc(comment.body_doc, project_agents)
+
+    if doc_mentions != [] do
+      doc_mentions
+    else
+      mentions_from_body(comment.body || "", project_agents)
+    end
+  end
+
+  defp mentions_from_doc(%{"content" => content}, agents) when is_list(content) do
+    agent_map = Map.new(agents, fn a -> {a.display_name, a.id} end)
+
+    content
+    |> extract_text_from_nodes()
+    |> Enum.flat_map(fn text ->
+      for {name, id} <- agent_map,
+          String.contains?(text, "@#{name}"),
+          do: id
+    end)
+    |> Enum.uniq()
+  end
+
+  defp mentions_from_doc(_, _), do: []
+
+  defp extract_text_from_nodes(nodes) when is_list(nodes) do
+    Enum.flat_map(nodes, fn
+      %{"type" => "mention", "attrs" => %{"id" => id}} when is_binary(id) -> [id]
+      %{"text" => text} when is_binary(text) -> [text]
+      %{"content" => children} -> extract_text_from_nodes(children)
+      _ -> []
+    end)
+  end
+
+  defp extract_text_from_nodes(_), do: []
+
+  defp mentions_from_body(body, agents) do
+    Enum.filter(agents, fn agent ->
+      name = agent.display_name || ""
+      String.contains?(body, "@#{name}")
+    end)
+    |> Enum.map(& &1.id)
   end
 end
