@@ -1,22 +1,50 @@
 defmodule Kaska.Repo.Migrations.CreateAgentEvents do
   use Ecto.Migration
 
-  def change do
-    create table(:agent_events, primary_key: false) do
-      add :id, :binary_id, primary_key: true
-      add :event_type, :string, null: false
-      add :payload, :map, null: false, default: %{}
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+  def up do
+    alter table(:agent_events) do
+      add :event_type, :string, null: false, default: "comment_reply"
       add :task_id, references(:tasks, type: :binary_id, on_delete: :delete_all)
       add :comment_id, references(:task_comments, type: :binary_id, on_delete: :delete_all)
-      add :agent_id, references(:users, type: :binary_id, on_delete: :delete_all), null: false
       add :acked_at, :utc_datetime
-
-      timestamps(type: :utc_datetime)
+      add :updated_at, :utc_datetime
+      remove :seq
+      remove :type
     end
+
+    drop table(:agent_event_cursors)
+
+    drop index(:agent_events, [:agent_id, :seq])
 
     create index(:agent_events, [:agent_id, :inserted_at])
     create index(:agent_events, [:agent_id, :acked_at])
     create index(:agent_events, [:project_id])
+  end
+
+  def down do
+    drop index(:agent_events, [:project_id])
+    drop index(:agent_events, [:agent_id, :acked_at])
+    drop index(:agent_events, [:agent_id, :inserted_at])
+
+    create index(:agent_events, [:agent_id, :seq])
+
+    create table(:agent_event_cursors, primary_key: false) do
+      add :agent_id, references(:users, type: :binary_id, on_delete: :delete_all),
+        primary_key: true
+
+      add :acked_seq, :bigint, null: false, default: 0
+
+      timestamps(type: :utc_datetime)
+    end
+
+    alter table(:agent_events) do
+      add :seq, :bigserial, null: false
+      add :type, :string, null: false
+      remove :event_type
+      remove :task_id
+      remove :comment_id
+      remove :acked_at
+      remove :updated_at
+    end
   end
 end

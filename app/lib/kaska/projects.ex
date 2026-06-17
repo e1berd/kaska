@@ -502,7 +502,7 @@ defmodule Kaska.Projects do
         |> Map.put(:creator_id, creator_id)
         |> Map.put(:rank, rank)
         |> Map.put_new(:body_doc, @empty_doc)
-        |> Map.put_new(:start_date, DateTime.utc_now() |> DateTime.truncate(:second))
+        |> Map.put_new(:start_date, Date.utc_today())
 
       %Task{}
       |> Task.create_changeset(attrs)

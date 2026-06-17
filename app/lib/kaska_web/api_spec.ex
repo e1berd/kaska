@@ -83,6 +83,20 @@ defmodule KaskaWeb.ApiSpec do
           summary: "List all tasks in a project",
           parameters: [slug_param(), format_param()],
           responses: %{200 => json_response("Tasks", array(task_schema()), "tasks")}
+        },
+        post: %Operation{
+          tags: ["Tasks"],
+          operationId: "createTask",
+          summary: "Create a new task in a column",
+          description:
+            "Creates a task at the end of the specified column. " <>
+              "Send `body` as Markdown, or `body_doc` as a raw tiptap document.",
+          parameters: [slug_param(), format_param()],
+          requestBody: json_body(task_create_schema()),
+          responses: %{
+            201 => json_response("Task", task_schema(), "task"),
+            422 => unprocessable()
+          }
         }
       },
       "/p/{project_slug}/tasks/{id}" => %PathItem{
@@ -109,6 +123,16 @@ defmodule KaskaWeb.ApiSpec do
             200 => json_response("Task", task_schema(), "task"),
             404 => not_found(),
             422 => unprocessable()
+          }
+        },
+        delete: %Operation{
+          tags: ["Tasks"],
+          operationId: "deleteTask",
+          summary: "Delete a task",
+          parameters: [slug_param(), id_param()],
+          responses: %{
+            200 => json_response("Ok", %{ok: %Schema{type: :boolean}}, "ok"),
+            404 => not_found()
           }
         }
       },
@@ -330,6 +354,23 @@ defmodule KaskaWeb.ApiSpec do
         title: %Schema{type: :string},
         body: %Schema{type: :string, description: "Markdown"},
         body_doc: %Schema{type: :object, description: "Raw tiptap document"},
+        assignee_id: %Schema{type: :string, format: :uuid, nullable: true},
+        task_type_id: %Schema{type: :string, format: :uuid, nullable: true},
+        start_date: %Schema{type: :string, format: :date, nullable: true},
+        end_date: %Schema{type: :string, format: :date, nullable: true}
+      }
+    }
+  end
+
+  defp task_create_schema do
+    %Schema{
+      type: :object,
+      required: [:column_id, :title],
+      properties: %{
+        column_id: %Schema{type: :string, format: :uuid},
+        title: %Schema{type: :string},
+        body: %Schema{type: :string, description: "Markdown body."},
+        body_doc: %Schema{type: :object, description: "Raw tiptap document (alternative to body)."},
         assignee_id: %Schema{type: :string, format: :uuid, nullable: true},
         task_type_id: %Schema{type: :string, format: :uuid, nullable: true},
         start_date: %Schema{type: :string, format: :date, nullable: true},

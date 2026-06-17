@@ -107,6 +107,18 @@ defmodule KaskaWeb.Api.TaskController do
     end
   end
 
+  def delete(conn, %{"id" => id}) do
+    project = conn.assigns.project
+
+    with %Task{} = task <- Projects.get_project_task(project.id, id) do
+      Projects.delete_task(task)
+      BoardBroadcast.task(project, "task_deleted", task)
+      json(conn, %{ok: true})
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
   defp render_task(project, task, format) do
     comments = %{task.id => Projects.list_task_comments_for(project.id, task.id)}
     attachments = Attachments.list_for_many("task", [task.id])
