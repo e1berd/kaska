@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, rmdirSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { parse as parseYaml } from 'yaml'
@@ -10,15 +10,42 @@ const BASE = (process.env.KASKA_API_URL ?? 'https://app.kaska.space/api/v1').rep
 const CONFIG_PATH = process.env.CLERKS_CONFIG ?? join(process.cwd(), 'clerks.yml')
 const STATE_DIR = process.env.STATE_DIR ?? join(process.cwd(), '.clerk-state')
 
+function loadDotEnv(): void {
+  const envPath = join(process.cwd(), '.env')
+  if (!existsSync(envPath)) return
+
+  const lines = readFileSync(envPath, 'utf-8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    let value = trimmed.slice(eqIdx + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    if (!process.env[key]) {
+      process.env[key] = value
+    }
+  }
+}
+
 const ClerkConfigSchema = z.object({
-  token: z.string(),
+  token: z.string().optional(),
   model: z.string(),
   system_prompt: z.string().optional(),
 })
 
-const ConfigSchema = z.record(ClerkConfigSchema)
+const TokensSchema = z.record(z.string())
+const ClerksSchema = z.record(ClerkConfigSchema)
 
-type ClerkConfig = z.infer<typeof ClerkConfigSchema>
+const ConfigSchema = z.object({
+  tokens: TokensSchema.optional(),
+  clerks: ClerksSchema,
+})
+
+type ClerkConfig = z.infer<typeof ClerkConfigSchema> & { token: string }
 
 interface Event {
   id: string
@@ -86,9 +113,9 @@ async function apiRequest<T>(method: string, path: string, token: string, body?:
   return data as T
 }
 
-type AllClerks = z.infer<typeof ConfigSchema>
+function loadConfig(): Record<string, ClerkConfig> {
+  loadDotEnv()
 
-function loadConfig(): AllClerks {
   if (!existsSync(CONFIG_PATH)) {
     console.error(`Config not found: ${CONFIG_PATH}`)
     process.exit(1)
@@ -96,7 +123,23 @@ function loadConfig(): AllClerks {
 
   const raw = readFileSync(CONFIG_PATH, 'utf-8')
   const parsed = parseYaml(raw)
-  return ConfigSchema.parse(parsed)
+  const config = ConfigSchema.parse(parsed)
+
+  const tokens = config.tokens ?? {}
+  const result: Record<string, ClerkConfig> = {}
+
+  for (const [name, clerkConfig] of Object.entries(config.clerks)) {
+    const token = clerkConfig.token ?? tokens[name] ?? ''
+
+    if (!token) {
+      console.warn(`[${name}] No token found in clerk config or tokens map, skipping`)
+      continue
+    }
+
+    result[name] = { ...clerkConfig, token }
+  }
+
+  return result
 }
 
 function loadState(clerkName: string): State {
@@ -138,8 +181,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch {}
-    try { unlinkSync(tmpDir) } catch {}
+    try { unlinkSync(tmpFile) } catch { /* skip */ }
+    try { rmdirSync(tmpDir) } catch { /* skip */ }
   }
 }
 
@@ -310,15 +353,18 @@ async function pollAndProcess(
   clerk: ClerkConfig,
   state: State,
 ): Promise<void> {
-  let since: string | undefined
+  let lastEventId: string | undefined
   let backoffMs = 1000
   const maxBackoffMs = 60_000
 
   while (true) {
     try {
+      const params = new URLSearchParams({ wait: 'true' })
+      if (lastEventId) params.set('since', lastEventId)
+
       const { events } = await apiRequest<{ events: Event[]; cursor: string | null }>(
         'GET',
-        `/agent/events?wait=true${since ? `&since=${since}` : ''}`,
+        `/agent/events?${params.toString()}`,
         clerk.token,
       )
 
@@ -329,7 +375,7 @@ async function pollAndProcess(
       }
 
       if (events.length > 0) {
-        since = events[events.length - 1].inserted_at
+        lastEventId = events[events.length - 1].id
       }
     } catch (error) {
       console.error(`[${name}] Poll error:`, error)

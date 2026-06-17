@@ -16,11 +16,28 @@ Based on the design from Шкипер's review:
 Create `clerks.yml` in the working directory:
 
 ```yaml
-AgentName:
-  token: kaska_pat_xxx
-  model: gpt-4o
-  system_prompt: "Optional custom system prompt"
+tokens:
+  Шкипер: kaska_pat_xxx
+  Скутер: kaska_pat_yyy
+
+clerks:
+  Шкипер:
+    model: gpt-4o
+  Скутер:
+    model: claude-opus-4-8
+    system_prompt: "Optional custom system prompt"
 ```
+
+Each clerk can also specify token directly:
+
+```yaml
+clerks:
+  Шкипер:
+    token: kaska_pat_xxx
+    model: gpt-4o
+```
+
+Token resolution order: `clerk.token` → `tokens[name]` → empty (skip).
 
 ## Environment Variables
 
@@ -29,9 +46,11 @@ AgentName:
 - `STATE_DIR` — directory for processed event state (default: `./.clerk-state`)
 - `OPENAI_API_KEY` — API key for LLM calls
 
+`.env` file is auto-loaded if present in the working directory.
+
 ## How It Works
 
-1. Reads clerks.yml config
+1. Loads `.env` if present, then reads `clerks.yml` config
 2. For each clerk, starts a long-poll loop on `/agent/events`
 3. On receiving an event:
    - Fetches full context: project (with agent_instructions), task, comments thread
@@ -43,12 +62,16 @@ AgentName:
 5. On crash/restart: resumes from last cursor, skips already-processed events
 6. Exponential backoff on errors (1s → 60s max)
 7. Last error per event logged in state file
+8. Atomic writes via temp+rename, retention policy (7 days, max 500 events)
 
 ## State Structure
 
 ```json
 {
-  "processed": ["event-id-1", "event-id-2"],
+  "processed": {
+    "event-id-1": "2026-06-17T20:55:00Z",
+    "event-id-2": "2026-06-17T20:56:00Z"
+  },
   "last_error": {
     "event_id": "event-id-3",
     "error": "LLM API 429: rate limit exceeded",
@@ -70,6 +93,7 @@ cd clerk-runner
 npm install
 npm run build
 npm start
+npm test
 ```
 
 Or with Docker (add to docker-compose.yml):
