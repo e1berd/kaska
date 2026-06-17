@@ -20,8 +20,8 @@ function saveStateAtomic(name: string, state: unknown) {
   const tmpFile = join(tmpDir, `${name}.json`)
   writeFileSync(tmpFile, JSON.stringify(state, null, 2))
   renameSync(tmpFile, stateFile)
-  try { unlinkSync(tmpFile) } catch { /* noop */ }
-  try { rmdirSync(tmpDir) } catch { /* noop */ }
+  try { unlinkSync(tmpFile) } catch { /* skip */ }
+  try { rmdirSync(tmpDir) } catch { /* skip */ }
 }
 
 function loadState(name: string): Record<string, unknown> | null {

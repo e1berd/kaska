@@ -129,11 +129,10 @@ function loadConfig(): Record<string, ClerkConfig> {
   const result: Record<string, ClerkConfig> = {}
 
   for (const [name, clerkConfig] of Object.entries(config.clerks)) {
-    const envKey = `KASKA_TOKEN_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
-    const token = clerkConfig.token ?? tokens[name] ?? process.env[envKey] ?? ''
+    const token = clerkConfig.token ?? tokens[name] ?? ''
 
     if (!token) {
-      console.warn(`[${name}] No token found in clerk config, tokens map, or env ${envKey}, skipping`)
+      console.warn(`[${name}] No token found in clerk config or tokens map, skipping`)
       continue
     }
 
@@ -182,8 +181,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch { /* noop: file may not exist if rename succeeded */ }
-    try { rmdirSync(tmpDir) } catch { /* noop: dir may not be empty or already removed */ }
+    try { unlinkSync(tmpFile) } catch { /* skip */ }
+    try { rmdirSync(tmpDir) } catch { /* skip */ }
   }
 }
 

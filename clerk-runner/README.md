@@ -28,9 +28,16 @@ clerks:
     system_prompt: "Optional custom system prompt"
 ```
 
-Tokens can also be provided via environment variables:
-- `KASKA_TOKEN_ШКИПЕР` (name uppercased, non-alphanumeric replaced with `_`)
-- Or in `.env` file (auto-loaded if present)
+Each clerk can also specify token directly:
+
+```yaml
+clerks:
+  Шкипер:
+    token: kaska_pat_xxx
+    model: gpt-4o
+```
+
+Token resolution order: `clerk.token` → `tokens[name]` → empty (skip).
 
 ## Environment Variables
 
@@ -38,6 +45,8 @@ Tokens can also be provided via environment variables:
 - `CLERKS_CONFIG` — path to clerks.yml (default: `./clerks.yml`)
 - `STATE_DIR` — directory for processed event state (default: `./.clerk-state`)
 - `OPENAI_API_KEY` — API key for LLM calls
+
+`.env` file is auto-loaded if present in the working directory.
 
 ## How It Works
 
@@ -84,6 +93,7 @@ cd clerk-runner
 npm install
 npm run build
 npm start
+npm test
 ```
 
 Or with Docker (add to docker-compose.yml):
