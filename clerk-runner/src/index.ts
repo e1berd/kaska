@@ -32,6 +32,7 @@ function loadDotEnv(): void {
 }
 
 const ClerkConfigSchema = z.object({
+  token: z.string().optional(),
   model: z.string(),
   system_prompt: z.string().optional(),
 })
@@ -45,11 +46,6 @@ const ConfigSchema = z.object({
 })
 
 type ClerkConfig = z.infer<typeof ClerkConfigSchema> & { token: string }
-
-interface Config {
-  tokens: Record<string, string>
-  clerks: Record<string, z.infer<typeof ClerkConfigSchema>>
-}
 
 interface Event {
   id: string
@@ -134,10 +130,10 @@ function loadConfig(): Record<string, ClerkConfig> {
 
   for (const [name, clerkConfig] of Object.entries(config.clerks)) {
     const envKey = `KASKA_TOKEN_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
-    const token = tokens[name] ?? process.env[envKey] ?? ''
+    const token = clerkConfig.token ?? tokens[name] ?? process.env[envKey] ?? ''
 
     if (!token) {
-      console.warn(`[${name}] No token found in tokens map or env ${envKey}, skipping`)
+      console.warn(`[${name}] No token found in clerk config, tokens map, or env ${envKey}, skipping`)
       continue
     }
 
@@ -186,8 +182,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch { /* tmp file may not exist if rename succeeded */ }
-    try { rmdirSync(tmpDir) } catch { /* dir may not be empty or already removed */ }
+    try { unlinkSync(tmpFile) } catch { /* noop: file may not exist if rename succeeded */ }
+    try { rmdirSync(tmpDir) } catch { /* noop: dir may not be empty or already removed */ }
   }
 }
 
@@ -358,15 +354,18 @@ async function pollAndProcess(
   clerk: ClerkConfig,
   state: State,
 ): Promise<void> {
-  let since: string | undefined
+  let lastEventId: string | undefined
   let backoffMs = 1000
   const maxBackoffMs = 60_000
 
   while (true) {
     try {
+      const params = new URLSearchParams({ wait: 'true' })
+      if (lastEventId) params.set('since', lastEventId)
+
       const { events } = await apiRequest<{ events: Event[]; cursor: string | null }>(
         'GET',
-        `/agent/events?wait=true${since ? `&since=${since}` : ''}`,
+        `/agent/events?${params.toString()}`,
         clerk.token,
       )
 
@@ -377,7 +376,7 @@ async function pollAndProcess(
       }
 
       if (events.length > 0) {
-        since = events[events.length - 1].inserted_at
+        lastEventId = events[events.length - 1].id
       }
     } catch (error) {
       console.error(`[${name}] Poll error:`, error)
