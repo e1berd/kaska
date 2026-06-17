@@ -361,6 +361,18 @@ async function processEvent(
   }
 
   const { project, task } = context
+
+  const alreadyPosted = await commentExists(clerk.token, project.slug, task.id, event.id)
+  if (alreadyPosted) {
+    console.warn(`[${name}] Comment already exists for event ${event.id}, acking`)
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (acked) {
+      state.processed[event.id] = new Date().toISOString()
+      saveState(name, state)
+    }
+    return acked
+  }
+
   const prompt = buildContextPrompt(event, project, task)
 
   try {
@@ -376,25 +388,17 @@ async function processEvent(
       return acked
     }
 
-    const alreadyPosted = await commentExists(clerk.token, project.slug, task.id, event.id)
-    if (alreadyPosted) {
-      console.warn(`[${name}] Comment already exists for event ${event.id}, acking`)
-      await ackEventWithRetry(clerk.token, event.id)
-      state.processed[event.id] = new Date().toISOString()
-      saveState(name, state)
-      return true
-    }
-
     await postCommentWithMarker(clerk.token, project.slug, task.id, response, event.id)
+
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (!acked) {
+      console.warn(`[${name}] Comment posted, ack failed for event ${event.id} — will retry ack on next poll`)
+      return false
+    }
 
     state.processed[event.id] = new Date().toISOString()
     state.last_error = undefined
     saveState(name, state)
-
-    const acked = await ackEventWithRetry(clerk.token, event.id)
-    if (!acked) {
-      console.warn(`[${name}] Comment posted, ack failed for event ${event.id} — event is processed but unacked`)
-    }
 
     console.log(`[${name}] Processed event ${event.id} (${event.event_type})`)
     return true
