@@ -49,6 +49,49 @@ defmodule KaskaWeb.Api.TaskController do
     end
   end
 
+  def create(conn, %{"column_id" => column_id} = params) do
+    project = conn.assigns.project
+    creator = conn.assigns.current_user
+
+    attrs = %{
+      title: Map.get(params, "title"),
+      start_date: Map.get(params, "start_date"),
+      end_date: Map.get(params, "end_date"),
+      assignee_id: Map.get(params, "assignee_id"),
+      task_type_id: Map.get(params, "task_type_id")
+    }
+
+    body_doc =
+      cond do
+        Map.has_key?(params, "body_doc") -> params["body_doc"]
+        Map.has_key?(params, "body") -> TaskBody.from_markdown(params["body"])
+        true -> nil
+      end
+
+    attrs = if body_doc, do: Map.put(attrs, :body_doc, body_doc), else: attrs
+
+    case Projects.create_task(project.id, column_id, attrs, creator.id) do
+      {:ok, task} ->
+        BoardBroadcast.task(project, "task_created", task)
+
+        conn
+        |> put_status(:created)
+        |> json(%{task: render_task(project, task, format(params))})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:error, cs}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def create(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: "column_id_required"})
+  end
+
   def move(conn, %{"id" => id, "column_id" => column_id} = params) do
     project = conn.assigns.project
 

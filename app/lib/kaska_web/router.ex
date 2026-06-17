@@ -47,6 +47,7 @@ defmodule KaskaWeb.Router do
 
     get "/p/:project_slug/tasks", TaskController, :index
     get "/p/:project_slug/tasks/:id", TaskController, :show
+    post "/p/:project_slug/tasks", TaskController, :create
     patch "/p/:project_slug/tasks/:id", TaskController, :update
     post "/p/:project_slug/tasks/:id/move", TaskController, :move
 
