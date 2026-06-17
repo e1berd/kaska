@@ -26,6 +26,34 @@ defmodule KaskaWeb.Api.TaskController do
     })
   end
 
+  def create(conn, params) do
+    project = conn.assigns.project
+    author = conn.assigns.author
+    column_id = Map.get(params, "column_id")
+
+    attrs =
+      %{}
+      |> put_present(params, "title", :title)
+      |> put_body(params)
+      |> put_present(params, "assignee_id", :assignee_id)
+      |> put_present(params, "task_type_id", :task_type_id)
+      |> put_present(params, "start_date", :start_date)
+      |> put_present(params, "end_date", :end_date)
+
+    case Projects.create_task(project.id, column_id, attrs, author.id) do
+      {:ok, task} ->
+        reloaded = Projects.get_project_task(project.id, task.id)
+        BoardBroadcast.task(project, "task_created", reloaded)
+        json(conn, %{task: render_task(project, reloaded, format(params))})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:error, cs}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def show(conn, %{"id" => id} = params) do
     project = conn.assigns.project
 
@@ -58,6 +86,25 @@ defmodule KaskaWeb.Api.TaskController do
       reloaded = Projects.get_project_task(project.id, moved.id)
       BoardBroadcast.task(project, "task_moved", reloaded)
       json(conn, %{task: render_task(project, reloaded, format(params))})
+    else
+      nil -> {:error, :not_found}
+      other -> other
+    end
+  end
+
+  def delete(conn, %{"id" => id}) do
+    project = conn.assigns.project
+
+    with %Task{} = task <- Projects.get_project_task(project.id, id),
+         {:ok, _} <- Projects.delete_task(task) do
+      payload = %{id: id, task_id: id}
+      KaskaWeb.Endpoint.broadcast("board:#{project.id}", "task_deleted", payload)
+
+      if is_binary(project.slug) do
+        KaskaWeb.Endpoint.broadcast("board_slug:#{project.slug}", "task_deleted", payload)
+      end
+
+      json(conn, %{id: id})
     else
       nil -> {:error, :not_found}
       other -> other

@@ -43,6 +43,7 @@ const taskSyncing = ref(false)
 const taskUploading = ref(false)
 const taskUploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
+const copiedSnack = ref(false)
 let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
 let taskSavingStartedAt = 0
 let taskSaveQueued = false
@@ -372,6 +373,13 @@ async function copyTaskLink() {
   }
 }
 
+async function copyTaskId() {
+  if (navigator && navigator.clipboard) {
+    await navigator.clipboard.writeText(taskId.value)
+    copiedSnack.value = true
+  }
+}
+
 watch(
   () => currentTask.value,
   (task) => {
@@ -443,7 +451,11 @@ watch(
     <header class="ks-task-page__bar">
       <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <span class="md-title-large">Задача</span>
-      <span class="ks-task-page__id md-label-large">ID {{ shortTaskId }}</span>
+      <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
+        <template #activator="{ props }">
+          <span v-bind="props" class="ks-task-page__id md-label-large cursor-pointer" @click="copyTaskId">ID {{ shortTaskId }}</span>
+        </template>
+      </v-tooltip>
       <PresenceGroup
         v-if="taskViewers.length"
         class="ml-2"
@@ -658,6 +670,9 @@ watch(
       </aside>
     </div>
   </div>
+  <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
+    UUID скопирован
+  </v-snackbar>
 </template>
 
 <style scoped>

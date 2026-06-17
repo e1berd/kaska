@@ -28,6 +28,16 @@ const board = useBoardStore()
 const props = defineProps<{ task: Task }>()
 const emit = defineEmits<{ (e: 'open', task: Task): void }>()
 
+const shortId = computed(() => props.task.id.slice(0, 8))
+const copiedSnack = ref(false)
+
+async function copyTaskId() {
+  if (navigator && navigator.clipboard) {
+    await navigator.clipboard.writeText(props.task.id)
+    copiedSnack.value = true
+  }
+}
+
 const preview = computed(() => docPreview(props.task.body_doc, 220))
 const attachmentCount = computed(() => board.attachmentsFor(props.task.id).length)
 const firstImageUrl = computed(() => {
@@ -461,7 +471,14 @@ onBeforeUnmount(() => {
     <div v-if="firstImageUrl" class="ks-card__cover">
       <img :src="firstImageUrl" :alt="task.title" class="pointer-events-none" />
     </div>
-    <div class="ks-card__title md-body-large">{{ task.title }}</div>
+    <div class="ks-card__header d-flex align-center justify-space-between">
+      <div class="ks-card__title md-body-large">{{ task.title }}</div>
+      <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
+        <template #activator="{ props: tooltipProps }">
+          <span v-bind="tooltipProps" class="ks-card__id md-label-medium" @click.stop="copyTaskId">{{ shortId }}</span>
+        </template>
+      </v-tooltip>
+    </div>
     <div v-if="preview" class="ks-card__preview md-body-small">{{ preview }}</div>
     <div v-if="attachmentCount > 0 || startDate || endDate || taskType" class="ks-card__meta">
       <span v-if="taskType" class="ks-card__chip" :style="taskTypeChipStyle">
@@ -488,6 +505,9 @@ onBeforeUnmount(() => {
     <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': showTopEdge }" />
     <div class="ks-card__edge ks-card__edge--bottom" :class="{ 'is-on': showBottomEdge }" />
   </div>
+  <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
+    UUID скопирован
+  </v-snackbar>
 </template>
 
 <style scoped>
@@ -576,6 +596,20 @@ onBeforeUnmount(() => {
   font-weight: 500;
   line-height: 1.35;
   word-break: break-word;
+  min-width: 0;
+  flex: 1;
+}
+.ks-card__id {
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--md-shape-xs);
+  transition: background-color var(--md-duration-short2) var(--md-easing-standard);
+  flex-shrink: 0;
+}
+.ks-card__id:hover {
+  background: rgba(var(--v-theme-on-surface), 0.08);
 }
 .ks-card__preview {
   margin-top: 4px;

@@ -49,8 +49,10 @@ defmodule KaskaWeb.Router do
     post "/events/ack", EventController, :ack
 
     get "/p/:project_slug/tasks", TaskController, :index
+    post "/p/:project_slug/tasks", TaskController, :create
     get "/p/:project_slug/tasks/:id", TaskController, :show
     patch "/p/:project_slug/tasks/:id", TaskController, :update
+    delete "/p/:project_slug/tasks/:id", TaskController, :delete
     post "/p/:project_slug/tasks/:id/move", TaskController, :move
 
     get "/p/:project_slug/tasks/:task_id/comments", CommentController, :index

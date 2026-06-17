@@ -6,8 +6,7 @@ defmodule Kaska.Agents do
   its own identity. It authenticates over the REST API with a personal access
   token (`Kaska.ApiTokens`).
 
-  Removing an agent unjoins it and revokes its tokens but keeps the user row, so
-  its past comments keep their author.
+  Removing an agent unjoins it, revokes its tokens and deletes the user row.
   """
 
   import Ecto.Query
@@ -135,13 +134,14 @@ defmodule Kaska.Agents do
     :ok
   end
 
-  @doc "Fully retires the agent: unjoins all projects and revokes all tokens."
-  def delete_agent(%User{is_agent: true, id: agent_id}) do
+  @doc "Fully retires the agent: unjoins all projects, revokes all tokens and deletes the user."
+  def delete_agent(%User{is_agent: true, id: agent_id} = agent) do
     for project <- agent_projects(agent_id) do
       Projects.remove_member(project.id, agent_id)
     end
 
     {:ok, _} = ApiTokens.revoke_all_for_user(agent_id)
+    Repo.delete!(agent)
     :ok
   end
 

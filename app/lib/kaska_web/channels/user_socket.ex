@@ -13,13 +13,19 @@ defmodule KaskaWeb.UserSocket do
   @impl true
   def connect(%{"token" => token}, socket, _connect_info)
       when is_binary(token) and token != "" do
-    case Kaska.Guardian.resource_from_token(token) do
-      {:ok, user, _claims} ->
-        {:ok, assign(socket, :current_user, user)}
+    user =
+      case Kaska.Guardian.resource_from_token(token) do
+        {:ok, user, _claims} ->
+          user
 
-      _ ->
-        {:ok, assign(socket, :current_user, nil)}
-    end
+        _ ->
+          case Kaska.ApiTokens.verify_token(token) do
+            {:ok, user} -> user
+            :error -> nil
+          end
+      end
+
+    {:ok, assign(socket, :current_user, user)}
   end
 
   def connect(_params, socket, _connect_info) do

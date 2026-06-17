@@ -206,6 +206,15 @@ const currentTask = computed<Task | null>(() => {
   return board.tasks.find((t) => t.id === taskTargetId.value) ?? null
 })
 const shortTaskId = computed(() => currentTask.value?.id.slice(0, 8) ?? taskTargetId.value?.slice(0, 8) ?? '')
+const copiedSnack = ref(false)
+
+async function copyTaskId() {
+  const id = currentTask.value?.id || taskTargetId.value
+  if (id && navigator && navigator.clipboard) {
+    await navigator.clipboard.writeText(id)
+    copiedSnack.value = true
+  }
+}
 
 type TaskFormState = {
   title: string
@@ -1422,7 +1431,11 @@ const boardBackgroundStyle = computed(() => ({
       <v-card v-if="taskTarget" rounded="xl" class="ks-task-dialog">
         <header v-if="mobile" class="ks-task-mbar">
           <span class="md-title-large">Карточка</span>
-          <span v-if="shortTaskId" class="ks-task-id md-label-large">ID {{ shortTaskId }}</span>
+          <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
+            <template #activator="{ props: tipProps }">
+              <span v-if="shortTaskId" v-bind="tipProps" class="ks-task-id md-label-large cursor-pointer" @click="copyTaskId">ID {{ shortTaskId }}</span>
+            </template>
+          </v-tooltip>
           <PresenceGroup
             v-if="taskViewers.length"
             class="ml-1"
@@ -1568,7 +1581,11 @@ const boardBackgroundStyle = computed(() => ({
 
             <aside class="ks-task-meta">
               <header v-if="!mobile" class="ks-task-meta__bar">
-                <span v-if="shortTaskId" class="ks-task-id md-label-large">ID {{ shortTaskId }}</span>
+          <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
+            <template #activator="{ props: tipProps }">
+              <span v-if="shortTaskId" v-bind="tipProps" class="ks-task-id md-label-large cursor-pointer" @click="copyTaskId">ID {{ shortTaskId }}</span>
+            </template>
+          </v-tooltip>
                 <PresenceGroup
                   v-if="taskViewers.length"
                   :users="taskViewers"
@@ -1709,6 +1726,9 @@ const boardBackgroundStyle = computed(() => ({
     color="surface-container-high"
   >
     {{ deleteSnackText }}
+  </v-snackbar>
+  <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
+    UUID скопирован
   </v-snackbar>
 </template>
 

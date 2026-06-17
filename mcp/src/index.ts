@@ -111,6 +111,37 @@ server.registerTool(
 )
 
 server.registerTool(
+  'create_task',
+  {
+    title: 'Create task',
+    description: 'Create a new task in a column.',
+    inputSchema: {
+      project_slug: slug,
+      column_id: z.string().describe('Column id to create the task in.'),
+      title: z.string(),
+      body: z.string().optional().describe('Markdown body.'),
+      assignee_id: z.string().nullable().optional(),
+      task_type_id: z.string().nullable().optional(),
+      start_date: z.string().nullable().optional(),
+      end_date: z.string().nullable().optional(),
+    },
+  },
+  async ({ project_slug, column_id, ...fields }) =>
+    result(await request('POST', `/p/${project_slug}/tasks`, { column_id, ...fields })),
+)
+
+server.registerTool(
+  'delete_task',
+  {
+    title: 'Delete task',
+    description: 'Delete a task by id.',
+    inputSchema: { project_slug: slug, task_id: taskId },
+  },
+  async ({ project_slug, task_id }) =>
+    result(await request('DELETE', `/p/${project_slug}/tasks/${task_id}`)),
+)
+
+server.registerTool(
   'move_task',
   {
     title: 'Move task',
