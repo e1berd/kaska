@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync, rmdirSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { parse as parseYaml } from 'yaml'
@@ -10,15 +10,46 @@ const BASE = (process.env.KASKA_API_URL ?? 'https://app.kaska.space/api/v1').rep
 const CONFIG_PATH = process.env.CLERKS_CONFIG ?? join(process.cwd(), 'clerks.yml')
 const STATE_DIR = process.env.STATE_DIR ?? join(process.cwd(), '.clerk-state')
 
+function loadDotEnv(): void {
+  const envPath = join(process.cwd(), '.env')
+  if (!existsSync(envPath)) return
+
+  const lines = readFileSync(envPath, 'utf-8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    let value = trimmed.slice(eqIdx + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    if (!process.env[key]) {
+      process.env[key] = value
+    }
+  }
+}
+
 const ClerkConfigSchema = z.object({
-  token: z.string(),
   model: z.string(),
   system_prompt: z.string().optional(),
 })
 
-const ConfigSchema = z.record(ClerkConfigSchema)
+const TokensSchema = z.record(z.string())
+const ClerksSchema = z.record(ClerkConfigSchema)
 
-type ClerkConfig = z.infer<typeof ClerkConfigSchema>
+const ConfigSchema = z.object({
+  tokens: TokensSchema.optional(),
+  clerks: ClerksSchema,
+})
+
+type ClerkConfig = z.infer<typeof ClerkConfigSchema> & { token: string }
+
+interface Config {
+  tokens: Record<string, string>
+  clerks: Record<string, z.infer<typeof ClerkConfigSchema>>
+}
 
 interface Event {
   id: string
@@ -86,9 +117,9 @@ async function apiRequest<T>(method: string, path: string, token: string, body?:
   return data as T
 }
 
-type AllClerks = z.infer<typeof ConfigSchema>
+function loadConfig(): Record<string, ClerkConfig> {
+  loadDotEnv()
 
-function loadConfig(): AllClerks {
   if (!existsSync(CONFIG_PATH)) {
     console.error(`Config not found: ${CONFIG_PATH}`)
     process.exit(1)
@@ -96,7 +127,24 @@ function loadConfig(): AllClerks {
 
   const raw = readFileSync(CONFIG_PATH, 'utf-8')
   const parsed = parseYaml(raw)
-  return ConfigSchema.parse(parsed)
+  const config = ConfigSchema.parse(parsed)
+
+  const tokens = config.tokens ?? {}
+  const result: Record<string, ClerkConfig> = {}
+
+  for (const [name, clerkConfig] of Object.entries(config.clerks)) {
+    const envKey = `KASKA_TOKEN_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
+    const token = tokens[name] ?? process.env[envKey] ?? ''
+
+    if (!token) {
+      console.warn(`[${name}] No token found in tokens map or env ${envKey}, skipping`)
+      continue
+    }
+
+    result[name] = { ...clerkConfig, token }
+  }
+
+  return result
 }
 
 function loadState(clerkName: string): State {
@@ -138,8 +186,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch {}
-    try { unlinkSync(tmpDir) } catch {}
+    try { unlinkSync(tmpFile) } catch { /* tmp file may not exist if rename succeeded */ }
+    try { rmdirSync(tmpDir) } catch { /* dir may not be empty or already removed */ }
   }
 }
 
