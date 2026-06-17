@@ -85,6 +85,26 @@ interface Project {
   agent_instructions: string | null
 }
 
+function removeFileIfExists(path: string): boolean {
+  try {
+    unlinkSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw e
+  }
+}
+
+function removeDirIfExists(path: string): boolean {
+  try {
+    rmdirSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTEMPTY') return false
+    throw e
+  }
+}
+
 const MAX_PROCESSED = 500
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -181,8 +201,8 @@ function saveState(clerkName: string, state: State): void {
     writeFileSync(tmpFile, JSON.stringify(state, null, 2))
     renameSync(tmpFile, stateFile)
   } finally {
-    try { unlinkSync(tmpFile) } catch { /* skip */ }
-    try { rmdirSync(tmpDir) } catch { /* skip */ }
+    removeFileIfExists(tmpFile)
+    removeDirIfExists(tmpDir)
   }
 }
 

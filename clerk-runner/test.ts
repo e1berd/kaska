@@ -11,6 +11,26 @@ function cleanup() {
   }
 }
 
+function removeFileIfExists(path: string): boolean {
+  try {
+    unlinkSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw e
+  }
+}
+
+function removeDirIfExists(path: string): boolean {
+  try {
+    rmdirSync(path)
+    return true
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTEMPTY') return false
+    throw e
+  }
+}
+
 function saveStateAtomic(name: string, state: unknown) {
   if (!existsSync(STATE_DIR)) {
     mkdirSync(STATE_DIR, { recursive: true })
@@ -20,8 +40,8 @@ function saveStateAtomic(name: string, state: unknown) {
   const tmpFile = join(tmpDir, `${name}.json`)
   writeFileSync(tmpFile, JSON.stringify(state, null, 2))
   renameSync(tmpFile, stateFile)
-  try { unlinkSync(tmpFile) } catch { /* skip */ }
-  try { rmdirSync(tmpDir) } catch { /* skip */ }
+  removeFileIfExists(tmpFile)
+  removeDirIfExists(tmpDir)
 }
 
 function loadState(name: string): Record<string, unknown> | null {
