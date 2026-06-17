@@ -314,8 +314,18 @@ async function callLLM(
   return data.choices[0].message.content
 }
 
-async function postComment(token: string, projectSlug: string, taskId: string, body: string): Promise<void> {
-  await apiRequest('POST', `/p/${projectSlug}/tasks/${taskId}/comments`, token, { body })
+async function commentExists(token: string, projectSlug: string, taskId: string, eventId: string): Promise<boolean> {
+  const { comments } = await apiRequest<{ comments: Comment[] }>(
+    'GET',
+    `/p/${projectSlug}/tasks/${taskId}/comments`,
+    token,
+  )
+  return comments.some((c) => c.body.includes(`<!-- event:${eventId} -->`))
+}
+
+async function postCommentWithMarker(token: string, projectSlug: string, taskId: string, body: string, eventId: string): Promise<void> {
+  const markedBody = `${body}\n\n<!-- event:${eventId} -->`
+  await apiRequest('POST', `/p/${projectSlug}/tasks/${taskId}/comments`, token, { body: markedBody })
 }
 
 async function ackEventWithRetry(token: string, eventId: string, maxRetries = 3): Promise<boolean> {
@@ -366,7 +376,16 @@ async function processEvent(
       return acked
     }
 
-    await postComment(clerk.token, project.slug, task.id, response)
+    const alreadyPosted = await commentExists(clerk.token, project.slug, task.id, event.id)
+    if (alreadyPosted) {
+      console.warn(`[${name}] Comment already exists for event ${event.id}, acking`)
+      await ackEventWithRetry(clerk.token, event.id)
+      state.processed[event.id] = new Date().toISOString()
+      saveState(name, state)
+      return true
+    }
+
+    await postCommentWithMarker(clerk.token, project.slug, task.id, response, event.id)
 
     state.processed[event.id] = new Date().toISOString()
     state.last_error = undefined
