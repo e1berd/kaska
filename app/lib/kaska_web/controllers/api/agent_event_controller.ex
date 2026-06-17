@@ -42,7 +42,7 @@ defmodule KaskaWeb.Api.AgentEventController do
   defp wait_for_events(conn, agent, since, limit) do
     ref = make_ref()
 
-    Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+    Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
     timer_ref =
       Process.send_after(self(), {:poll_timeout, ref}, @long_poll_timeout_ms)

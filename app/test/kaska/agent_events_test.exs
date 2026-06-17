@@ -43,7 +43,7 @@ defmodule Kaska.AgentEventsTest do
 
   describe "emit/1" do
     test "inserts an event and broadcasts via PubSub" do
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       owner = owner_fixture()
       project = project_fixture(owner)
@@ -173,7 +173,7 @@ defmodule Kaska.AgentEventsTest do
       agent = agent_fixture(owner, project)
       task = task_fixture(project)
 
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       {:ok, agent_comment} =
         Projects.create_task_comment(project.id, task.id, %{body: "I'm on it"}, agent.id)
@@ -198,7 +198,7 @@ defmodule Kaska.AgentEventsTest do
       agent = agent_fixture(owner, project)
       task = task_fixture(project)
 
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       {:ok, agent_comment} =
         Projects.create_task_comment(project.id, task.id, %{body: "I'm on it"}, agent.id)
@@ -220,7 +220,7 @@ defmodule Kaska.AgentEventsTest do
       agent = agent_fixture(owner, project)
       task = task_fixture(project, agent.id)
 
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       {:ok, _} =
         Projects.create_task_comment(project.id, task.id, %{body: "Any update?"}, owner.id)
@@ -236,7 +236,7 @@ defmodule Kaska.AgentEventsTest do
       agent = agent_fixture(owner, project)
       task = task_fixture(project)
 
-      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic())
+      Phoenix.PubSub.subscribe(Kaska.PubSub, AgentEvents.topic_for(agent.id))
 
       {:ok, _} =
         Projects.create_task_comment(

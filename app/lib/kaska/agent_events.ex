@@ -2,14 +2,17 @@ defmodule Kaska.AgentEvents do
   @moduledoc """
   Outbox for events that need realtime delivery to agents.
 
-  When a comment is created, the system checks:
-  1. Is it a reply to an agent's comment? → emit `comment_reply`
-  2. Does it @mention an agent? → emit `comment_mention`
-  3. Is the task assigned to an agent? → emit `task_comment`
+  When a comment is created, the system checks three trigger conditions:
+
+    1. Reply to an agent's comment → `comment_reply`
+    2. @mention an agent → `comment_mention`
+    3. Comment on a task assigned to an agent → `task_comment`
 
   Agents consume events via long-poll REST and acknowledge with an ack cursor.
   Long-poll wakes via Phoenix.PubSub on emit, not polling.
   """
+
+  require Logger
 
   import Ecto.Query
 
@@ -17,24 +20,24 @@ defmodule Kaska.AgentEvents do
   alias Kaska.AgentEvents.AgentEvent
   alias Kaska.Projects.TaskComment
 
-  @topic "agent_events"
-
-  def topic, do: @topic
+  def topic_for(agent_id), do: "agent_events:#{agent_id}"
 
   @doc """
-  Emits an event to the agent events outbox and notifies via PubSub.
+  Emits an event to the agent events outbox and notifies the target agent via PubSub.
+  Returns `{:ok, event}` on success. Logs and returns error on failure.
   """
-  def emit(attrs) when is_map(attrs) do
+  def emit(%{agent_id: agent_id} = attrs) when is_map(attrs) do
     %AgentEvent{}
     |> AgentEvent.create_changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, event} = result ->
-        Phoenix.PubSub.broadcast(Kaska.PubSub, @topic, {:agent_event_new, event})
-        result
+      {:ok, event} ->
+        Phoenix.PubSub.broadcast(Kaska.PubSub, topic_for(agent_id), {:agent_event_new, event})
+        {:ok, event}
 
-      error ->
-        error
+      {:error, changeset} ->
+        Logger.error("Failed to emit agent event: #{inspect(changeset.errors)}")
+        {:error, changeset}
     end
   end
 
@@ -63,7 +66,7 @@ defmodule Kaska.AgentEvents do
   end
 
   @doc """
-  Acknowledges delivery of a specific event. Only acks the single event by id.
+  Acknowledges delivery of a specific event by id.
   """
   def ack_event(agent_id, event_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -78,38 +81,48 @@ defmodule Kaska.AgentEvents do
   end
 
   @doc """
-  When a comment is created, check if any agents should be notified and emit events.
-  Runs synchronously to guarantee outbox write succeeds before comment creation returns.
+  Called after a task comment is created. Emits events to agents that should
+  be notified. Returns `:ok` — emit failures are logged but do not fail
+  the comment creation (comment succeeds, events are best-effort).
   """
   def notify_on_comment_created(%TaskComment{} = comment, project_id) do
     task = Projects.get_task(comment.task_id)
     author_id = comment.author_id
 
-    # 1. Reply to an agent's comment
     if comment.parent_id do
-      case Projects.get_task_comment(comment.parent_id) do
-        %TaskComment{author_id: agent_id} when not is_nil(agent_id) ->
-          if agent_id != author_id and agent?(agent_id) do
-            emit(%{
-              event_type: "comment_reply",
-              project_id: project_id,
-              task_id: comment.task_id,
-              comment_id: comment.id,
-              agent_id: agent_id,
-              payload: %{
-                reply_by_id: author_id,
-                reply_by_name: comment.author && comment.author.display_name,
-                parent_comment_id: comment.parent_id
-              }
-            })
-          end
-
-        _ ->
-          :ok
-      end
+      notify_reply(comment, project_id, author_id)
     end
 
-    # 2. @mention agents in comment body_doc (tiptap mentions) or body (markdown fallback)
+    notify_mentions(comment, project_id, author_id)
+    notify_task_assignment(comment, project_id, author_id, task)
+
+    :ok
+  end
+
+  defp notify_reply(comment, project_id, author_id) do
+    case Projects.get_task_comment(comment.parent_id) do
+      %TaskComment{author_id: agent_id} when not is_nil(agent_id) ->
+        if agent_id != author_id and agent?(agent_id) do
+          emit(%{
+            event_type: "comment_reply",
+            project_id: project_id,
+            task_id: comment.task_id,
+            comment_id: comment.id,
+            agent_id: agent_id,
+            payload: %{
+              reply_by_id: author_id,
+              reply_by_name: comment.author && comment.author.display_name,
+              parent_comment_id: comment.parent_id
+            }
+          })
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp notify_mentions(comment, project_id, author_id) do
     mentioned_agent_ids = extract_mentioned_agent_ids(comment)
 
     for agent_id <- mentioned_agent_ids, agent_id != author_id do
@@ -125,8 +138,9 @@ defmodule Kaska.AgentEvents do
         }
       })
     end
+  end
 
-    # 3. Comment on a task assigned to an agent
+  defp notify_task_assignment(comment, project_id, author_id, task) do
     if task && task.assignee_id && task.assignee_id != author_id && agent?(task.assignee_id) do
       emit(%{
         event_type: "task_comment",
@@ -140,8 +154,6 @@ defmodule Kaska.AgentEvents do
         }
       })
     end
-
-    :ok
   end
 
   defp agent?(user_id) do
@@ -153,8 +165,6 @@ defmodule Kaska.AgentEvents do
 
   defp extract_mentioned_agent_ids(%TaskComment{} = comment) do
     project_agents = Kaska.Agents.list_agents(comment.project_id)
-
-    # Try body_doc first (tiptap mention nodes), fall back to markdown body search
     doc_mentions = mentions_from_doc(comment.body_doc, project_agents)
 
     if doc_mentions != [] do
@@ -164,7 +174,7 @@ defmodule Kaska.AgentEvents do
     end
   end
 
-  defp mentions_from_doc(%{"content" => content} = _doc, agents) when is_list(content) do
+  defp mentions_from_doc(%{"content" => content}, agents) when is_list(content) do
     agent_map = Map.new(agents, fn a -> {a.display_name, a.id} end)
 
     content
@@ -181,6 +191,7 @@ defmodule Kaska.AgentEvents do
 
   defp extract_text_from_nodes(nodes) when is_list(nodes) do
     Enum.flat_map(nodes, fn
+      %{"type" => "mention", "attrs" => %{"id" => id}} when is_binary(id) -> [id]
       %{"text" => text} when is_binary(text) -> [text]
       %{"content" => children} -> extract_text_from_nodes(children)
       _ -> []
