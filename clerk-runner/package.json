@@ -1,0 +1,22 @@
+{
+  "name": "@kaska/clerk-runner",
+  "version": "1.0.0",
+  "description": "External runner for autonomous agent event processing",
+  "type": "module",
+  "bin": {
+    "kaska-clerk-runner": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

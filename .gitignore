@@ -22,3 +22,7 @@ erl_crash.dump
 **/.pnpm-store
 **/node_modules
 /docker-compose.override.yml
+/clerks.yml
+.clerk-state/
+clerk-runner/dist/
+clerk-runner/node_modules/
