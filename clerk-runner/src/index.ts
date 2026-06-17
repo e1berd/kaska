@@ -318,8 +318,20 @@ async function postComment(token: string, projectSlug: string, taskId: string, b
   await apiRequest('POST', `/p/${projectSlug}/tasks/${taskId}/comments`, token, { body })
 }
 
-async function ackEvent(token: string, eventId: string): Promise<void> {
-  await apiRequest('POST', `/agent/events/${eventId}/ack`, token)
+async function ackEventWithRetry(token: string, eventId: string, maxRetries = 3): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await apiRequest('POST', `/agent/events/${eventId}/ack`, token)
+      return true
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error(`[${eventId}] Ack failed after ${maxRetries} attempts:`, error)
+        return false
+      }
+      await sleep(1000 * attempt)
+    }
+  }
+  return false
 }
 
 async function processEvent(
@@ -346,14 +358,21 @@ async function processEvent(
 
     if (!response || response.trim().length === 0) {
       console.warn(`[${name}] Empty LLM response for event ${event.id}, acking without comment`)
-      await ackEvent(clerk.token, event.id)
-      state.processed[event.id] = new Date().toISOString()
-      saveState(name, state)
-      return true
+      const acked = await ackEventWithRetry(clerk.token, event.id)
+      if (acked) {
+        state.processed[event.id] = new Date().toISOString()
+        saveState(name, state)
+      }
+      return acked
     }
 
     await postComment(clerk.token, project.slug, task.id, response)
-    await ackEvent(clerk.token, event.id)
+
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (!acked) {
+      console.error(`[${name}] Comment posted but ack failed for event ${event.id} — will retry on next poll`)
+      return false
+    }
 
     state.processed[event.id] = new Date().toISOString()
     state.last_error = undefined
