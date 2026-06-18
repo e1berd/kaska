@@ -16,6 +16,7 @@ const props = defineProps<{
   taskEndDate: string | null
   taskType: string | null
   taskAssignee: string | null
+  taskColumn: string | null
   metaOpen: boolean
 }>()
 
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   'update:taskEndDate': [value: string | null]
   'update:taskType': [value: string | null]
   'update:taskAssignee': [value: string | null]
+  'update:taskColumn': [value: string]
   'openTaskPage': []
   'copyTaskLink': []
   'copyTaskId': []
@@ -204,6 +206,17 @@ function userAvatar(item: unknown): string {
               </div>
             </template>
           </v-select>
+          <v-select
+            :model-value="taskColumn"
+            :items="board.orderedColumns"
+            item-title="name"
+            item-value="id"
+            label="Статус"
+            variant="filled"
+            density="comfortable"
+            :readonly="!canWrite"
+            @update:model-value="emit('update:taskColumn', $event)"
+          />
         </div>
       </div>
     </div>

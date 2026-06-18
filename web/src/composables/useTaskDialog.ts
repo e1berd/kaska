@@ -42,6 +42,8 @@ export function useTaskDialog(opts: {
   const taskEndDate = ref<string | null>(null)
   const taskType = ref<string | null>(null)
   const taskAssignee = ref<string | null>(null)
+  const taskColumn = ref<string | null>(null)
+  let changeColumnTimer: ReturnType<typeof setTimeout> | null = null
   const taskUploading = ref(false)
   const taskUploadProgress = ref(0)
   const taskSaving = ref(false)
@@ -203,6 +205,18 @@ export function useTaskDialog(opts: {
     }
   }
 
+  function changeColumn(newColumnId: string | null) {
+    if (!currentTask.value || !newColumnId || newColumnId === currentTask.value.column_id) return
+    if (changeColumnTimer) clearTimeout(changeColumnTimer)
+    changeColumnTimer = setTimeout(() => {
+      const colTasks = board.tasksFor(newColumnId)
+      const lastId = colTasks.length ? colTasks[colTasks.length - 1].id : null
+      board.moveTask(currentTask.value!.id, newColumnId, lastId, null).catch((e) => {
+        console.warn('[task-dialog] move task failed', e)
+      })
+    }, 300)
+  }
+
   async function openTask(task: Task) {
     taskTargetId.value = task.id
     const actualTask = board.tasks.find((t) => t.id === task.id) ?? task
@@ -359,6 +373,7 @@ export function useTaskDialog(opts: {
       taskEndDate.value = task.end_date ?? null
       taskType.value = task.task_type_id ?? null
       taskAssignee.value = task.assignee_id ?? null
+      taskColumn.value = task.column_id
       setTimeout(() => {
         taskSyncing.value = false
       }, 0)
@@ -390,6 +405,7 @@ export function useTaskDialog(opts: {
   onBeforeUnmount(() => {
     collab.tearDownCollab()
     if (taskSaveTimer) clearTimeout(taskSaveTimer)
+    if (changeColumnTimer) clearTimeout(changeColumnTimer)
   })
 
   return {
@@ -400,6 +416,8 @@ export function useTaskDialog(opts: {
     taskEndDate,
     taskType,
     taskAssignee,
+    taskColumn,
+    changeColumn,
     taskUploading,
     taskUploadProgress,
     taskSaving,

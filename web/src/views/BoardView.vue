@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, provide, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -49,6 +49,32 @@ const deleteSnackText = ref('')
 
 const taskDialogRef = ref<InstanceType<typeof BoardTaskDialog> | null>(null)
 const columnDialogsRef = ref<InstanceType<typeof BoardColumnDialogs> | null>(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
+const SCROLL_STEP = 320
+
+function updateScrollArrows() {
+  const el = colsScroll.value
+  if (!el) return
+  canScrollLeft.value = el.scrollLeft > 4
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+}
+
+function scrollColumns(dir: -1 | 1) {
+  colsScroll.value?.scrollBy({ left: dir * SCROLL_STEP, behavior: 'smooth' })
+}
+
+onMounted(() => {
+  const el = colsScroll.value
+  if (el) {
+    el.addEventListener('scroll', updateScrollArrows, { passive: true })
+    updateScrollArrows()
+  }
+})
+
+onBeforeUnmount(() => {
+  colsScroll.value?.removeEventListener('scroll', updateScrollArrows)
+})
 
 function openTask(task: Task) {
   taskDialogRef.value?.open(task)
@@ -296,20 +322,42 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
       {{ error }}
     </v-alert>
 
-    <div v-else-if="board.viewMode === 'columns'" ref="colsScroll" class="ks-board__cols">
-      <TransitionGroup name="ks-col-move">
-        <BoardColumn
-          v-for="(column, idx) in board.orderedColumns"
-          :key="column.id"
-          :column="column"
-          :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
-          :accent="accentFor(idx)"
-          @open-task="openTask"
-          @rename="(c: Column) => columnDialogsRef?.onRename(c)"
-          @delete="(c: Column) => columnDialogsRef?.onDeleteColumn(c)"
-          @task-created="scrollToTask"
-        />
-      </TransitionGroup>
+    <div v-else-if="board.viewMode === 'columns'" class="ks-board__cols-wrap">
+      <Transition name="ks-scroll-fade">
+        <button
+          v-show="canScrollLeft"
+          class="ks-board__scroll-btn ks-board__scroll-btn--left"
+          aria-label="Прокрутить влево"
+          @click="scrollColumns(-1)"
+        >
+          <v-icon size="20">mdi-chevron-left</v-icon>
+        </button>
+      </Transition>
+      <div ref="colsScroll" class="ks-board__cols">
+        <TransitionGroup name="ks-col-move">
+          <BoardColumn
+            v-for="(column, idx) in board.orderedColumns"
+            :key="column.id"
+            :column="column"
+            :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
+            :accent="accentFor(idx)"
+            @open-task="openTask"
+            @rename="(c: Column) => columnDialogsRef?.onRename(c)"
+            @delete="(c: Column) => columnDialogsRef?.onDeleteColumn(c)"
+            @task-created="scrollToTask"
+          />
+        </TransitionGroup>
+      </div>
+      <Transition name="ks-scroll-fade">
+        <button
+          v-show="canScrollRight"
+          class="ks-board__scroll-btn ks-board__scroll-btn--right"
+          aria-label="Прокрутить вправо"
+          @click="scrollColumns(1)"
+        >
+          <v-icon size="20">mdi-chevron-right</v-icon>
+        </button>
+      </Transition>
     </div>
 
     <BoardListView
@@ -401,17 +449,57 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
   justify-content: center;
   padding: 80px 0;
 }
-.ks-board__cols {
+.ks-board__cols-wrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   height: 0;
+}
+.ks-board__cols {
   display: flex;
   gap: 14px;
   padding: 8px 16px 20px;
   overflow-x: auto;
   overflow-y: hidden;
   align-items: stretch;
+  height: 100%;
+  scrollbar-width: none;
 }
+.ks-board__cols::-webkit-scrollbar { display: none; }
+
+.ks-board__scroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--md-shape-full);
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.4);
+  background: rgb(var(--v-theme-surface-container-high));
+  color: rgb(var(--v-theme-on-surface));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--md-elev-2);
+  transition:
+    background-color var(--md-duration-short3) var(--md-easing-standard),
+    box-shadow var(--md-duration-short3) var(--md-easing-standard);
+}
+.ks-board__scroll-btn:hover {
+  background: rgb(var(--v-theme-surface-container-highest));
+  box-shadow: var(--md-elev-3);
+}
+.ks-board__scroll-btn--left { left: 4px; }
+.ks-board__scroll-btn--right { right: 4px; }
+
+.ks-scroll-fade-enter-active,
+.ks-scroll-fade-leave-active {
+  transition: opacity var(--md-duration-short3) var(--md-easing-standard);
+}
+.ks-scroll-fade-enter-from,
+.ks-scroll-fade-leave-to { opacity: 0; }
 .ks-board__cols .ks-col-move-move {
   transition: transform var(--md-duration-medium4) var(--md-easing-emphasized);
 }
@@ -428,6 +516,10 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
 @media (max-width: 600px) {
   .ks-board__cols {
     padding: 8px 12px 16px;
+  }
+  .ks-board__scroll-btn {
+    width: 28px;
+    height: 28px;
   }
 }
 </style>

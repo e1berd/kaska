@@ -20,6 +20,8 @@ const {
   taskEndDate,
   taskType,
   taskAssignee,
+  taskColumn,
+  changeColumn,
   taskUploading,
   taskUploadProgress,
   taskSaving,
@@ -219,12 +221,14 @@ defineExpose({ open })
           :task-end-date="taskEndDate"
           :task-type="taskType"
           :task-assignee="taskAssignee"
+          :task-column="taskColumn"
           :meta-open="metaOpen"
           @update:meta-open="metaOpen = $event"
           @update:task-start-date="taskStartDate = $event"
           @update:task-end-date="taskEndDate = $event"
           @update:task-type="taskType = $event"
           @update:task-assignee="taskAssignee = $event"
+          @update:task-column="changeColumn($event)"
           @open-task-page="openTaskPage"
           @copy-task-link="copyTaskLink"
           @copy-task-id="copyTaskId"
