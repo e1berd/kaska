@@ -123,6 +123,8 @@ async function testPostAckFailureIdempotency() {
 
   const processed = new Map<string, string>()
   const postedComments = new Set<string>()
+  const ackResults = [false, false, true]
+  let ackCallCount = 0
 
   const event = { id: 'evt-post-ack-fail', event_type: 'comment_reply' as const, project_id: 'p1', task_id: 't1', comment_id: null, inserted_at: new Date().toISOString(), payload: {} }
 
@@ -135,35 +137,31 @@ async function testPostAckFailureIdempotency() {
   }
 
   function ackEvent(_eid: string): boolean {
-    return false
+    const result = ackResults[ackCallCount] ?? false
+    ackCallCount++
+    return result
   }
 
   postComment(event.id)
   assert(commentExists(event.id), 'Comment posted')
 
-  const acked = ackEvent(event.id)
-  assert.strictEqual(acked, false, 'Ack fails')
-
+  let acked = ackEvent(event.id)
+  assert.strictEqual(acked, false, 'Ack attempt 1 fails')
   assert(!processed.has(event.id), 'Event NOT in processed after ack failure')
 
-  if (commentExists(event.id)) {
-    const acked2 = ackEvent(event.id)
-    if (acked2) {
-      processed.set(event.id, new Date().toISOString())
-    }
-  }
+  acked = ackEvent(event.id)
+  assert.strictEqual(acked, false, 'Ack attempt 2 still fails')
+  assert(!processed.has(event.id), 'Event still NOT processed')
 
-  assert(!processed.has(event.id), 'Event still NOT processed because ack keeps failing')
-
-  const acked3 = ackEvent(event.id)
-  if (acked3 || commentExists(event.id)) {
+  acked = ackEvent(event.id)
+  assert.strictEqual(acked, true, 'Ack attempt 3 succeeds')
+  if (acked) {
     processed.set(event.id, new Date().toISOString())
   }
-
-  assert(processed.has(event.id), 'Event processed when ack finally succeeds')
+  assert(processed.has(event.id), 'Event processed only after successful ack')
 
   cleanup()
-  console.log('PASS: post + ack failure + next poll finds comment, retries ack')
+  console.log('PASS: post + ack failure + next poll finds comment, retries ack until success')
 }
 
 async function testNoOpAck() {
