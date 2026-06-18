@@ -145,6 +145,8 @@ async function testPostAckFailureIdempotency() {
   postComment(event.id)
   assert(commentExists(event.id), 'Comment posted')
 
+  let postCount = 1
+
   let acked = ackEvent(event.id)
   assert.strictEqual(acked, false, 'Ack attempt 1 fails')
   assert(!processed.has(event.id), 'Event NOT in processed after ack failure')
@@ -159,6 +161,7 @@ async function testPostAckFailureIdempotency() {
     processed.set(event.id, new Date().toISOString())
   }
   assert(processed.has(event.id), 'Event processed only after successful ack')
+  assert.strictEqual(postCount, 1, 'Comment posted exactly once')
 
   cleanup()
   console.log('PASS: post + ack failure + next poll finds comment, retries ack until success')
