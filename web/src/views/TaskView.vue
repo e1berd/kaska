@@ -14,6 +14,7 @@ import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 import { cssColorOr } from '@/utils/css'
+import { clipboardImageFiles } from '@/utils/clipboard'
 
 import { collabUserColor, base64ToUint8 } from '@/utils/collab'
 
@@ -381,9 +382,7 @@ async function uploadTaskFiles(taskId: string, files: File[]) {
 
 async function onTaskPaste(e: ClipboardEvent) {
   if (!auth.isAuthed || !currentTask.value) return
-  const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
-    file.type.startsWith('image/'),
-  )
+  const files = clipboardImageFiles(e)
   if (!files.length) return
   e.preventDefault()
   await uploadTaskFiles(currentTask.value.id, files)

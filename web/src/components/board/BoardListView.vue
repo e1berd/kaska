@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
 import ListHeaderCell from '@/components/board/ListHeaderCell.vue'
 import { cssColorOr } from '@/utils/css'
@@ -16,32 +16,21 @@ defineEmits<{
 const board = useBoardStore()
 
 const listColumnDefaults = [
-  { title: 'Карточка', key: 'title', sortable: true, minWidth: 260, width: 320 },
-  { title: 'Тип', key: 'task_type_id', sortable: true, width: 180 },
-  { title: 'Статус', key: 'column_id', sortable: false, width: 200 },
-  { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: 200 },
-  { title: 'Сроки', key: 'dates', sortable: false, width: 200 },
+  { title: 'Карточка', key: 'title', sortable: true, minWidth: 200 },
+  { title: 'Тип', key: 'task_type_id', sortable: true, minWidth: 120 },
+  { title: 'Статус', key: 'column_id', sortable: true, minWidth: 160 },
+  { title: 'Исполнитель', key: 'assignee_id', sortable: true, minWidth: 160 },
+  { title: 'Сроки', key: 'dates', sortable: true, minWidth: 200 },
 ] as const
 
-type ListColumnKey = (typeof listColumnDefaults)[number]['key']
-
-const listColumnOrder = ref<ListColumnKey[]>(listColumnDefaults.map((column) => column.key))
-const listColumnWidths = ref<Record<ListColumnKey, number>>(
-  Object.fromEntries(listColumnDefaults.map((column) => [column.key, column.width])) as Record<
-    ListColumnKey,
-    number
-  >,
-)
-
+const listColumnKeys = listColumnDefaults.map((column) => column.key)
 const listColumnMap = computed(() => new Map(listColumnDefaults.map((column) => [column.key, column])))
-
 const listHeaders = computed(() =>
-  listColumnOrder.value.flatMap((key) => {
-    const column = listColumnMap.value.get(key)
-    if (!column) return []
-    const width = `${listColumnWidths.value[key]}px`
-    return [{ ...column, width, minWidth: 'minWidth' in column ? `${column.minWidth}px` : width }]
-  }),
+  listColumnDefaults.map((column) => ({
+    ...column,
+    headerProps: { class: 'ks-list-th', 'data-column-key': column.key },
+    cellProps: { class: 'ks-list-td', 'data-column-key': column.key },
+  })),
 )
 
 function taskTypeFor(id: string | null | undefined) {
@@ -55,7 +44,7 @@ function columnFor(id: string | null | undefined) {
 }
 
 function columnColorStyle(id: string | null | undefined) {
-  return { '--ks-status-color': cssColorOr(columnFor(id)?.color, '#E8DEF8') }
+  return { '--ks-status-color': cssColorOr(columnFor(id)?.color, 'rgb(var(--v-theme-secondary-container))') }
 }
 
 function userFor(id: string | null | undefined) {
@@ -80,80 +69,14 @@ async function changeColumn(task: Task, newColumnId: unknown) {
   }
 }
 
-function clampListColumnWidth(value: number): number {
-  return Math.min(520, Math.max(120, Math.round(value)))
+function compareDates(a: Task, b: Task): number {
+  const aDate = a.end_date ?? a.start_date ?? ''
+  const bDate = b.end_date ?? b.start_date ?? ''
+  if (!aDate && !bDate) return 0
+  if (!aDate) return 1
+  if (!bDate) return -1
+  return aDate < bDate ? -1 : aDate > bDate ? 1 : 0
 }
-
-function moveListColumn(sourceKey: string, targetKey: string) {
-  if (sourceKey === targetKey) return
-  const source = sourceKey as ListColumnKey
-  const target = targetKey as ListColumnKey
-  const order = listColumnOrder.value.filter((key) => key !== source)
-  const targetIndex = order.indexOf(target)
-  if (targetIndex === -1) return
-  order.splice(targetIndex, 0, source)
-  listColumnOrder.value = order
-}
-
-function resizeListColumn(key: string, delta: number) {
-  const columnKey = key as ListColumnKey
-  const current = listColumnWidths.value[columnKey] ?? 180
-  listColumnWidths.value = {
-    ...listColumnWidths.value,
-    [columnKey]: clampListColumnWidth(current + delta),
-  }
-}
-
-const listPrefsKey = computed(() => `kaska.board.list_columns.${props.slug}`)
-
-watch(
-  listPrefsKey,
-  (key) => {
-    const raw = localStorage.getItem(key)
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as {
-        order?: string[]
-        widths?: Record<string, number>
-      }
-      const allowed = new Set(listColumnDefaults.map((column) => column.key))
-      const order = (parsed.order ?? []).filter((value): value is ListColumnKey =>
-        allowed.has(value as ListColumnKey),
-      )
-      if (order.length) {
-        listColumnOrder.value = [
-          ...order,
-          ...listColumnDefaults
-            .map((column) => column.key)
-            .filter((key) => !order.includes(key)),
-        ]
-      }
-      listColumnWidths.value = {
-        ...listColumnWidths.value,
-        ...Object.fromEntries(
-          Object.entries(parsed.widths ?? {}).flatMap(([key, value]) => {
-            if (!allowed.has(key as ListColumnKey) || typeof value !== 'number') return []
-            return [[key, clampListColumnWidth(value)]]
-          }),
-        ),
-      }
-    } catch {
-      localStorage.removeItem(key)
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  [listColumnOrder, listColumnWidths],
-  () => {
-    localStorage.setItem(
-      listPrefsKey.value,
-      JSON.stringify({ order: listColumnOrder.value, widths: listColumnWidths.value }),
-    )
-  },
-  { deep: true },
-)
 </script>
 
 <template>
@@ -163,6 +86,7 @@ watch(
         :headers="listHeaders"
         :items="filteredTasks"
         :items-per-page="-1"
+        :custom-key-sort="{ dates: compareDates }"
         item-value="id"
         density="comfortable"
         hover
@@ -178,53 +102,18 @@ watch(
 
         <template #bottom />
 
-        <template #header.title>
+        <template
+          v-for="key in listColumnKeys"
+          :key="key"
+          #[`header.${key}`]="{ column, isSorted, toggleSort, getSortIcon }"
+        >
           <ListHeaderCell
-            column-key="title"
-            :title="listColumnMap.get('title')?.title ?? 'title'"
-            :width="listColumnWidths.title"
-            @move="moveListColumn"
-            @resize="resizeListColumn"
-          />
-        </template>
-
-        <template #header.task_type_id>
-          <ListHeaderCell
-            column-key="task_type_id"
-            :title="listColumnMap.get('task_type_id')?.title ?? 'task_type_id'"
-            :width="listColumnWidths.task_type_id"
-            @move="moveListColumn"
-            @resize="resizeListColumn"
-          />
-        </template>
-
-        <template #header.column_id>
-          <ListHeaderCell
-            column-key="column_id"
-            :title="listColumnMap.get('column_id')?.title ?? 'column_id'"
-            :width="listColumnWidths.column_id"
-            @move="moveListColumn"
-            @resize="resizeListColumn"
-          />
-        </template>
-
-        <template #header.assignee_id>
-          <ListHeaderCell
-            column-key="assignee_id"
-            :title="listColumnMap.get('assignee_id')?.title ?? 'assignee_id'"
-            :width="listColumnWidths.assignee_id"
-            @move="moveListColumn"
-            @resize="resizeListColumn"
-          />
-        </template>
-
-        <template #header.dates>
-          <ListHeaderCell
-            column-key="dates"
-            :title="listColumnMap.get('dates')?.title ?? 'dates'"
-            :width="listColumnWidths.dates"
-            @move="moveListColumn"
-            @resize="resizeListColumn"
+            :column-key="key"
+            :title="listColumnMap.get(key)?.title ?? key"
+            :sortable="column.sortable"
+            :is-sorted="isSorted(column)"
+            :sort-icon="getSortIcon(column)"
+            @sort="toggleSort(column)"
           />
         </template>
 
@@ -334,28 +223,57 @@ watch(
 .ks-board__table :deep(.v-table__wrapper) {
   overflow-x: auto;
 }
-.ks-table :deep(thead th) {
-  background: rgb(var(--v-theme-surface-container)) !important;
+.ks-table :deep(th),
+.ks-table :deep(td) {
+  min-width: 120px;
+}
+.ks-table :deep(th[data-column-key="title"]),
+.ks-table :deep(td[data-column-key="title"]) {
+  min-width: 200px;
+}
+.ks-table :deep(th[data-column-key="column_id"]),
+.ks-table :deep(td[data-column-key="column_id"]) {
+  min-width: 160px;
+}
+.ks-table :deep(th[data-column-key="assignee_id"]),
+.ks-table :deep(td[data-column-key="assignee_id"]) {
+  min-width: 160px;
+}
+.ks-table :deep(th[data-column-key="dates"]),
+.ks-table :deep(td[data-column-key="dates"]) {
+  min-width: 200px;
+}
+.ks-table :deep(.ks-list-th) {
+  background: rgb(var(--v-theme-surface-container));
   color: rgba(var(--v-theme-on-surface), 0.7);
   font-weight: 500;
-  letter-spacing: 0.1px;
+  letter-spacing: 0;
   position: relative;
+  padding: 0;
+  border-bottom-color: rgb(var(--v-theme-outline-variant));
+}
+.ks-table :deep(.ks-list-td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+  border-bottom-color: rgb(var(--v-theme-outline-variant));
 }
 .ks-table :deep(tbody tr) {
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);
-}
-.ks-table :deep(tbody tr:hover td) {
-  background: rgba(var(--v-theme-on-surface), 0.04) !important;
-}
-.ks-table :deep(tbody tr) {
   cursor: pointer;
 }
 .ks-table__title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: rgb(var(--v-theme-on-surface));
   font-weight: 500;
 }
 .ks-table__col-select {
-  --ks-status-color: #e8def8;
+  --ks-status-color: rgb(var(--v-theme-secondary-container));
   max-width: 180px;
 }
 .ks-table__col-select :deep(.v-field) {
@@ -373,13 +291,14 @@ watch(
   min-width: 0;
 }
 .ks-status-dot {
-  --ks-status-color: #e8def8;
+  --ks-status-color: rgb(var(--v-theme-secondary-container));
   width: 10px;
   height: 10px;
   border-radius: var(--md-shape-full);
   background: var(--ks-status-color);
   box-shadow: inset 0 0 0 1px rgba(var(--v-theme-outline), 0.24);
   flex: 0 0 auto;
+  margin-right: 16px;
 }
 .ks-table__assignee {
   display: inline-flex;

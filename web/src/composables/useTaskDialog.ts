@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBoardStore, type Attachment, type Task, type TiptapDoc } from '@/stores/board'
 import { useTaskCollab } from '@/composables/useTaskCollab'
 import { collabUserColor } from '@/utils/collab'
+import { clipboardImageFiles } from '@/utils/clipboard'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 
 type TaskFormState = {
@@ -316,9 +317,7 @@ export function useTaskDialog(opts: {
 
   async function onTaskPaste(e: ClipboardEvent) {
     if (!board.canWrite || !taskTarget.value) return
-    const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
-      file.type.startsWith('image/'),
-    )
+    const files = clipboardImageFiles(e)
     if (!files.length) return
     e.preventDefault()
     await uploadTaskFiles(taskTarget.value.id, files)
