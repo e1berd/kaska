@@ -1,52 +1,30 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
-import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
-import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
-import { computeTaskPlacement, type TaskDropTarget } from '@/utils/boardDnd'
 import { useCrossColumnFlight } from '@/utils/taskFlight'
-import { PhFloppyDisk } from '@phosphor-icons/vue'
-import * as Y from 'yjs'
-import { Awareness } from 'y-protocols/awareness'
-import { Presence } from 'phoenix'
-import { useAuthStore, type User } from '@/stores/auth'
-import {
-  useBoardStore,
-  type Attachment,
-  type Column,
-  type Task,
-  type TaskType,
-  type TiptapDoc,
-} from '@/stores/board'
+import { useAuthStore } from '@/stores/auth'
+import { useBoardStore, type Column, type Task } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
-import { useSocketStore, pushAsync } from '@/stores/socket'
+import { useBoardDnd } from '@/composables/useBoardDnd'
 import BoardColumn from '@/components/board/BoardColumn.vue'
-import ListColumnControl from '@/components/board/ListColumnControl.vue'
-import ColorPicker from '@/components/ColorPicker.vue'
-import RichEditor from '@/components/RichEditor.vue'
-import PresenceGroup from '@/components/PresenceGroup.vue'
-import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
-import { cssColorOr, cssUrlImageOr } from '@/utils/css'
+import BoardFilters from '@/components/board/BoardFilters.vue'
+import BoardTaskDialog from '@/components/board/BoardTaskDialog.vue'
+import BoardListView from '@/components/board/BoardListView.vue'
+import BoardColumnDialogs from '@/components/board/BoardColumnDialogs.vue'
+import { cssUrlImageOr } from '@/utils/css'
 import { docPreview } from '@/utils/tiptap'
-import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
-import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
-
-import { collabUserColor, base64ToUint8 } from '@/utils/collab'
 
 defineProps<{ slug?: string }>()
 
 const route = useRoute()
 const router = useRouter()
-const { mobile } = useDisplay()
+const { mobile: _mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
 const { viewMode, filtersExpanded } = storeToRefs(board)
-
-const socket = useSocketStore()
 
 useCrossColumnFlight(board)
 
@@ -54,9 +32,8 @@ const slug = computed(() => route.params.slug as string)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const colsScroll = ref<HTMLElement | null>(null)
-let monitorCleanup: (() => void) | null = null
-let columnsMonitorCleanup: (() => void) | null = null
-let scrollCleanup: (() => void) | null = null
+
+useBoardDnd(colsScroll)
 
 const VIEW_MODE_KEY_PREFIX = 'kaska.board.view_mode'
 const FILTERS_EXPANDED_KEY_PREFIX = 'kaska.board.filters_expanded'
@@ -67,313 +44,19 @@ const filterStartDate = ref<string | null>(null)
 const filterEndDate = ref<string | null>(null)
 const syncingFiltersFromRoute = ref(false)
 
-const listColumnDefaults = [
-  { title: 'Карточка', key: 'title', sortable: true, minWidth: 260, width: 320 },
-  { title: 'Тип', key: 'task_type_id', sortable: true, width: 180 },
-  { title: 'Статус', key: 'column_id', sortable: false, width: 200 },
-  { title: 'Исполнитель', key: 'assignee_id', sortable: true, width: 200 },
-  { title: 'Сроки', key: 'dates', sortable: false, width: 200 },
-] as const
-
-type ListColumnKey = (typeof listColumnDefaults)[number]['key']
-
-const listColumnOrder = ref<ListColumnKey[]>(listColumnDefaults.map((column) => column.key))
-const listColumnWidths = ref<Record<ListColumnKey, number>>(
-  Object.fromEntries(listColumnDefaults.map((column) => [column.key, column.width])) as Record<
-    ListColumnKey,
-    number
-  >,
-)
-
-const filterDateRangeModel = computed<Date[]>({
-  get: () => {
-    const start = parseIsoDate(filterStartDate.value)
-    const end = parseIsoDate(filterEndDate.value)
-    if (start && end) return buildDateRange(start, end)
-    if (start) return [start]
-    if (end) return [end]
-    return []
-  },
-  set: (value) => {
-    if (!value || value.length === 0) {
-      filterStartDate.value = null
-      filterEndDate.value = null
-      return
-    }
-    const sorted = [...value].sort((a, b) => a.getTime() - b.getTime())
-    filterStartDate.value = formatIsoDate(sorted[0])
-    filterEndDate.value = formatIsoDate(sorted[sorted.length - 1])
-  },
-})
-
-const taskDateRangeModel = computed<Date[]>({
-  get: () => {
-    const start = parseIsoDate(taskStartDate.value)
-    const end = parseIsoDate(taskEndDate.value)
-    if (start && end) return buildDateRange(start, end)
-    if (start) return [start]
-    if (end) return [end]
-    return []
-  },
-  set: (value) => {
-    if (!value || value.length === 0) {
-      taskStartDate.value = null
-      taskEndDate.value = null
-      return
-    }
-    const sorted = [...value].sort((a, b) => a.getTime() - b.getTime())
-    taskStartDate.value = formatIsoDate(sorted[0])
-    taskEndDate.value = formatIsoDate(sorted[sorted.length - 1])
-  },
-})
-
-const renameDialog = ref(false)
-const renameTarget = ref<Column | null>(null)
-const renameValue = ref('')
-const renameDescription = ref('')
-const renameColor = ref('#E8DEF8')
-
-const deleteDialog = ref(false)
-const deleteTarget = ref<Column | null>(null)
-
-const taskDialog = ref(false)
-const taskTarget = ref<Task | null>(null)
-const taskTargetId = ref<string | null>(null)
-const taskTitle = ref('')
-const taskStartDate = ref<string | null>(null)
-const taskEndDate = ref<string | null>(null)
-const taskType = ref<string | null>(null)
-const taskAssignee = ref<string | null>(null)
-const taskUploading = ref(false)
-const taskUploadProgress = ref(0)
-const fileInput = ref<HTMLInputElement | null>(null)
-const taskSaving = ref(false)
-const taskSyncing = ref(false)
-let taskSaveTimer: ReturnType<typeof setTimeout> | null = null
-let formSaving = false
-let taskSaveQueued = false
-let savingCount = 0
-let savingStartedAt = 0
-
-function beginSave() {
-  if (savingCount === 0) savingStartedAt = Date.now()
-  savingCount++
-  taskSaving.value = true
-}
-
-async function endSave() {
-  savingCount--
-  if (savingCount > 0) return
-  const elapsed = Date.now() - savingStartedAt
-  const remaining = Math.max(0, 1600 - elapsed)
-  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
-  if (savingCount === 0) taskSaving.value = false
-}
-
-const taskYDoc = shallowRef<Y.Doc | null>(null)
-const taskAwareness = shallowRef<Awareness | null>(null)
-let taskProvider: PhoenixYProvider | null = null
-let taskDocTopic: string | null = null
-const richEditorRef = ref<{ getJSON: () => TiptapDoc; focus: () => boolean } | null>(null)
-
-type PresenceState = Record<string, { metas: Array<Record<string, unknown>> }>
-const taskDocPresences = shallowRef<PresenceState>({})
-
-const editingDescription = ref(false)
-const metaOpen = ref(false)
 const deleteSnackOpen = ref(false)
 const deleteSnackText = ref('')
 
-const collabUser = computed(() => {
-  const u = auth.user
-  if (!u) return null
-  return {
-    name: u.display_name || u.email?.split('@')[0] || 'Гость',
-    color: collabUserColor(u.id),
-  }
-})
+const taskDialogRef = ref<InstanceType<typeof BoardTaskDialog> | null>(null)
+const columnDialogsRef = ref<InstanceType<typeof BoardColumnDialogs> | null>(null)
 
-const taskAttachments = computed<Attachment[]>(() => {
-  return taskTarget.value ? board.attachmentsFor(taskTarget.value.id) : []
-})
-const taskViewers = computed(() => {
-  const selfId = auth.user?.id
-  return Object.keys(taskDocPresences.value)
-    .filter((id) => id !== selfId)
-    .map((id) => board.users.find((u) => u.id === id))
-    .filter((u): u is NonNullable<typeof u> => !!u)
-})
-const currentTask = computed<Task | null>(() => {
-  if (!taskTargetId.value) return null
-  return board.tasks.find((t) => t.id === taskTargetId.value) ?? null
-})
-const shortTaskId = computed(() => currentTask.value?.id.slice(0, 8) ?? taskTargetId.value?.slice(0, 8) ?? '')
-const copiedSnack = ref(false)
-
-async function copyTaskId() {
-  const id = currentTask.value?.id || taskTargetId.value
-  if (id && navigator && navigator.clipboard) {
-    await navigator.clipboard.writeText(id)
-    copiedSnack.value = true
-  }
+function openTask(task: Task) {
+  taskDialogRef.value?.open(task)
 }
 
-type TaskFormState = {
-  title: string
-  start_date: string | null
-  end_date: string | null
-  task_type_id: string | null
-  assignee_id: string | null
-}
-
-function getTaskFormState(): TaskFormState {
-  return {
-    title: taskTitle.value.trim(),
-    start_date: taskStartDate.value,
-    end_date: taskEndDate.value,
-    task_type_id: taskType.value,
-    assignee_id: taskAssignee.value,
-  }
-}
-
-function getTaskServerState(task: Task): TaskFormState {
-  return {
-    title: task.title,
-    start_date: task.start_date ?? null,
-    end_date: task.end_date ?? null,
-    task_type_id: task.task_type_id ?? null,
-    assignee_id: task.assignee_id ?? null,
-  }
-}
-
-function isFormSyncedWithTask(task: Task): boolean {
-  const form = getTaskFormState()
-  const server = getTaskServerState(task)
-  return (
-    form.title === server.title &&
-    form.start_date === server.start_date &&
-    form.end_date === server.end_date &&
-    form.task_type_id === server.task_type_id &&
-    form.assignee_id === server.assignee_id
-  )
-}
-
-const newColumnDialog = ref(false)
-const newColumnName = ref('')
-const newColumnColor = ref('#E8DEF8')
-const newTaskDialog = ref(false)
-const newTaskTitle = ref('')
-const newTaskSubmitting = ref(false)
-
-const orderedTasks = computed<Task[]>(() => {
-  const colIndex = new Map(board.orderedColumns.map((c, i) => [c.id, i]))
-  return [...board.tasks].sort((a, b) => {
-    const ca = colIndex.get(a.column_id) ?? Number.MAX_SAFE_INTEGER
-    const cb = colIndex.get(b.column_id) ?? Number.MAX_SAFE_INTEGER
-    if (ca !== cb) return ca - cb
-    return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0
-  })
-})
-
-const filteredTasks = computed<Task[]>(() => {
-  const byMeta = orderedTasks.value.filter((task) => {
-    if (filterTaskType.value && task.task_type_id !== filterTaskType.value) return false
-    if (filterAssignee.value && task.assignee_id !== filterAssignee.value) return false
-    if (filterStartDate.value) {
-      if (!task.start_date) return false
-      if (task.start_date.slice(0, 10) < filterStartDate.value) return false
-    }
-    if (filterEndDate.value) {
-      if (!task.end_date) return false
-      if (task.end_date.slice(0, 10) > filterEndDate.value) return false
-    }
-    return true
-  })
-
-  const q = filterQuery.value.trim().toLowerCase()
-  if (!q) return byMeta
-
-  const titleMatches: Task[] = []
-  const descriptionMatches: Task[] = []
-
-  for (const task of byMeta) {
-    const title = task.title.toLowerCase()
-    if (title.includes(q)) {
-      titleMatches.push(task)
-      continue
-    }
-    const body = docPreview(task.body_doc ?? null, 5000).toLowerCase()
-    if (body.includes(q)) descriptionMatches.push(task)
-  }
-
-  return [...titleMatches, ...descriptionMatches]
-})
-
-const listColumnMap = computed(() => new Map(listColumnDefaults.map((column) => [column.key, column])))
-
-const listHeaders = computed(() =>
-  listColumnOrder.value.flatMap((key) => {
-    const column = listColumnMap.value.get(key)
-    if (!column) return []
-    const width = `${listColumnWidths.value[key]}px`
-    return [{ ...column, width, minWidth: 'minWidth' in column ? `${column.minWidth}px` : width }]
-  }),
-)
-
-function taskTypeFor(id: string | null | undefined) {
-  if (!id) return null
-  return board.task_types.find((t) => t.id === id) ?? null
-}
-
-function columnFor(id: string | null | undefined) {
-  if (!id) return null
-  return board.columns.find((column) => column.id === id) ?? null
-}
-
-function columnColorStyle(id: string | null | undefined) {
-  return { '--ks-status-color': cssColorOr(columnFor(id)?.color, '#E8DEF8') }
-}
-
-function userFor(id: string | null | undefined) {
-  if (!id) return null
-  return board.users.find((u) => u.id === id) ?? null
-}
-
-function optionUser(item: unknown): User {
-  const candidate = item as { raw?: User } & User
-  return (candidate.raw ?? candidate) as User
-}
-
-function userLabel(item: unknown): string {
-  const user = optionUser(item)
-  return user.display_name || user.email || '—'
-}
-
-function userInitial(item: unknown): string {
-  return userLabel(item).slice(0, 1).toUpperCase()
-}
-
-function userAvatar(item: unknown): string {
-  return optionUser(item).avatar_url || ''
-}
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString()
-}
-
-function parseIsoDate(value: string | null): Date | null {
-  if (!value) return null
-  const parsed = parse(value, 'yyyy-MM-dd', new Date())
-  return isValid(parsed) ? parsed : null
-}
-
-function formatIsoDate(date: Date): string {
-  return format(date, 'yyyy-MM-dd')
-}
-
-function buildDateRange(start: Date, end: Date): Date[] {
-  return eachDayOfInterval({ start, end })
+function onTaskDeletedByOther(text: string) {
+  deleteSnackText.value = text
+  deleteSnackOpen.value = true
 }
 
 async function load() {
@@ -392,117 +75,18 @@ async function load() {
   }
 }
 
-onMounted(async () => {
-  await load()
+load().then(() => {
   const flash = sessionStorage.getItem('kaska.flash.task_deleted')
   if (flash) {
     deleteSnackText.value = flash
     deleteSnackOpen.value = true
     sessionStorage.removeItem('kaska.flash.task_deleted')
   }
-
-  if (colsScroll.value) {
-    scrollCleanup = autoScrollForElements({
-      element: colsScroll.value,
-      canScroll: ({ source }) => source.data.type === 'task',
-    })
-  }
-
-  monitorCleanup = monitorForElements({
-    canMonitor: ({ source }) => source.data.type === 'task',
-    onDrop: ({ source, location }) => {
-      const target = location.current.dropTargets[0]
-      if (!target) return
-
-      const sourceTask = source.data.task as Task
-      const dropTarget: TaskDropTarget =
-        target.data.type === 'task'
-          ? {
-              kind: 'task',
-              task: target.data.task as Task,
-              edge: extractClosestEdge(target.data) === 'top' ? 'top' : 'bottom',
-            }
-          : { kind: 'column', columnId: target.data.columnId as string }
-
-      const placement = computeTaskPlacement(board.tasksFor, sourceTask, dropTarget)
-      if (!placement) return
-
-      board
-        .moveTask(sourceTask.id, placement.columnId, placement.beforeId, placement.afterId)
-        .catch((e) => {
-          console.warn('[board] move failed', e)
-        })
-    },
-  })
-
-  columnsMonitorCleanup = monitorForElements({
-    canMonitor: ({ source }) => source.data.type === 'column',
-    onDrop: ({ source, location }) => {
-      const target = location.current.dropTargets[0]
-      if (!target || target.data.type !== 'column') return
-
-      const sourceColumn = source.data.column as Column
-      const overColumn = target.data.column as Column
-      if (sourceColumn.id === overColumn.id) return
-
-      const edge = extractClosestEdge(target.data)
-      const ordered = board.orderedColumns.filter((c) => c.id !== sourceColumn.id)
-      const idx = ordered.findIndex((c) => c.id === overColumn.id)
-      if (idx < 0) return
-
-      let beforeId: string | null = null
-      let afterId: string | null = null
-
-      if (edge === 'left') {
-        beforeId = idx > 0 ? ordered[idx - 1].id : null
-        afterId = overColumn.id
-      } else {
-        beforeId = overColumn.id
-        afterId = idx + 1 < ordered.length ? ordered[idx + 1].id : null
-      }
-
-      board.moveColumn(sourceColumn.id, beforeId, afterId).catch((e) => {
-        console.warn('[board] move column failed', e)
-      })
-    },
-  })
-})
-
-onBeforeUnmount(() => {
-  monitorCleanup?.()
-  columnsMonitorCleanup?.()
-  scrollCleanup?.()
-  tearDownCollab()
-  board.unregisterBoardCallbacks()
-  if (taskSaveTimer) clearTimeout(taskSaveTimer)
 })
 
 watch(slug, () => {
   load()
 })
-
-watch(taskDialog, (open) => {
-  if (open) return
-  if (!taskTargetId.value && !taskProvider) return
-  closeTaskDialog()
-})
-
-watch(
-  () => board.lastTaskDeleted,
-  (evt) => {
-    if (!evt) return
-    if (evt.deleted_by_id === auth.user?.id) return
-    if (!taskDialog.value || !taskTargetId.value) return
-    if (evt.id !== taskTargetId.value) return
-
-    const actor = evt.deleted_by_display_name || evt.deleted_by_email?.split('@')[0] || 'Пользователь'
-    const title = evt.title || 'без названия'
-    deleteSnackText.value = `${actor} удалил задачу ${title}`
-    deleteSnackOpen.value = true
-    closeTaskDialog()
-  },
-  { deep: true },
-)
 
 watch(
   () => [auth.user?.id ?? 'guest', slug.value] as const,
@@ -587,334 +171,49 @@ watch(
   },
 )
 
-watch(
-  () => currentTask.value,
-  (task) => {
-    if (!task || !taskDialog.value) return
-    taskSyncing.value = true
-    taskTarget.value = task
-    taskTitle.value = task.title
-    taskStartDate.value = task.start_date ?? null
-    taskEndDate.value = task.end_date ?? null
-    taskType.value = task.task_type_id ?? null
-    taskAssignee.value = task.assignee_id ?? null
-    setTimeout(() => {
-      taskSyncing.value = false
-    }, 0)
-  },
-  { deep: true },
-)
+const orderedTasks = computed<Task[]>(() => {
+  const colIndex = new Map(board.orderedColumns.map((c, i) => [c.id, i]))
+  return [...board.tasks].sort((a, b) => {
+    const ca = colIndex.get(a.column_id) ?? Number.MAX_SAFE_INTEGER
+    const cb = colIndex.get(b.column_id) ?? Number.MAX_SAFE_INTEGER
+    if (ca !== cb) return ca - cb
+    return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0
+  })
+})
 
-watch(
-  () => [
-    taskDialog.value,
-    taskTargetId.value,
-    taskTitle.value,
-    taskStartDate.value,
-    taskEndDate.value,
-    taskType.value,
-    taskAssignee.value,
-  ],
-  () => {
-    if (!taskDialog.value || !currentTask.value || !board.canWrite) return
-    if (taskSyncing.value) return
-    if (isFormSyncedWithTask(currentTask.value)) return
-    if (taskSaveTimer) clearTimeout(taskSaveTimer)
-    taskSaveTimer = setTimeout(() => {
-      void saveTask()
-    }, 450)
-  },
-)
-
-function onRename(column: Column) {
-  renameTarget.value = column
-  renameValue.value = column.name
-  renameDescription.value = column.description ?? ''
-  renameColor.value = column.color || '#E8DEF8'
-  renameDialog.value = true
-}
-
-async function commitRename() {
-  if (!renameTarget.value) return
-  const name = renameValue.value.trim()
-  if (!name) return
-  try {
-    await board.renameColumn(
-      renameTarget.value.id,
-      name,
-      renameDescription.value.trim() || null,
-      renameColor.value,
-    )
-    renameDialog.value = false
-  } catch (e) {
-    console.warn('[board] rename failed', e)
-  }
-}
-
-function onDeleteColumn(column: Column) {
-  deleteTarget.value = column
-  deleteDialog.value = true
-}
-
-async function commitDelete() {
-  if (!deleteTarget.value) return
-  try {
-    await board.deleteColumn(deleteTarget.value.id)
-    deleteDialog.value = false
-  } catch (e) {
-    console.warn('[board] delete failed', e)
-  }
-}
-
-async function openTask(task: Task) {
-  taskTargetId.value = task.id
-  const actualTask = board.tasks.find((t) => t.id === task.id) ?? task
-  taskTarget.value = actualTask
-  taskSyncing.value = true
-  taskTitle.value = actualTask.title
-  taskStartDate.value = actualTask.start_date ?? null
-  taskEndDate.value = actualTask.end_date ?? null
-  taskType.value = actualTask.task_type_id ?? null
-  taskAssignee.value = actualTask.assignee_id ?? null
-  editingDescription.value = false
-  taskSyncing.value = false
-  taskDialog.value = true
-
-  await setupCollab(actualTask.id)
-}
-
-async function editDescription() {
-  editingDescription.value = true
-  await nextTick()
-  richEditorRef.value?.focus()
-}
-
-async function setupCollab(taskId: string) {
-  tearDownCollab()
-  const topic = `task_doc:${taskId}`
-  try {
-    const { channel, reply } = await socket.joinChannel<{ state?: string }>(topic)
-    if (taskTargetId.value !== taskId) {
-      socket.leaveChannel(topic)
-      return
+const filteredTasks = computed<Task[]>(() => {
+  const byMeta = orderedTasks.value.filter((task) => {
+    if (filterTaskType.value && task.task_type_id !== filterTaskType.value) return false
+    if (filterAssignee.value && task.assignee_id !== filterAssignee.value) return false
+    if (filterStartDate.value) {
+      if (!task.start_date) return false
+      if (task.start_date.slice(0, 10) < filterStartDate.value) return false
     }
-    const doc = new Y.Doc()
-    if (reply.state) {
-      const bytes = base64ToUint8(reply.state)
-      if (bytes.byteLength > 0) Y.applyUpdate(doc, bytes)
+    if (filterEndDate.value) {
+      if (!task.end_date) return false
+      if (task.end_date.slice(0, 10) > filterEndDate.value) return false
     }
-    const aw = new Awareness(doc)
-    const provider = new PhoenixYProvider(channel, doc, aw, {
-      onLocalSettle: () => {
-        if (!board.canWrite) return
-        const docJson = richEditorRef.value?.getJSON()
-        if (!docJson) return
-        beginSave()
-        pushAsync(channel, 'materialize_body_doc', { doc: docJson })
-          .catch((e) => console.warn('[board] materialize failed', e))
-          .finally(() => {
-            void endSave()
-          })
-      },
-    })
+    return true
+  })
 
-    channel.on('presence_state', (state: PresenceState) => {
-      taskDocPresences.value = Presence.syncState({}, state) as PresenceState
-    })
-    channel.on(
-      'presence_diff',
-      (diff: { joins: PresenceState; leaves: PresenceState }) => {
-        Presence.syncDiff(taskDocPresences.value, diff)
-        taskDocPresences.value = { ...taskDocPresences.value }
-      },
-    )
+  const q = filterQuery.value.trim().toLowerCase()
+  if (!q) return byMeta
 
-    taskYDoc.value = doc
-    taskAwareness.value = aw
-    taskProvider = provider
-    taskDocTopic = topic
-  } catch (e) {
-    console.warn('[board] task_doc join failed', e)
-  }
-}
+  const titleMatches: Task[] = []
+  const descriptionMatches: Task[] = []
 
-function tearDownCollab() {
-  taskProvider?.destroy()
-  taskProvider = null
-  taskAwareness.value?.destroy()
-  taskAwareness.value = null
-  taskYDoc.value?.destroy()
-  taskYDoc.value = null
-  if (taskDocTopic) {
-    socket.leaveChannel(taskDocTopic)
-    taskDocTopic = null
-  }
-  taskDocPresences.value = {}
-}
-
-async function saveTask() {
-  if (!currentTask.value) return
-  if (formSaving) {
-    taskSaveQueued = true
-    return
-  }
-  if (isFormSyncedWithTask(currentTask.value)) return
-
-  const payload = getTaskFormState()
-  formSaving = true
-  beginSave()
-  try {
-    await board.updateTask(currentTask.value.id, {
-      title: payload.title,
-      start_date: payload.start_date,
-      end_date: payload.end_date,
-      task_type_id: payload.task_type_id,
-      assignee_id: payload.assignee_id,
-    })
-  } catch (err: any) {
-    alert(err?.message || 'Ошибка сохранения задачи')
-  } finally {
-    formSaving = false
-    void endSave()
-    if (taskSaveQueued) {
-      taskSaveQueued = false
-      if (taskDialog.value && currentTask.value && board.canWrite) {
-        void saveTask()
-      }
+  for (const task of byMeta) {
+    const title = task.title.toLowerCase()
+    if (title.includes(q)) {
+      titleMatches.push(task)
+      continue
     }
+    const body = docPreview(task.body_doc ?? null, 5000).toLowerCase()
+    if (body.includes(q)) descriptionMatches.push(task)
   }
-}
 
-async function deleteCurrentTask() {
-  if (!taskTarget.value) return
-  try {
-    await board.deleteTask(taskTarget.value.id)
-    closeTaskDialog()
-  } catch (e) {
-    console.warn('[board] delete task failed', e)
-  }
-}
-
-async function pickAttachment() {
-  fileInput.value?.click()
-}
-
-async function onAttachmentPicked(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  input.value = ''
-  if (!taskTarget.value) return
-
-  await uploadTaskFiles(taskTarget.value.id, files)
-}
-
-async function uploadTaskFiles(taskId: string, files: File[]) {
-  for (const file of files) {
-    taskUploading.value = true
-    taskUploadProgress.value = 0
-    try {
-      await board.uploadTaskAttachment(taskId, file, (f) => {
-        taskUploadProgress.value = f
-      })
-    } catch (err) {
-      console.warn('[board] upload failed', err)
-    } finally {
-      taskUploading.value = false
-      taskUploadProgress.value = 0
-    }
-  }
-}
-
-async function onTaskPaste(e: ClipboardEvent) {
-  if (!board.canWrite || !taskTarget.value) return
-  const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
-    file.type.startsWith('image/'),
-  )
-  if (!files.length) return
-  e.preventDefault()
-  await uploadTaskFiles(taskTarget.value.id, files)
-}
-
-async function removeAttachmentClick(att: Attachment) {
-  if (!confirm(`Удалить «${att.filename}»?`)) return
-  try {
-    await board.deleteTaskAttachment(att.id)
-  } catch (e) {
-    console.warn('[board] delete attachment failed', e)
-  }
-}
-
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-}
-
-function openNewColumn() {
-  newColumnName.value = ''
-  newColumnColor.value = '#E8DEF8'
-  newColumnDialog.value = true
-}
-
-function openNewTask() {
-  newTaskTitle.value = ''
-  newTaskDialog.value = true
-}
-
-async function commitNewColumn() {
-  const name = newColumnName.value.trim()
-  if (!name) return
-  try {
-    await board.createColumn(name, newColumnColor.value)
-    newColumnDialog.value = false
-  } catch (e) {
-    console.warn('[board] create column failed', e)
-  }
-}
-
-async function commitNewTask() {
-  const title = newTaskTitle.value.trim()
-  const firstColumn = board.orderedColumns[0]
-  if (!title || !firstColumn) return
-  newTaskSubmitting.value = true
-  try {
-    await board.createTask(firstColumn.id, { title })
-    newTaskTitle.value = ''
-    newTaskDialog.value = false
-  } catch (e) {
-    console.warn('[board] create task failed', e)
-  } finally {
-    newTaskSubmitting.value = false
-  }
-}
-
-function closeTaskDialog() {
-  if (taskSaveTimer) {
-    clearTimeout(taskSaveTimer)
-    taskSaveTimer = null
-  }
-  taskDialog.value = false
-  taskTargetId.value = null
-  tearDownCollab()
-}
-
-function onDescriptionBlur() {
-  taskProvider?.flush()
-}
-
-function openTaskPage() {
-  if (!taskTarget.value) return
-  void router.push({ name: 'task', params: { slug: slug.value, taskId: taskTarget.value.id } })
-}
-
-async function copyTaskLink() {
-  if (!taskTarget.value) return
-  const href = `${window.location.origin}/p/${slug.value}/tasks/${taskTarget.value.id}`
-  if (navigator && navigator.clipboard) {
-    await navigator.clipboard.writeText(href)
-  }
-}
+  return [...titleMatches, ...descriptionMatches]
+})
 
 function clearFilters() {
   filterQuery.value = ''
@@ -924,90 +223,19 @@ function clearFilters() {
   filterEndDate.value = null
 }
 
-const listPrefsKey = computed(() => `kaska.board.list_columns.${slug.value}`)
-
-watch(
-  listPrefsKey,
-  (key) => {
-    const raw = localStorage.getItem(key)
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as {
-        order?: string[]
-        widths?: Record<string, number>
-      }
-      const allowed = new Set(listColumnDefaults.map((column) => column.key))
-      const order = (parsed.order ?? []).filter((value): value is ListColumnKey =>
-        allowed.has(value as ListColumnKey),
-      )
-      if (order.length) {
-        listColumnOrder.value = [
-          ...order,
-          ...listColumnDefaults
-            .map((column) => column.key)
-            .filter((key) => !order.includes(key)),
-        ]
-      }
-      listColumnWidths.value = {
-        ...listColumnWidths.value,
-        ...Object.fromEntries(
-          Object.entries(parsed.widths ?? {}).flatMap(([key, value]) => {
-            if (!allowed.has(key as ListColumnKey) || typeof value !== 'number') return []
-            return [[key, clampListColumnWidth(value)]]
-          }),
-        ),
-      }
-    } catch {
-      localStorage.removeItem(key)
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  [listColumnOrder, listColumnWidths],
-  () => {
-    localStorage.setItem(
-      listPrefsKey.value,
-      JSON.stringify({ order: listColumnOrder.value, widths: listColumnWidths.value }),
-    )
-  },
-  { deep: true },
-)
-
-function clampListColumnWidth(value: number): number {
-  return Math.min(520, Math.max(120, Math.round(value)))
+function openNewTask() {
+  columnDialogsRef.value?.openNewTask()
 }
 
-function moveListColumn(sourceKey: string, targetKey: string) {
-  if (sourceKey === targetKey) return
-  const source = sourceKey as ListColumnKey
-  const target = targetKey as ListColumnKey
-  const order = listColumnOrder.value.filter((key) => key !== source)
-  const targetIndex = order.indexOf(target)
-  if (targetIndex === -1) return
-  order.splice(targetIndex, 0, source)
-  listColumnOrder.value = order
+function scrollToTask(taskId: string) {
+  nextTick(() => {
+    const el = document.querySelector(`[data-task-id="${taskId}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
 }
 
-function resizeListColumn(key: string, delta: number) {
-  const columnKey = key as ListColumnKey
-  listColumnWidths.value = {
-    ...listColumnWidths.value,
-    [columnKey]: clampListColumnWidth((listColumnWidths.value[columnKey] ?? 180) + delta),
-  }
-}
-
-async function changeColumn(task: Task, newColumnId: unknown) {
-  const targetId = typeof newColumnId === 'string' ? newColumnId : null
-  if (!targetId || targetId === task.column_id) return
-  const trailing = board.tasksFor(targetId).filter((t) => t.id !== task.id)
-  const beforeId = trailing.length ? trailing[trailing.length - 1].id : null
-  try {
-    await board.moveTask(task.id, targetId, beforeId, null)
-  } catch (e) {
-    console.warn('[board] change column failed', e)
-  }
+function openNewColumn() {
+  columnDialogsRef.value?.openNewColumn()
 }
 
 provide('boardControls', {
@@ -1039,85 +267,21 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
     />
     <div v-if="board.project?.background_url" class="ks-board__bg-scrim" />
 
-    <v-expand-transition>
-      <div v-if="board.filtersExpanded" class="ks-board__filters">
-        <v-text-field
-          v-model="filterQuery"
-          label="Поиск по названию и описанию"
-          prepend-inner-icon="mdi-magnify"
-          variant="filled"
-          density="comfortable"
-          hide-details
-          clearable
-        />
-        <v-select
-          v-model="filterTaskType"
-          :items="board.task_types"
-          item-title="name"
-          item-value="id"
-          label="Тип задачи"
-          variant="filled"
-          density="comfortable"
-          hide-details
-          clearable
-        />
-        <v-select
-          v-model="filterAssignee"
-          :items="board.users"
-          :item-title="(u: User) => u.display_name || u.email"
-          item-value="id"
-          label="Исполнитель"
-          variant="filled"
-          density="comfortable"
-          hide-details
-          clearable
-        >
-          <template #item="{ props: itemProps, item }">
-            <v-list-item
-              v-bind="itemProps"
-              :title="userLabel(item)"
-            >
-              <template #prepend>
-                <v-avatar size="24" class="mr-2" color="primary">
-                  <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                  <span v-else class="text-white text-caption">{{ userInitial(item) }}</span>
-                </v-avatar>
-              </template>
-            </v-list-item>
-          </template>
-          <template #selection="{ item }">
-            <div class="ks-filter-user">
-              <v-avatar size="20" class="mr-2" color="primary">
-                <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                <span v-else class="text-white" style="font-size: 10px">{{ userInitial(item) }}</span>
-              </v-avatar>
-              <span class="ks-filter-user__label">
-                {{ userLabel(item) }}
-              </span>
-            </div>
-          </template>
-        </v-select>
-        <v-date-input
-          v-model="filterDateRangeModel"
-          multiple="range"
-          label="Период дат"
-          density="comfortable"
-          hide-details
-          clearable
-          prepend-icon=""
-          prepend-inner-icon="mdi-calendar"
-        />
-          <v-btn
-            class="justify-self-end self-center [grid-column:-2/-1]"
-            variant="text"
-            rounded="pill"
-            prepend-icon="mdi-filter-off-outline"
-            @click="clearFilters"
-          >
-            Сбросить
-          </v-btn>
-      </div>
-    </v-expand-transition>
+    <div
+      class="ks-board__filters-shell"
+      :class="{ 'is-open': board.filtersExpanded }"
+      :aria-hidden="!board.filtersExpanded"
+      :inert="!board.filtersExpanded"
+    >
+      <BoardFilters
+        v-model:filter-query="filterQuery"
+        v-model:filter-task-type="filterTaskType"
+        v-model:filter-assignee="filterAssignee"
+        v-model:filter-start-date="filterStartDate"
+        v-model:filter-end-date="filterEndDate"
+        @clear="clearFilters"
+      />
+    </div>
 
     <div v-if="loading" class="ks-board__state">
       <v-progress-circular indeterminate color="primary" />
@@ -1141,545 +305,22 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
           :tasks="filteredTasks.filter((t) => t.column_id === column.id)"
           :accent="accentFor(idx)"
           @open-task="openTask"
-          @rename="onRename"
-          @delete="onDeleteColumn"
+          @rename="(c: Column) => columnDialogsRef?.onRename(c)"
+          @delete="(c: Column) => columnDialogsRef?.onDeleteColumn(c)"
+          @task-created="scrollToTask"
         />
       </TransitionGroup>
     </div>
 
-    <div v-else-if="board.viewMode === 'list'" class="ks-board__list">
-      <div class="ks-board__list-controls">
-        <ListColumnControl
-          v-for="key in listColumnOrder"
-          :key="key"
-          :column-key="key"
-          :title="listColumnMap.get(key)?.title ?? key"
-          :width="listColumnWidths[key]"
-          @move="moveListColumn"
-          @resize="resizeListColumn"
-        />
-      </div>
-      <v-card class="ks-board__table" rounded="lg" variant="elevated" :elevation="1">
-        <v-data-table
-          :headers="listHeaders"
-          :items="filteredTasks"
-          :items-per-page="-1"
-          item-value="id"
-          density="comfortable"
-          hover
-          fixed-header
-          class="ks-table"
-          @click:row="(_: unknown, ctx: { item: Task }) => openTask(ctx.item)"
-        >
-          <template #no-data>
-            <div class="text-center text-medium-emphasis py-8">
-              Карточек пока нет.
-            </div>
-          </template>
+    <BoardListView
+      v-else-if="board.viewMode === 'list'"
+      :filtered-tasks="filteredTasks"
+      :slug="slug"
+      @open-task="openTask"
+    />
 
-          <template #bottom />
-
-          <template #item.title="{ item }">
-            <span class="ks-table__title md-body-medium">{{ item.title }}</span>
-          </template>
-
-          <template #item.task_type_id="{ item }">
-            <v-chip
-              v-if="taskTypeFor(item.task_type_id)"
-              :color="taskTypeFor(item.task_type_id)?.color || undefined"
-              size="small"
-              label
-              text-color="white"
-            >
-              {{ taskTypeFor(item.task_type_id)?.name }}
-            </v-chip>
-            <span v-else class="text-medium-emphasis md-body-small">—</span>
-          </template>
-
-          <template #item.column_id="{ item }">
-            <v-select
-              :model-value="item.column_id"
-              :items="board.orderedColumns"
-              item-title="name"
-              item-value="id"
-              variant="solo-filled"
-              density="compact"
-              hide-details
-              flat
-              rounded="pill"
-              :menu-props="{ closeOnContentClick: true }"
-              :readonly="!board.canWrite"
-              class="ks-table__col-select"
-              :style="columnColorStyle(item.column_id)"
-              @click.stop
-              @update:model-value="(v: unknown) => changeColumn(item, v)"
-            >
-              <template #item="{ props: itemProps, item: option }">
-                <v-list-item v-bind="itemProps">
-                  <template #prepend>
-                    <span
-                      class="ks-status-dot"
-                      :style="columnColorStyle(option.id)"
-                    />
-                  </template>
-                </v-list-item>
-              </template>
-              <template #selection="{ item: option }">
-                <span class="ks-status-selection">
-                  <span
-                    class="ks-status-dot"
-                    :style="columnColorStyle(option.id)"
-                  />
-                  <span>{{ option.name }}</span>
-                </span>
-              </template>
-            </v-select>
-          </template>
-
-          <template #item.assignee_id="{ item }">
-            <div v-if="userFor(item.assignee_id)" class="ks-table__assignee">
-              <v-avatar
-                :image="userFor(item.assignee_id)?.avatar_url || ''"
-                size="24"
-                color="primary"
-              >
-                <span
-                  v-if="!userFor(item.assignee_id)?.avatar_url"
-                  class="text-white"
-                  style="font-size: 11px"
-                >
-                  {{
-                    (
-                      userFor(item.assignee_id)?.display_name ||
-                      userFor(item.assignee_id)?.email ||
-                      '?'
-                    )
-                      .slice(0, 1)
-                      .toUpperCase()
-                  }}
-                </span>
-              </v-avatar>
-              <span class="md-body-small">
-                {{ userFor(item.assignee_id)?.display_name || userFor(item.assignee_id)?.email }}
-              </span>
-            </div>
-            <span v-else class="text-medium-emphasis md-body-small">—</span>
-          </template>
-
-          <template #item.dates="{ item }">
-            <span v-if="item.start_date || item.end_date" class="ks-table__dates md-body-small">
-              <v-icon size="14" class="mr-1">mdi-calendar</v-icon>
-              {{ fmtDate(item.start_date) || '—' }} → {{ fmtDate(item.end_date) || '—' }}
-            </span>
-            <span v-else class="text-medium-emphasis md-body-small">—</span>
-          </template>
-        </v-data-table>
-      </v-card>
-    </div>
-
-    <v-dialog v-model="renameDialog" max-width="460">
-      <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Переименовать статус</v-card-title>
-        <v-card-text class="px-6 pt-2 flex flex-col gap-4">
-          <v-text-field
-            v-model="renameValue"
-            label="название"
-            variant="filled"
-            density="comfortable"
-            autofocus
-            hide-details
-            @keydown.enter.exact.prevent="commitRename"
-            @keydown.escape.prevent="renameDialog = false"
-          />
-          <v-textarea
-            v-model="renameDescription"
-            label="описание"
-            placeholder="Зачем этот статус и куда переносить задачу дальше — подсказка для агентов"
-            variant="filled"
-            density="comfortable"
-            rows="3"
-            auto-grow
-            hide-details
-          />
-          <ColorPicker v-model="renameColor" label="цвет статуса" />
-        </v-card-text>
-        <v-card-actions class="px-6 pb-6">
-          <v-spacer />
-          <v-btn variant="text" rounded="pill" @click="renameDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="flat" rounded="pill" @click="commitRename">
-            Сохранить
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="deleteDialog" max-width="460">
-      <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Удалить статус?</v-card-title>
-        <v-card-text class="px-6 pt-2 md-body-medium text-medium-emphasis">
-          Все её карточки тоже исчезнут. Действие нельзя отменить.
-        </v-card-text>
-        <v-card-actions class="px-6 pb-6">
-          <v-spacer />
-          <v-btn variant="text" rounded="pill" @click="deleteDialog = false">Отмена</v-btn>
-          <v-btn color="error" variant="flat" rounded="pill" @click="commitDelete">
-            Удалить
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="newColumnDialog" max-width="460">
-      <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Новый статус</v-card-title>
-        <v-card-text class="px-6 pt-2">
-          <v-text-field
-            v-model="newColumnName"
-            label="название"
-            variant="filled"
-            density="comfortable"
-            autofocus
-            hide-details
-            @keydown.enter.exact.prevent="commitNewColumn"
-          />
-          <ColorPicker v-model="newColumnColor" label="цвет статуса" class="mt-4" />
-        </v-card-text>
-        <v-card-actions class="px-6 pb-6">
-          <v-spacer />
-          <v-btn variant="text" rounded="pill" @click="newColumnDialog = false">Отмена</v-btn>
-          <v-btn color="primary" variant="flat" rounded="pill" @click="commitNewColumn">
-            Создать
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="newTaskDialog" max-width="460">
-      <v-card rounded="xl">
-        <v-card-title class="md-headline-small px-6 pt-6">Новая задача</v-card-title>
-        <v-card-text class="px-6 pt-2">
-          <v-text-field
-            v-model="newTaskTitle"
-            label="название"
-            variant="filled"
-            density="comfortable"
-            autofocus
-            hide-details
-            @keydown.enter.exact.prevent="commitNewTask"
-          />
-        </v-card-text>
-        <v-card-actions class="px-6 pb-6">
-          <v-spacer />
-          <v-btn variant="text" rounded="pill" @click="newTaskDialog = false">Отмена</v-btn>
-          <v-btn
-            color="primary"
-            variant="flat"
-            rounded="pill"
-            :loading="newTaskSubmitting"
-            :disabled="!board.orderedColumns.length"
-            @click="commitNewTask"
-          >
-            Создать
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog
-      v-model="taskDialog"
-      max-width="1080"
-      :fullscreen="mobile"
-    >
-      <v-card v-if="taskTarget" rounded="xl" class="ks-task-dialog">
-        <header v-if="mobile" class="ks-task-mbar">
-          <span class="md-title-large">Карточка</span>
-          <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
-            <template #activator="{ props: tipProps }">
-              <span v-if="shortTaskId" v-bind="tipProps" class="ks-task-id md-label-large cursor-pointer" @click="copyTaskId">ID {{ shortTaskId }}</span>
-            </template>
-          </v-tooltip>
-          <PresenceGroup
-            v-if="taskViewers.length"
-            class="ml-1"
-            :users="taskViewers"
-            label="Сейчас в задаче"
-            size="sm"
-          />
-          <v-spacer />
-          <v-btn icon="mdi-arrow-expand" variant="text" size="small" @click="openTaskPage" />
-          <v-btn icon="mdi-link-variant" variant="text" size="small" @click="copyTaskLink" />
-          <v-btn icon="mdi-close" variant="text" size="small" @click="closeTaskDialog" />
-        </header>
-        <div class="ks-task-split">
-            <section class="ks-task-content" @paste.capture="onTaskPaste">
-              <v-text-field
-                v-model="taskTitle"
-                label="Название"
-                variant="filled"
-                density="comfortable"
-                :readonly="!board.canWrite"
-              />
-
-              <div class="ks-desc__head mt-2 mb-2">
-                <div class="md-label-large">Описание</div>
-                <v-btn
-                  v-if="board.canWrite && !editingDescription"
-                  variant="text"
-                  size="small"
-                  rounded="pill"
-                  prepend-icon="mdi-pencil-outline"
-                  @click="editDescription"
-                >
-                  Редактировать
-                </v-btn>
-                <v-btn
-                  v-else-if="board.canWrite && editingDescription"
-                  variant="text"
-                  size="small"
-                  rounded="pill"
-                  prepend-icon="mdi-eye-outline"
-                  @click="editingDescription = false"
-                >
-                  Просмотр
-                </v-btn>
-              </div>
-
-              <RichEditor
-                v-if="taskYDoc"
-                ref="richEditorRef"
-                :key="taskTargetId ?? ''"
-                :ydoc="taskYDoc"
-                :awareness="taskAwareness"
-                :user="collabUser"
-                :editable="board.canWrite && editingDescription"
-                placeholder="Опишите задачу — поддерживаются стили, списки, ссылки и блоки кода"
-                @blur="onDescriptionBlur"
-              />
-
-              <div class="ks-attach__head mt-5 mb-2">
-                <div class="md-label-large">Вложения</div>
-                <v-btn
-                  v-if="board.canWrite"
-                  variant="tonal"
-                  rounded="pill"
-                  size="small"
-                  prepend-icon="mdi-paperclip"
-                  :loading="taskUploading"
-                  @click="pickAttachment"
-                >
-                  Прикрепить файл
-                </v-btn>
-              </div>
-          <v-progress-linear
-            v-if="taskUploading"
-            :model-value="taskUploadProgress * 100"
-            color="primary"
-            rounded
-            height="6"
-            class="mb-3"
-          />
-          <input
-            ref="fileInput"
-            type="file"
-            multiple
-            accept="image/*,video/*,.pdf,.zip,.txt,.md"
-            class="ks-attach__input"
-            @change="onAttachmentPicked"
-          />
-
-          <div v-if="taskAttachments.length === 0" class="ks-attach__empty md-body-small">
-            Пока вложений нет.
-          </div>
-
-          <div v-else class="ks-attach__grid">
-            <div
-              v-for="a in taskAttachments"
-              :key="a.id"
-              class="ks-attach"
-              :class="`ks-attach--${a.kind}`"
-            >
-              <div class="ks-attach__media">
-                <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
-                <video
-                  v-else-if="a.kind === 'video' && a.url"
-                  :src="a.url"
-                  controls
-                  preload="metadata"
-                />
-                <div v-else class="ks-attach__file">
-                  <v-icon size="32">mdi-file-outline</v-icon>
-                </div>
-              </div>
-              <div class="ks-attach__meta">
-                <a
-                  v-if="a.url"
-                  class="ks-attach__name md-body-medium"
-                  :href="a.url"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  {{ a.filename }}
-                </a>
-                <span v-else class="ks-attach__name md-body-medium">{{ a.filename }}</span>
-                <span class="ks-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
-              </div>
-              <v-btn
-                v-if="board.canWrite"
-                icon="mdi-close"
-                variant="text"
-                density="comfortable"
-                size="small"
-                class="ks-attach__remove"
-                @click="removeAttachmentClick(a)"
-              />
-            </div>
-          </div>
-          <TaskCommentsSection
-            v-if="taskTarget"
-            :task-id="taskTarget.id"
-            class="ks-task-content__comments"
-          />
-            </section>
-
-            <aside class="ks-task-meta">
-              <header v-if="!mobile" class="ks-task-meta__bar">
-          <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
-            <template #activator="{ props: tipProps }">
-              <span v-if="shortTaskId" v-bind="tipProps" class="ks-task-id md-label-large cursor-pointer" @click="copyTaskId">ID {{ shortTaskId }}</span>
-            </template>
-          </v-tooltip>
-                <PresenceGroup
-                  v-if="taskViewers.length"
-                  :users="taskViewers"
-                  label="Сейчас в задаче"
-                  size="sm"
-                />
-                <v-spacer />
-                <v-tooltip text="Открыть на странице" location="bottom">
-                  <template #activator="{ props }">
-                    <v-btn v-bind="props" icon="mdi-arrow-expand" variant="text" size="small" @click="openTaskPage" />
-                  </template>
-                </v-tooltip>
-                <v-tooltip text="Поделиться ссылкой" location="bottom">
-                  <template #activator="{ props }">
-                    <v-btn v-bind="props" icon="mdi-link-variant" variant="text" size="small" @click="copyTaskLink" />
-                  </template>
-                </v-tooltip>
-                <v-btn icon="mdi-close" variant="text" size="small" @click="closeTaskDialog" />
-              </header>
-
-              <v-btn
-                v-if="mobile"
-                class="ks-task-meta__toggle"
-                variant="text"
-                block
-                :append-icon="metaOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-                @click="metaOpen = !metaOpen"
-              >
-                Свойства
-              </v-btn>
-
-              <div v-show="!mobile || metaOpen" class="ks-task-meta__body">
-                <div class="ks-task-meta__group">
-                <div class="ks-task-meta__title md-label-large">Свойства</div>
-                <div class="ks-task-meta__fields">
-                  <v-date-input
-                    v-model="taskDateRangeModel"
-                    multiple="range"
-                    label="Даты задачи"
-                    density="comfortable"
-                    clearable
-                    :readonly="!board.canWrite"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-calendar"
-                  />
-                  <v-select
-                    v-model="taskType"
-                    :items="board.task_types"
-                    item-title="name"
-                    item-value="id"
-                    label="Тип задачи"
-                    variant="filled"
-                    density="comfortable"
-                    clearable
-                    :readonly="!board.canWrite"
-                  >
-                    <template #item="{ props: itemProps, item }">
-                      <v-list-item v-bind="itemProps">
-                        <template #prepend>
-                          <v-icon :color="(item as TaskType).color">mdi-circle</v-icon>
-                        </template>
-                      </v-list-item>
-                    </template>
-                    <template #selection="{ item }">
-                      <v-chip
-                        :color="(item as TaskType).color"
-                        size="small"
-                        text-color="white"
-                        class="mr-2"
-                      >
-                        {{ (item as TaskType).name }}
-                      </v-chip>
-                    </template>
-                  </v-select>
-                  <v-select
-                    v-model="taskAssignee"
-                    :items="board.users"
-                    item-title="display_name"
-                    item-value="id"
-                    label="Исполнитель"
-                    variant="filled"
-                    density="comfortable"
-                    clearable
-                    :readonly="!board.canWrite"
-                  >
-                    <template #item="{ props: itemProps, item }">
-                      <v-list-item v-bind="itemProps" :title="userLabel(item)">
-                        <template #prepend>
-                          <v-avatar size="24" class="mr-2" color="primary">
-                            <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                            <span v-else class="text-white text-caption">{{ userInitial(item) }}</span>
-                          </v-avatar>
-                        </template>
-                      </v-list-item>
-                    </template>
-                    <template #selection="{ item }">
-                      <div class="ks-assignee-selection">
-                        <v-avatar size="20" class="mr-2" color="primary">
-                          <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                          <span v-else class="text-white" style="font-size: 10px">{{ userInitial(item) }}</span>
-                        </v-avatar>
-                        <span class="ks-assignee-selection__label">{{ userLabel(item) }}</span>
-                      </div>
-                    </template>
-                  </v-select>
-                </div>
-              </div>
-              </div>
-
-              <footer v-show="!mobile || metaOpen" class="ks-task-meta__foot">
-                <v-btn
-                  v-if="board.canWrite"
-                  color="error"
-                  variant="text"
-                  rounded="pill"
-                  @click="deleteCurrentTask"
-                >
-                  Удалить карточку
-                </v-btn>
-                <v-spacer />
-                <div
-                  v-if="board.canWrite && taskSaving"
-                  class="save-icon flex items-center justify-center text-primary"
-                  style="height: 22px"
-                >
-                  <PhFloppyDisk size="22" />
-                </div>
-              </footer>
-            </aside>
-          </div>
-      </v-card>
-    </v-dialog>
+    <BoardColumnDialogs ref="columnDialogsRef" @task-created="scrollToTask" />
+    <BoardTaskDialog ref="taskDialogRef" @task-deleted-by-other="onTaskDeletedByOther" />
   </div>
   <v-snackbar
     v-model="deleteSnackOpen"
@@ -1689,29 +330,9 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
   >
     {{ deleteSnackText }}
   </v-snackbar>
-  <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
-    UUID скопирован
-  </v-snackbar>
 </template>
 
 <style scoped>
-
-.save-icon {
-  animation: opacityTransition .8s ease-in-out infinite reverse;
-}
-
-@keyframes opacityTransition {
-  0% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
 .ks-board {
   display: flex;
   flex-direction: column;
@@ -1753,38 +374,27 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
   position: relative;
   z-index: 1;
 }
-.ks-board__filters {
+.ks-board__filters-shell {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-  padding: 0 16px 12px;
-}
-.ks-board__filters :deep(.v-input) {
-  min-width: 0;
-}
-.ks-filter-user {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-}
-.ks-filter-user__label {
-  min-width: 0;
+  grid-template-rows: 0fr;
+  padding: 0 16px;
+  opacity: 0;
+  transform: translateY(-4px);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  pointer-events: none;
+  transition:
+    grid-template-rows var(--md-duration-medium2) var(--md-easing-emphasized),
+    padding-block var(--md-duration-medium2) var(--md-easing-emphasized),
+    opacity var(--md-duration-short4) var(--md-easing-standard),
+    transform var(--md-duration-medium2) var(--md-easing-emphasized);
+  will-change: grid-template-rows, opacity, transform;
 }
-.ks-assignee-selection {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-}
-.ks-assignee-selection__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ks-board__filters-shell.is-open {
+  grid-template-rows: 1fr;
+  padding-block: 12px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 .ks-board__state {
   display: flex;
@@ -1815,288 +425,9 @@ board.registerBoardCallbacks({ openNewTask, openNewColumn })
   transform: scale(0.97) translateY(8px);
 }
 
-.ks-board__list {
-  flex: 1;
-  padding: 8px 16px 20px;
-  overflow: auto;
-}
-.ks-board__list-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.ks-board__table {
-  background: rgb(var(--v-theme-surface-container-low));
-  overflow: hidden;
-}
-.ks-board__table :deep(.v-table__wrapper) {
-  overflow-x: auto;
-}
-.ks-table :deep(thead th) {
-  background: rgb(var(--v-theme-surface-container)) !important;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  font-weight: 500;
-  letter-spacing: 0.1px;
-}
-.ks-table :deep(tbody tr) {
-  transition: background-color var(--md-duration-short3) var(--md-easing-standard);
-}
-.ks-table :deep(tbody tr:hover td) {
-  background: rgba(var(--v-theme-on-surface), 0.04) !important;
-}
-.ks-table :deep(tbody tr) {
-  cursor: pointer;
-}
-.ks-table__title {
-  color: rgb(var(--v-theme-on-surface));
-  font-weight: 500;
-}
-.ks-table__col-select {
-  --ks-status-color: #e8def8;
-  max-width: 180px;
-}
-.ks-table__col-select :deep(.v-field) {
-  background: color-mix(
-    in srgb,
-    var(--ks-status-color) 28%,
-    rgb(var(--v-theme-surface-container-high))
-  );
-  border-radius: var(--md-shape-full);
-}
-.ks-status-selection {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.ks-status-dot {
-  --ks-status-color: #e8def8;
-  width: 10px;
-  height: 10px;
-  border-radius: var(--md-shape-full);
-  background: var(--ks-status-color);
-  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-outline), 0.24);
-  flex: 0 0 auto;
-}
-.ks-table__assignee {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.ks-table__dates {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  color: rgba(var(--v-theme-on-surface), 0.78);
-}
-
-.ks-task-dialog {
-  display: flex;
-  flex-direction: column;
-  height: 86vh;
-  overflow: hidden;
-}
-.ks-task-split {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-}
-.ks-task-content {
-  min-width: 0;
-  overflow-y: auto;
-  padding: 16px 24px 24px;
-}
-.ks-task-content__comments {
-  margin-top: 28px;
-}
-.ks-task-mbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 8px 10px 16px;
-  border-bottom: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
-}
-.ks-task-id {
-  color: rgb(var(--v-theme-on-surface-variant));
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  white-space: nowrap;
-}
-.ks-task-meta {
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: rgb(var(--v-theme-surface-container-high));
-  border-left: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
-}
-.ks-task-meta__bar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 8px 8px 16px;
-  min-height: 52px;
-}
-.ks-task-meta__toggle {
-  justify-content: space-between;
-}
-.ks-task-meta__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px 20px 20px;
-}
-.ks-task-meta__foot {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  border-top: 1px solid rgba(var(--v-theme-outline-variant), 0.6);
-}
-.ks-task-meta__group {
-  display: flex;
-  flex-direction: column;
-}
-.ks-task-meta__title {
-  color: rgb(var(--v-theme-on-surface-variant));
-  margin-bottom: 12px;
-}
-.ks-task-meta__fields {
-  display: grid;
-  gap: 8px;
-}
-.ks-task-meta__fields :deep(.v-field) {
-  background: rgb(var(--v-theme-surface-container-highest));
-}
-.ks-task-meta__divider {
-  opacity: 0.5;
-}
-.ks-task__row {
-  display: flex;
-  gap: 16px;
-  margin-top: 4px;
-  flex-wrap: wrap;
-}
-.ks-task__row > * {
-  flex: 1 1 220px;
-  min-width: 0;
-}
-
-@media (max-width: 960px) {
-  .ks-board__filters {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 959px) {
-  .ks-task-dialog {
-    height: 100%;
-  }
-  .ks-task-split {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-  .ks-task-content,
-  .ks-task-meta,
-  .ks-task-meta__body {
-    overflow-y: visible;
-  }
-  .ks-task-meta {
-    border-left: none;
-    border-top: 1px solid rgba(var(--v-theme-outline-variant), 0.8);
-  }
-}
-
 @media (max-width: 600px) {
-  .ks-board__filters {
-    grid-template-columns: 1fr;
-  }
   .ks-board__cols {
     padding: 8px 12px 16px;
   }
-}
-
-.ks-desc__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.ks-desc__view {
-  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
-  border-radius: var(--md-shape-m);
-  padding: 12px 16px;
-  background: rgb(var(--v-theme-surface-container-lowest));
-  color: rgb(var(--v-theme-on-surface));
-  min-height: 170px;
-  font-family: 'Roboto Flex', 'Roboto', sans-serif;
-}
-.ks-desc__view :deep(p) {
-  margin: 0 0 8px;
-  line-height: 1.5;
-}
-.ks-desc__view :deep(p:last-child) {
-  margin-bottom: 0;
-}
-.ks-desc__view :deep(h2) {
-  font-size: var(--md-type-title-large);
-  line-height: 1.25;
-  font-weight: 500;
-  margin: 16px 0 8px;
-}
-.ks-desc__view :deep(h3) {
-  font-size: var(--md-type-title-medium);
-  line-height: 1.3;
-  font-weight: 500;
-  margin: 12px 0 6px;
-}
-.ks-desc__view :deep(ul),
-.ks-desc__view :deep(ol) {
-  padding-left: 22px;
-  margin: 4px 0;
-}
-.ks-desc__view :deep(blockquote) {
-  border-left: 3px solid rgb(var(--v-theme-primary));
-  padding: 2px 12px;
-  margin: 8px 0;
-  color: rgba(var(--v-theme-on-surface), 0.78);
-}
-.ks-desc__view :deep(pre) {
-  background: rgb(var(--v-theme-surface-container-high));
-  border-radius: var(--md-shape-s);
-  padding: 10px 12px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 13px;
-  overflow-x: auto;
-}
-.ks-desc__view :deep(code) {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 0.92em;
-  background: rgb(var(--v-theme-surface-container-high));
-  border-radius: 4px;
-  padding: 1px 4px;
-}
-.ks-desc__view :deep(a) {
-  color: rgb(var(--v-theme-primary));
-  text-decoration: underline;
-}
-.ks-desc__empty {
-  border: 1px dashed rgba(var(--v-theme-outline-variant), 0.6);
-  border-radius: var(--md-shape-m);
-  padding: 18px;
-  text-align: center;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.ks-desc__editing-note {
-  color: rgba(var(--v-theme-on-surface), 0.65);
-}
-.ks-edit-lock-btn {
-  opacity: 0.9;
-}
-.ks-attach__size {
-  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 </style>

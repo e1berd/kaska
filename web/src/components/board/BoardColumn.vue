@@ -25,10 +25,11 @@ const props = defineProps<{
   accent: 'primary' | 'secondary' | 'tertiary'
   tasks?: Task[]
 }>()
-defineEmits<{
+const emit = defineEmits<{
   (e: 'open-task', task: Task): void
   (e: 'rename', column: Column): void
   (e: 'delete', column: Column): void
+  (e: 'task-created', taskId: string): void
 }>()
 
 const board = useBoardStore()
@@ -201,7 +202,8 @@ async function commitAdd() {
   }
   submitting.value = true
   try {
-    await board.createTask(props.column.id, { title })
+    const created = await board.createTask(props.column.id, { title })
+    if (created) emit('task-created', created.id)
     newTitle.value = ''
     visibleCount.value = Math.max(visibleCount.value, tasksInColumn.value.length)
   } catch (e) {
@@ -362,9 +364,7 @@ function cancelAdd() {
   background: rgb(var(--v-theme-surface-container-high));
   box-shadow: inset 0 0 0 1.5px rgba(var(--col-accent), 0.55);
 }
-.ks-col--dragging {
-  opacity: 0.52;
-}
+.ks-col--dragging { opacity: 0.52; }
 
 .ks-col__head {
   display: flex;
@@ -373,7 +373,6 @@ function cancelAdd() {
   padding: 4px 6px 8px;
   flex-shrink: 0;
 }
-
 .ks-col__title {
   display: inline-flex;
   align-items: center;
@@ -401,9 +400,8 @@ function cancelAdd() {
   background: rgba(var(--v-theme-on-surface), 0.12);
   color: rgb(var(--v-theme-on-surface));
 }
-.ks-col__drag-handle:active {
-  cursor: grabbing;
-}
+.ks-col__drag-handle:active { cursor: grabbing; }
+
 .ks-col__dot {
   width: 10px;
   height: 10px;
@@ -430,23 +428,14 @@ function cancelAdd() {
   scrollbar-color: rgba(var(--v-theme-on-surface), 0.18) transparent;
   padding: 4px 4px 8px;
 }
-.ks-col__cards::-webkit-scrollbar {
-  width: 5px;
-}
+.ks-col__cards::-webkit-scrollbar { width: 5px; }
 .ks-col__cards::-webkit-scrollbar-thumb {
   border-radius: 99px;
   background: rgba(var(--v-theme-on-surface), 0.18);
 }
-
-.ks-col__cards .ks-card-move-move {
-  transition: transform var(--md-duration-medium4) var(--md-easing-emphasized);
-}
-.ks-col__cards .ks-card-move-enter-active {
-  transition: opacity var(--md-duration-medium2) var(--md-easing-standard);
-}
-.ks-col__cards .ks-card-move-enter-from {
-  opacity: 0;
-}
+.ks-col__cards .ks-card-move-move { transition: transform var(--md-duration-medium4) var(--md-easing-emphasized); }
+.ks-col__cards .ks-card-move-enter-active { transition: opacity var(--md-duration-medium2) var(--md-easing-standard); }
+.ks-col__cards .ks-card-move-enter-from { opacity: 0; }
 .ks-col__cards .ks-card-move-leave-active {
   position: absolute;
   left: 4px;
@@ -454,16 +443,13 @@ function cancelAdd() {
   z-index: 0;
   transition: opacity var(--md-duration-short3) var(--md-easing-standard);
 }
-.ks-col__cards .ks-card-move-leave-to {
-  opacity: 0;
-}
+.ks-col__cards .ks-card-move-leave-to { opacity: 0; }
 
 .ks-col__sentinel {
   display: flex;
   justify-content: center;
   padding: 8px 0 4px;
 }
-
 .ks-col__empty {
   text-align: center;
   padding: 24px 8px;
@@ -499,9 +485,8 @@ function cancelAdd() {
   --md-state-color: rgb(var(--v-theme-on-surface));
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);
 }
-.ks-col__addbtn:hover {
-  background: rgba(var(--v-theme-on-surface), 0.04);
-}
+.ks-col__addbtn:hover { background: rgba(var(--v-theme-on-surface), 0.04); }
+
 .ks-col__edge {
   position: absolute;
   top: 14px;
@@ -511,34 +496,39 @@ function cancelAdd() {
   background: rgba(var(--v-theme-primary), 0.92);
   opacity: 0;
   transform: scaleY(0.6);
+  pointer-events: none;
   transition:
     opacity var(--md-duration-short2) var(--md-easing-standard),
     transform var(--md-duration-short3) var(--md-easing-standard);
-  pointer-events: none;
 }
-.ks-col__edge--left {
-  left: -8px;
-}
-.ks-col__edge--right {
-  right: -8px;
-}
-.ks-col__edge.is-on {
-  opacity: 1;
-  transform: scaleY(1);
-}
+.ks-col__edge--left { left: -8px; }
+.ks-col__edge--right { right: -8px; }
+.ks-col__edge.is-on { opacity: 1; transform: scaleY(1); }
+
 :global(.ks-col.ks-col--ghost) {
-  position: fixed !important;
+  position: fixed;
   left: 0;
   top: 0;
   z-index: 9999;
   pointer-events: none;
-  box-shadow: var(--md-elev-5);
-  opacity: 0.96;
-  transition: none !important;
+  width: 296px;
+  background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
+  border-radius: var(--md-shape-l);
+  padding: 12px;
+  box-shadow: var(--md-elev-4);
+  transition: none;
+  transform-origin: 16px 16px;
   will-change: transform;
   animation: ks-dnd-pickup var(--md-duration-medium2) var(--md-easing-emphasized-decelerate) both;
 }
-:global(body.ks-dragging-column) {
-  cursor: grabbing;
+:global(.ks-col.ks-col--landing) {
+  transition: transform var(--md-duration-medium2) var(--md-easing-emphasized);
+  animation: none;
+}
+
+@keyframes ks-dnd-pickup {
+  from { transform: scale(0.98); opacity: 0.7; }
+  to { transform: scale(1); opacity: 1; }
 }
 </style>

@@ -1,18 +1,9 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
-import { useBoardStore } from '@/stores/board'
-import { useProjectsStore } from '@/stores/projects'
 import { PhClockCounterClockwise, PhListChecks, PhTag, PhUsers, PhGear } from '@phosphor-icons/vue'
 
 const props = defineProps<{ slug: string }>()
-
-const board = useBoardStore()
-const projects = useProjectsStore()
-
-const project = computed(
-  () => projects.findBySlug(props.slug) ?? (board.project?.slug === props.slug ? board.project : null),
-)
 
 interface NavItem {
   key: string
@@ -37,18 +28,6 @@ const navItems = computed<NavItem[]>(() => {
 
 <template>
   <nav class="ks-pnav" v-auto-animate>
-    <div class="ks-pnav__head">
-      <v-avatar size="40" color="primary-container">
-        <v-img v-if="project?.avatar_url" :src="project.avatar_url" cover alt="" />
-        <span v-else class="md-title-medium">
-          {{ (project?.name || slug || '?').slice(0, 1).toUpperCase() }}
-        </span>
-      </v-avatar>
-      <span class="ks-pnav__name md-label-medium">{{ project?.name || slug }}</span>
-    </div>
-
-    <v-divider class="ks-pnav__divider" />
-
     <router-link
       v-for="item in navItems"
       :key="item.key"
@@ -70,29 +49,6 @@ const navItems = computed<NavItem[]>(() => {
   align-items: center;
   gap: 4px;
   padding: 12px 4px;
-}
-.ks-pnav__head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 0;
-}
-.ks-pnav__name {
-  text-align: center;
-  font-size: 11px;
-  line-height: 1.1;
-  letter-spacing: 0.5px;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: rgb(var(--v-theme-on-surface-variant));
-}
-.ks-pnav__divider {
-  width: 56px;
-  margin: 4px 0 8px;
-  opacity: 0.6;
 }
 .ks-nav__item {
   --md-state-color: rgb(var(--v-theme-on-surface));

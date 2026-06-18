@@ -42,8 +42,8 @@ body {
   }
 }
 
-:where(.v-application) {
-  background-color: rgb(var(--v-theme-surface)) !important;
+.v-application.v-application {
+  background-color: rgb(var(--v-theme-surface));
 }
 
 .v-main {
@@ -60,8 +60,8 @@ body {
   }
 }
 
-:where(.v-card) {
-  border-radius: var(--md-shape-l) !important;
+.v-card.v-card {
+  border-radius: var(--md-shape-l);
 }
 :where(.v-btn) {
   text-transform: none;
@@ -82,11 +82,11 @@ body {
   display: contents;
 }
 
-:where(.ks-auth__card) {
+.ks-auth__card.ks-auth__card {
   inline-size: 100%;
   max-inline-size: 448px;
   padding: var(--ks-auth-card-padding, 36px 32px);
-  background: rgb(var(--v-theme-surface-container-low)) !important;
+  background: rgb(var(--v-theme-surface-container-low));
   border: 1px solid rgba(var(--v-theme-outline-variant), 0.5);
 }
 
@@ -184,12 +184,12 @@ body {
   }
 }
 
-:where(.ks-attach__remove) {
+.ks-attach__remove.ks-attach__remove {
   position: absolute;
   inset-block-start: 4px;
   inset-inline-end: 4px;
-  background: var(--ks-attach-remove-bg, rgba(0, 0, 0, 0.45)) !important;
-  color: var(--ks-attach-remove-color, white) !important;
+  background: var(--ks-attach-remove-bg, rgba(0, 0, 0, 0.45));
+  color: var(--ks-attach-remove-color, white);
 }
 
 .ks-dots::after {

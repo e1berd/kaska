@@ -33,9 +33,7 @@ watch(
 )
 
 onMounted(() => {
-  auth.fetchMe().catch(() => {
-    /* bootstrap will recover */
-  })
+  void auth.fetchMe().catch(() => undefined)
 })
 
 function startEditName() {
@@ -237,7 +235,7 @@ function logout() {
 }
 .ks-me__card {
   padding: 32px;
-  background: rgb(var(--v-theme-surface-container-low)) !important;
+  background: rgb(var(--v-theme-surface-container-low));
 }
 .ks-me__head {
   display: flex;

@@ -641,7 +641,7 @@ async function confirmDelete() {
   }
 }
 .ks-projects__filter :deep(.v-field) {
-  background: rgb(var(--v-theme-surface-container)) !important;
+  background: rgb(var(--v-theme-surface-container));
 }
 
 .ks-projects__empty {
@@ -671,7 +671,6 @@ async function confirmDelete() {
   gap: 18px;
 }
 
-/* M3 filled card with primary state-layer overlay on hover/focus. */
 .ks-project {
   --md-state-color: rgb(var(--v-theme-primary));
   position: relative;

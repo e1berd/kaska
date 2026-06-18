@@ -45,7 +45,7 @@ function paletteToCssBlock(selector: string, palette: Record<string, string>): s
   const lines: string[] = [`${selector} {`]
   for (const [k, v] of Object.entries(palette)) {
     const rgb = hexToRgbTriplet(v)
-    if (rgb) lines.push(`  --v-theme-${k}: ${rgb} !important;`)
+    if (rgb) lines.push(`  --v-theme-${k}: ${rgb};`)
   }
   lines.push('}')
   return lines.join('\n')
@@ -382,7 +382,7 @@ function logout() {
 .ks-bar {
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
   backdrop-filter: saturate(180%) blur(8px);
-  background: rgba(var(--v-theme-surface), 0.85) !important;
+  background: rgba(var(--v-theme-surface), 0.85);
   z-index: 1006;
 }
 
@@ -461,7 +461,7 @@ function logout() {
 }
 
 .ks-bar__profile {
-  padding: 4px !important;
+  padding: 4px;
 }
 .ks-bar__profile-name {
   max-width: 160px;
@@ -480,7 +480,7 @@ function logout() {
 }
 
 .ks-nav {
-  background: rgb(var(--v-theme-surface)) !important;
+  background: rgb(var(--v-theme-surface));
   border-right: 1px solid rgba(var(--v-theme-on-surface), 0.06);
 }
 

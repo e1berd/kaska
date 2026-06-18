@@ -514,8 +514,8 @@ defmodule Kaska.Projects do
   """
   def create_task(project_id, column_id, attrs, creator_id) do
     with %Column{project_id: ^project_id} <- get_column(column_id) do
-      last_rank = last_task_rank(column_id)
-      rank = Rank.between(last_rank, nil)
+      first_rank = first_task_rank(column_id)
+      rank = Rank.between(nil, first_rank)
 
       attrs =
         attrs
@@ -691,6 +691,16 @@ defmodule Kaska.Projects do
       {:error, _} = err -> err
       false -> {:error, :cross_project}
     end
+  end
+
+  defp first_task_rank(column_id) do
+    Repo.one(
+      from t in Task,
+        where: t.column_id == ^column_id,
+        order_by: [asc: t.rank],
+        limit: 1,
+        select: t.rank
+    )
   end
 
   defp last_task_rank(column_id) do

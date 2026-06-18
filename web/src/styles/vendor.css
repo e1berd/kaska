@@ -1,0 +1,3 @@
+@layer vendor;
+
+@import 'vuetify/styles' layer(vendor);

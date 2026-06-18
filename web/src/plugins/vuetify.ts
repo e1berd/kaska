@@ -1,4 +1,3 @@
-import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 
 import { createVuetify } from 'vuetify'
@@ -8,10 +7,6 @@ import * as directives from 'vuetify/directives'
 import { VDateInput } from 'vuetify/labs/VDateInput'
 import { ru } from 'vuetify/locale'
 
-
-// Material Design 3 baseline palette (primary = #6750A4).
-// Source: m3.material.io baseline scheme. Roles map 1:1 to Vuetify color keys
-// so components can reference e.g. `color="primary-container"`.
 const lightColors = {
   background: '#FFFBFE',
   'on-background': '#1C1B1F',
@@ -100,7 +95,6 @@ export default createVuetify({
     mobileBreakpoint: 'sm',
   },
   defaults: {
-    // M3 buttons are pill-shaped by default; opt out by passing `rounded`.
     VBtn: { rounded: 'pill', class: 'md-label-large' },
     VTextField: { variant: 'filled' },
     VTextarea: { variant: 'filled' },
