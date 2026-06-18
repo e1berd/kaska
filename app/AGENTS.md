@@ -4,6 +4,9 @@ This is a web application written using the Phoenix web framework.
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
+- Treat database migrations as production history. If a migration may already be applied on prod, do not delete or rewrite it as the fix; add a follow-up migration that safely converts the existing schema and also works on a fresh database.
+- Before deploying backend changes, run `mix precommit`, verify migrations against both an existing prod-like database and a fresh database, then check `/health` and API logs after `docker compose up --build -d`.
+- Do not leave empty `rescue`/`catch` branches. Expected errors must be handled explicitly, logged, or returned as structured results.
 
 ### Phoenix v1.8 guidelines
 

@@ -118,6 +118,55 @@ async function testRetention() {
   console.log('PASS: retention policy evicts old events')
 }
 
+async function testPostAckFailureIdempotency() {
+  cleanup()
+
+  const processed = new Map<string, string>()
+  const postedComments = new Set<string>()
+  const ackResults = [false, false, true]
+  let ackCallCount = 0
+
+  const event = { id: 'evt-post-ack-fail', event_type: 'comment_reply' as const, project_id: 'p1', task_id: 't1', comment_id: null, inserted_at: new Date().toISOString(), payload: {} }
+
+  function commentExists(eid: string): boolean {
+    return postedComments.has(eid)
+  }
+
+  function postComment(eid: string): void {
+    postedComments.add(eid)
+  }
+
+  function ackEvent(_eid: string): boolean {
+    const result = ackResults[ackCallCount] ?? false
+    ackCallCount++
+    return result
+  }
+
+  postComment(event.id)
+  assert(commentExists(event.id), 'Comment posted')
+
+  let postCount = 1
+
+  let acked = ackEvent(event.id)
+  assert.strictEqual(acked, false, 'Ack attempt 1 fails')
+  assert(!processed.has(event.id), 'Event NOT in processed after ack failure')
+
+  acked = ackEvent(event.id)
+  assert.strictEqual(acked, false, 'Ack attempt 2 still fails')
+  assert(!processed.has(event.id), 'Event still NOT processed')
+
+  acked = ackEvent(event.id)
+  assert.strictEqual(acked, true, 'Ack attempt 3 succeeds')
+  if (acked) {
+    processed.set(event.id, new Date().toISOString())
+  }
+  assert(processed.has(event.id), 'Event processed only after successful ack')
+  assert.strictEqual(postCount, 1, 'Comment posted exactly once')
+
+  cleanup()
+  console.log('PASS: post + ack failure + next poll finds comment, retries ack until success')
+}
+
 async function testNoOpAck() {
   cleanup()
 
@@ -166,6 +215,7 @@ async function main() {
   await testAtomicWrite()
   await testIdempotency()
   await testRetention()
+  await testPostAckFailureIdempotency()
   await testNoOpAck()
   await testErrorRecording()
 

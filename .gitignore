@@ -24,3 +24,6 @@ erl_crash.dump
 /docker-compose.override.yml
 /scouts.yml
 /clerks.yml
+.clerk-state/
+clerk-runner/dist/
+clerk-runner/node_modules/

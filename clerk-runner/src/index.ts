@@ -314,12 +314,34 @@ async function callLLM(
   return data.choices[0].message.content
 }
 
-async function postComment(token: string, projectSlug: string, taskId: string, body: string): Promise<void> {
-  await apiRequest('POST', `/p/${projectSlug}/tasks/${taskId}/comments`, token, { body })
+async function commentExists(token: string, projectSlug: string, taskId: string, eventId: string): Promise<boolean> {
+  const { comments } = await apiRequest<{ comments: Comment[] }>(
+    'GET',
+    `/p/${projectSlug}/tasks/${taskId}/comments`,
+    token,
+  )
+  return comments.some((c) => c.body.includes(`<!-- event:${eventId} -->`))
 }
 
-async function ackEvent(token: string, eventId: string): Promise<void> {
-  await apiRequest('POST', `/agent/events/${eventId}/ack`, token)
+async function postCommentWithMarker(token: string, projectSlug: string, taskId: string, body: string, eventId: string): Promise<void> {
+  const markedBody = `${body}\n\n<!-- event:${eventId} -->`
+  await apiRequest('POST', `/p/${projectSlug}/tasks/${taskId}/comments`, token, { body: markedBody })
+}
+
+async function ackEventWithRetry(token: string, eventId: string, maxRetries = 3): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await apiRequest('POST', `/agent/events/${eventId}/ack`, token)
+      return true
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error(`[${eventId}] Ack failed after ${maxRetries} attempts:`, error)
+        return false
+      }
+      await sleep(1000 * attempt)
+    }
+  }
+  return false
 }
 
 async function processEvent(
@@ -339,6 +361,18 @@ async function processEvent(
   }
 
   const { project, task } = context
+
+  const alreadyPosted = await commentExists(clerk.token, project.slug, task.id, event.id)
+  if (alreadyPosted) {
+    console.warn(`[${name}] Comment already exists for event ${event.id}, acking`)
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (acked) {
+      state.processed[event.id] = new Date().toISOString()
+      saveState(name, state)
+    }
+    return acked
+  }
+
   const prompt = buildContextPrompt(event, project, task)
 
   try {
@@ -346,14 +380,21 @@ async function processEvent(
 
     if (!response || response.trim().length === 0) {
       console.warn(`[${name}] Empty LLM response for event ${event.id}, acking without comment`)
-      await ackEvent(clerk.token, event.id)
-      state.processed[event.id] = new Date().toISOString()
-      saveState(name, state)
-      return true
+      const acked = await ackEventWithRetry(clerk.token, event.id)
+      if (acked) {
+        state.processed[event.id] = new Date().toISOString()
+        saveState(name, state)
+      }
+      return acked
     }
 
-    await postComment(clerk.token, project.slug, task.id, response)
-    await ackEvent(clerk.token, event.id)
+    await postCommentWithMarker(clerk.token, project.slug, task.id, response, event.id)
+
+    const acked = await ackEventWithRetry(clerk.token, event.id)
+    if (!acked) {
+      console.warn(`[${name}] Comment posted, ack failed for event ${event.id} — will retry ack on next poll`)
+      return false
+    }
 
     state.processed[event.id] = new Date().toISOString()
     state.last_error = undefined
