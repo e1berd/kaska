@@ -15,6 +15,7 @@ import {
 import { useBoardStore, type Column, type Task } from '@/stores/board'
 import BoardCard from '@/components/board/BoardCard.vue'
 import { touchDrag } from '@/utils/boardDnd'
+import { cssColorOr } from '@/utils/css'
 import { PhDotsSix } from '@phosphor-icons/vue'
 
 const PAGE_SIZE = 20
@@ -84,6 +85,9 @@ const closestEdge = ref<Edge | null>(null)
 const touchOver = computed(
   () => touchDrag.active && touchDrag.overColumnId === props.column.id,
 )
+const columnStyle = computed(() => ({
+  '--ks-column-color': cssColorOr(props.column.color, '#E8DEF8'),
+}))
 let dndCleanup: (() => void) | null = null
 let ghost: HTMLElement | null = null
 let grabOffsetX = 0
@@ -220,6 +224,7 @@ function cancelAdd() {
     :class="{ 'ks-col--over': isOver || touchOver, 'ks-col--dragging': dragging }"
     :data-accent="accent"
     :data-column-id="column.id"
+    :style="columnStyle"
   >
     <header class="ks-col__head">
       <div class="ks-col__title">
@@ -326,6 +331,7 @@ function cancelAdd() {
   --col-accent: var(--v-theme-primary);
   --col-accent-container: var(--v-theme-primary-container);
   --col-accent-on-container: var(--v-theme-on-primary-container);
+  --ks-column-color: #e8def8;
 
   position: relative;
   display: flex;
@@ -334,6 +340,7 @@ function cancelAdd() {
   flex: 0 0 auto;
   height: 100%;
   background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline-variant), 0.4);
   border-radius: var(--md-shape-l);
   padding: 12px;
   transition:
@@ -401,14 +408,14 @@ function cancelAdd() {
   width: 10px;
   height: 10px;
   border-radius: var(--md-shape-full);
-  background: rgb(var(--col-accent));
+  background: var(--ks-column-color);
 }
 .ks-col__count {
   margin-left: 6px;
   padding: 2px 8px;
   border-radius: var(--md-shape-full);
-  background: rgb(var(--col-accent-container));
-  color: rgb(var(--col-accent-on-container));
+  background: color-mix(in srgb, var(--ks-column-color) 24%, rgb(var(--v-theme-surface)));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .ks-col__cards {

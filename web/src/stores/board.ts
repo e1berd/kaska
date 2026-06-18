@@ -12,6 +12,7 @@ export interface Column {
   name: string
   rank: string
   description?: string | null
+  color: string
 }
 
 import type { JSONContent } from '@tiptap/vue-3'
@@ -155,6 +156,28 @@ export const useBoardStore = defineStore('board', () => {
   const canWrite = ref(false)
   const isOwner = ref(false)
   const myProjectThemeSlug = ref<string | null>(null)
+  const viewMode = ref<'columns' | 'list'>('columns')
+  const filtersExpanded = ref(false)
+  let openNewTaskCallback: (() => void) | null = null
+  let openNewColumnCallback: (() => void) | null = null
+
+  function registerBoardCallbacks(callbacks: { openNewTask: () => void; openNewColumn: () => void }) {
+    openNewTaskCallback = callbacks.openNewTask
+    openNewColumnCallback = callbacks.openNewColumn
+  }
+
+  function unregisterBoardCallbacks() {
+    openNewTaskCallback = null
+    openNewColumnCallback = null
+  }
+
+  function triggerNewTask() {
+    openNewTaskCallback?.()
+  }
+
+  function triggerNewColumn() {
+    openNewColumnCallback?.()
+  }
 
   const orderedColumns = computed(() =>
     [...columns.value].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0)),
@@ -357,13 +380,14 @@ export const useBoardStore = defineStore('board', () => {
     return channel.value
   }
 
-  function createColumn(name: string) {
-    return pushAsync<Column>(ch(), 'create_column', { name })
+  function createColumn(name: string, color?: string | null) {
+    return pushAsync<Column>(ch(), 'create_column', { name, color })
   }
 
-  function renameColumn(id: string, name: string, description?: string | null) {
-    const payload: { id: string; name: string; description?: string | null } = { id, name }
+  function renameColumn(id: string, name: string, description?: string | null, color?: string | null) {
+    const payload: { id: string; name: string; description?: string | null; color?: string | null } = { id, name }
     if (description !== undefined) payload.description = description
+    if (color !== undefined) payload.color = color
     return pushAsync<Column>(ch(), 'rename_column', payload)
   }
 
@@ -654,5 +678,11 @@ export const useBoardStore = defineStore('board', () => {
     setPublicLink,
     setProjectTheme,
     setMyProjectTheme,
+    viewMode,
+    filtersExpanded,
+    registerBoardCallbacks,
+    unregisterBoardCallbacks,
+    triggerNewTask,
+    triggerNewColumn,
   }
 })

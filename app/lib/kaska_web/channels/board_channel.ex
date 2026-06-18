@@ -363,7 +363,9 @@ defmodule KaskaWeb.BoardChannel do
     project_id = socket.assigns.project_id
     name = Map.get(payload, "name")
 
-    case Projects.create_column(project_id, %{name: name}) do
+    attrs = %{name: name, color: Map.get(payload, "color")}
+
+    case Projects.create_column(project_id, attrs) do
       {:ok, column} ->
         view = column_view(column)
         broadcast!(socket, "column_created", view)
@@ -375,7 +377,7 @@ defmodule KaskaWeb.BoardChannel do
   end
 
   def handle_in("rename_column", %{"id" => id} = payload, socket) do
-    attrs = take_present(payload, ["name", "description"])
+    attrs = take_present(payload, ["name", "description", "color"])
 
     with %Column{} = column <- get_owned_column(id, socket),
          {:ok, column} <- Projects.rename_column(column, attrs) do
@@ -797,7 +799,14 @@ defmodule KaskaWeb.BoardChannel do
   end
 
   defp column_view(%Column{} = c) do
-    %{id: c.id, project_id: c.project_id, name: c.name, rank: c.rank, description: c.description}
+    %{
+      id: c.id,
+      project_id: c.project_id,
+      name: c.name,
+      rank: c.rank,
+      description: c.description,
+      color: c.color
+    }
   end
 
   def task_view(%Task{} = t) do

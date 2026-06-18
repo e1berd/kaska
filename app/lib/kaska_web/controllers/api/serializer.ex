@@ -49,7 +49,7 @@ defmodule KaskaWeb.Api.Serializer do
   end
 
   def column(%Column{} = c) do
-    %{id: c.id, name: c.name, rank: c.rank, description: c.description}
+    %{id: c.id, name: c.name, rank: c.rank, description: c.description, color: c.color}
   end
 
   def column(_), do: nil

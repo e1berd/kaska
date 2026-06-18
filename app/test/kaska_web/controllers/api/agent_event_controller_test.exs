@@ -19,7 +19,7 @@ defmodule KaskaWeb.Api.AgentEventControllerTest do
       })
 
     {:ok, %{agent: agent, token: agent_token}} =
-      Agents.create_agent(owner.id, project.id, %{display_name: "Scout"})
+      Agents.create_agent(owner.id, project.id, %{display_name: "Clerk"})
 
     {:ok, agent_token_record, _} = ApiTokens.create_token(owner, "owner_token")
 

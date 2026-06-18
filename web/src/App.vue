@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useDisplay, useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useSocketStore } from '@/stores/socket'
@@ -19,6 +19,7 @@ const sys = useSysStore()
 const board = useBoardStore()
 const theme = useThemeStore()
 const route = useRoute()
+const router = useRouter()
 const { mobile } = useDisplay()
 const vuetifyTheme = useTheme()
 
@@ -113,6 +114,7 @@ const projectScopeRoutes = [
 ]
 
 const inProjectScope = computed(() => projectScopeRoutes.includes(route.name as string))
+const isBoardView = computed(() => route.name === 'board')
 
 watch(
   () => inProjectScope.value,
@@ -150,7 +152,34 @@ function logout() {
             aria-label="Открыть меню"
             @click="drawer = !drawer"
           />
+          <template v-if="inProjectScope && board.project">
+            <v-btn
+              icon="mdi-arrow-left"
+              variant="text"
+              density="comfortable"
+              @click="router.push({ name: 'projects' })"
+            />
+            <div class="ks-project-header">
+              <v-avatar
+                size="32"
+                class="ks-project-header__avatar"
+                color="primary-container"
+              >
+                <v-img
+                  v-if="board.project.avatar_url"
+                  :src="board.project.avatar_url"
+                  cover
+                  alt=""
+                />
+                <span v-else class="md-label-large">
+                  {{ (board.project.name || '?').slice(0, 1).toUpperCase() }}
+                </span>
+              </v-avatar>
+              <span class="md-title-large ks-project-header__name">{{ board.project.name }}</span>
+            </div>
+          </template>
           <router-link
+            v-else
             :to="{ name: 'home' }"
             class="ks-brand md-state-layer"
             aria-label="Kaska"
@@ -163,6 +192,70 @@ function logout() {
         </template>
 
         <template #append>
+          <template v-if="isBoardView">
+            <div class="ks-board-controls" role="group" aria-label="Управление доской">
+              <div class="ks-board-controls__view-group">
+                <v-tooltip text="Колонки" location="bottom">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      :active="board.viewMode === 'columns'"
+                      :color="board.viewMode === 'columns' ? 'primary' : undefined"
+                      :variant="board.viewMode === 'columns' ? 'flat' : 'text'"
+                      icon="mdi-view-column-outline"
+                      size="small"
+                      rounded="pill"
+                      @click="board.viewMode = 'columns'"
+                    />
+                  </template>
+                </v-tooltip>
+                <v-tooltip text="Список" location="bottom">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      :active="board.viewMode === 'list'"
+                      :color="board.viewMode === 'list' ? 'primary' : undefined"
+                      :variant="board.viewMode === 'list' ? 'flat' : 'text'"
+                      icon="mdi-format-list-bulleted"
+                      size="small"
+                      rounded="pill"
+                      @click="board.viewMode = 'list'"
+                    />
+                  </template>
+                </v-tooltip>
+              </div>
+              <v-btn
+                variant="text"
+                rounded="pill"
+                size="small"
+                :prepend-icon="board.filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
+                @click="board.filtersExpanded = !board.filtersExpanded"
+              >
+                Фильтры
+              </v-btn>
+              <v-btn
+                v-if="board.canWrite"
+                v-show="board.viewMode === 'list'"
+                prepend-icon="mdi-plus"
+                variant="tonal"
+                rounded="pill"
+                size="small"
+                @click="board.triggerNewTask"
+              >
+                Новая задача
+              </v-btn>
+              <v-btn
+                v-if="board.canWrite"
+                prepend-icon="mdi-plus"
+                variant="text"
+                rounded="pill"
+                size="small"
+                @click="board.triggerNewColumn"
+              >
+                Новый статус
+              </v-btn>
+            </div>
+          </template>
           <PresenceGroup
             v-if="headerPresenceUsers.length"
             class="mr-2"
@@ -182,27 +275,22 @@ function logout() {
                   class="ks-bar__profile"
                   :title="auth.user?.email"
                 >
-                  <template #prepend>
-                    <v-avatar
-                      size="32"
-                      class="bg-primary-container text-on-primary-container"
-                    >
-                      <v-img
-                        v-if="auth.user?.avatar_url"
-                        :src="auth.user.avatar_url"
-                        cover
-                        alt=""
-                      />
-                      <span v-else class="md-label-large">{{
-                        (auth.user?.display_name || auth.user?.email || '?')
-                          .slice(0, 1)
-                          .toUpperCase()
-                      }}</span>
-                    </v-avatar>
-                  </template>
-                  <span v-if="!mobile" class="ks-bar__profile-name md-label-large">
-                    {{ auth.user?.display_name || auth.user?.email?.split('@')[0] }}
-                  </span>
+                  <v-avatar
+                    size="32"
+                    class="bg-primary-container text-on-primary-container"
+                  >
+                    <v-img
+                      v-if="auth.user?.avatar_url"
+                      :src="auth.user.avatar_url"
+                      cover
+                      alt=""
+                    />
+                    <span v-else class="md-label-large">{{
+                      (auth.user?.display_name || auth.user?.email || '?')
+                        .slice(0, 1)
+                        .toUpperCase()
+                    }}</span>
+                  </v-avatar>
                 </v-btn>
               </template>
               <v-list class="bg-surface elevation-3" :elevation="0" rounded="lg" density="compact">
@@ -325,13 +413,55 @@ function logout() {
   letter-spacing: -0.01em;
 }
 
+.ks-project-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 4px;
+  margin-left: 4px;
+  min-width: 0;
+}
+.ks-project-header__avatar {
+  flex: 0 0 auto;
+}
+.ks-project-header__name {
+  font-family: 'Roboto Flex', 'Roboto', sans-serif;
+  font-variation-settings: 'wght' 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.ks-project-header__slug {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+.ks-board-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+.ks-board-controls__view-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--md-shape-full);
+  background: rgb(var(--v-theme-surface-container));
+  border: 1px solid rgba(var(--v-theme-outline), 0.24);
+}
+
 .ks-bar__link {
   font-weight: 500;
 }
 
 .ks-bar__profile {
-  padding-inline-start: 4px !important;
-  padding-inline-end: 16px !important;
+  padding: 4px !important;
 }
 .ks-bar__profile-name {
   max-width: 160px;
@@ -343,6 +473,9 @@ function logout() {
 @media (max-width: 600px) {
   .ks-brand__name {
     display: none;
+  }
+  .ks-project-header__name {
+    max-width: 120px;
   }
 }
 

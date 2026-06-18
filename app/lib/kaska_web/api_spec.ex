@@ -489,7 +489,8 @@ defmodule KaskaWeb.ApiSpec do
           type: :string,
           nullable: true,
           description: "What this stage means and where a task moves next."
-        }
+        },
+        color: %Schema{type: :string}
       }
     }
   end

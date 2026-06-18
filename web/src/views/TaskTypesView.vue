@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBoardStore, type TaskType } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
 import { cssColorOr } from '@/utils/css'
+import ColorPicker from '@/components/ColorPicker.vue'
 
 defineProps<{ slug?: string }>()
 
@@ -26,12 +27,6 @@ const typeColor = ref('#4CAF50')
 const typeTextColor = ref('#FFFFFF')
 const submitting = ref(false)
 
-const predefinedColors = [
-  '#E0E0E0', '#F44336', '#E91E63', '#9C27B0', '#3F51B5',
-  '#2196F3', '#00BCD4', '#009688', '#4CAF50', '#FF9800',
-]
-const predefinedTextColors = ['#FFFFFF', '#000000']
-
 onMounted(async () => {
   try {
     error.value = null
@@ -52,10 +47,6 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-function backToBoard() {
-  void router.push({ name: 'board', params: { slug: slug.value } })
-}
 
 function openNewTaskType() {
   editTarget.value = null
@@ -114,20 +105,13 @@ async function deleteTaskType(type: TaskType) {
   }
 }
 
-function colorStyle(hex: string) {
-  return { background: cssColorOr(hex, '#E0E0E0') }
-}
 </script>
 
 <template>
   <div class="ks-types">
     <header class="ks-types__bar">
-      <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <div>
         <div class="md-headline-small">Типы задач</div>
-        <div class="md-body-small text-medium-emphasis">
-          {{ board.project?.name ?? '…' }}<code v-if="board.project">/{{ board.project.slug }}</code>
-        </div>
       </div>
       <v-spacer />
       <v-btn
@@ -205,39 +189,13 @@ function colorStyle(hex: string) {
             auto-grow
           />
 
-          <div class="md-label-large mb-2">Цвет фона</div>
-          <div class="ks-colors mb-3">
-            <button
-              v-for="color in predefinedColors"
-              :key="color"
-              type="button"
-              class="ks-colors__item"
-              :class="{ 'is-active': typeColor === color }"
-              :style="colorStyle(color)"
-              @click="typeColor = color"
-            />
-          </div>
-          <div class="d-flex align-center ga-3 mb-4">
-            <input v-model="typeColor" type="color" class="ks-color-input" />
-            <v-text-field v-model="typeColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
-          </div>
-
-          <div class="md-label-large mb-2">Цвет текста</div>
-          <div class="ks-colors mb-3">
-            <button
-              v-for="color in predefinedTextColors"
-              :key="color"
-              type="button"
-              class="ks-colors__item"
-              :class="{ 'is-active': typeTextColor === color }"
-              :style="colorStyle(color)"
-              @click="typeTextColor = color"
-            />
-          </div>
-          <div class="d-flex align-center ga-3 mb-4">
-            <input v-model="typeTextColor" type="color" class="ks-color-input" />
-            <v-text-field v-model="typeTextColor" label="HEX" variant="filled" density="compact" style="max-width: 140px" />
-          </div>
+          <ColorPicker v-model="typeColor" label="Цвет фона" class="mb-4" />
+          <ColorPicker
+            v-model="typeTextColor"
+            label="Цвет текста"
+            class="mb-4"
+            :presets="['#FFFFFF', '#000000', '#21005D', '#1D192B', '#31111D', '#410E0B']"
+          />
 
           <div class="md-label-large mb-2">Превью</div>
           <span class="ks-type-preview" :style="previewStyle">

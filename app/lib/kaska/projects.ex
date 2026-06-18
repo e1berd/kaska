@@ -378,14 +378,37 @@ defmodule Kaska.Projects do
     last_rank = last_column_rank(project_id)
     rank = Rank.between(last_rank, nil)
 
+    attrs =
+      attrs
+      |> Map.new()
+      |> Map.reject(fn {key, value} -> key in [:color, "color"] and is_nil(value) end)
+      |> Map.put_new(:color, random_column_color())
+
     %Column{}
     |> Column.create_changeset(
       attrs
-      |> Map.new()
       |> Map.put(:project_id, project_id)
       |> Map.put(:rank, rank)
     )
     |> Repo.insert()
+  end
+
+  defp random_column_color do
+    [
+      "#EADDFF",
+      "#D0E4FF",
+      "#D7E3C0",
+      "#FFD8E4",
+      "#FCE1A8",
+      "#D8E2DC",
+      "#E7E0EC",
+      "#DDE3EA",
+      "#EBD8C3",
+      "#CDE7E2",
+      "#E8DEF8",
+      "#F4D8D8"
+    ]
+    |> Enum.random()
   end
 
   def rename_column(%Column{} = column, attrs) do

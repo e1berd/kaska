@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
@@ -24,10 +25,11 @@ import { useProjectsStore } from '@/stores/projects'
 import { useSocketStore, pushAsync } from '@/stores/socket'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import ListColumnControl from '@/components/board/ListColumnControl.vue'
+import ColorPicker from '@/components/ColorPicker.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
-import { cssUrlImageOr } from '@/utils/css'
+import { cssColorOr, cssUrlImageOr } from '@/utils/css'
 import { docPreview } from '@/utils/tiptap'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
@@ -42,6 +44,7 @@ const { mobile } = useDisplay()
 const auth = useAuthStore()
 const board = useBoardStore()
 const projects = useProjectsStore()
+const { viewMode, filtersExpanded } = storeToRefs(board)
 
 const socket = useSocketStore()
 
@@ -55,10 +58,8 @@ let monitorCleanup: (() => void) | null = null
 let columnsMonitorCleanup: (() => void) | null = null
 let scrollCleanup: (() => void) | null = null
 
-const viewMode = ref<'columns' | 'list'>('columns')
 const VIEW_MODE_KEY_PREFIX = 'kaska.board.view_mode'
 const FILTERS_EXPANDED_KEY_PREFIX = 'kaska.board.filters_expanded'
-const filtersExpanded = ref(false)
 const filterQuery = ref('')
 const filterTaskType = ref<string | null>(null)
 const filterAssignee = ref<string | null>(null)
@@ -130,6 +131,7 @@ const renameDialog = ref(false)
 const renameTarget = ref<Column | null>(null)
 const renameValue = ref('')
 const renameDescription = ref('')
+const renameColor = ref('#E8DEF8')
 
 const deleteDialog = ref(false)
 const deleteTarget = ref<Column | null>(null)
@@ -258,6 +260,7 @@ function isFormSyncedWithTask(task: Task): boolean {
 
 const newColumnDialog = ref(false)
 const newColumnName = ref('')
+const newColumnColor = ref('#E8DEF8')
 const newTaskDialog = ref(false)
 const newTaskTitle = ref('')
 const newTaskSubmitting = ref(false)
@@ -320,6 +323,15 @@ const listHeaders = computed(() =>
 function taskTypeFor(id: string | null | undefined) {
   if (!id) return null
   return board.task_types.find((t) => t.id === id) ?? null
+}
+
+function columnFor(id: string | null | undefined) {
+  if (!id) return null
+  return board.columns.find((column) => column.id === id) ?? null
+}
+
+function columnColorStyle(id: string | null | undefined) {
+  return { '--ks-status-color': cssColorOr(columnFor(id)?.color, '#E8DEF8') }
 }
 
 function userFor(id: string | null | undefined) {
@@ -461,6 +473,7 @@ onBeforeUnmount(() => {
   columnsMonitorCleanup?.()
   scrollCleanup?.()
   tearDownCollab()
+  board.unregisterBoardCallbacks()
   if (taskSaveTimer) clearTimeout(taskSaveTimer)
 })
 
@@ -496,10 +509,10 @@ watch(
   ([userId, currentSlug]) => {
     const saved = localStorage.getItem(`${VIEW_MODE_KEY_PREFIX}:${userId}:${currentSlug}`)
     if (saved === 'columns' || saved === 'list') {
-      viewMode.value = saved
+      board.viewMode = saved
       return
     }
-    viewMode.value = 'columns'
+    board.viewMode = 'columns'
   },
   { immediate: true },
 )
@@ -508,8 +521,8 @@ watch(
   () => [auth.user?.id ?? 'guest', slug.value] as const,
   ([userId, currentSlug]) => {
     const saved = localStorage.getItem(`${FILTERS_EXPANDED_KEY_PREFIX}:${userId}:${currentSlug}`)
-    if (saved === '1') filtersExpanded.value = true
-    else if (saved === '0') filtersExpanded.value = false
+    if (saved === '1') board.filtersExpanded = true
+    else if (saved === '0') board.filtersExpanded = false
   },
   { immediate: true },
 )
@@ -556,7 +569,7 @@ watch(
 )
 
 watch(
-  () => viewMode.value,
+  () => board.viewMode,
   (mode) => {
     const userId = auth.user?.id ?? 'guest'
     localStorage.setItem(`${VIEW_MODE_KEY_PREFIX}:${userId}:${slug.value}`, mode)
@@ -564,7 +577,7 @@ watch(
 )
 
 watch(
-  () => filtersExpanded.value,
+  () => board.filtersExpanded,
   (expanded) => {
     const userId = auth.user?.id ?? 'guest'
     localStorage.setItem(
@@ -617,6 +630,7 @@ function onRename(column: Column) {
   renameTarget.value = column
   renameValue.value = column.name
   renameDescription.value = column.description ?? ''
+  renameColor.value = column.color || '#E8DEF8'
   renameDialog.value = true
 }
 
@@ -625,7 +639,12 @@ async function commitRename() {
   const name = renameValue.value.trim()
   if (!name) return
   try {
-    await board.renameColumn(renameTarget.value.id, name, renameDescription.value.trim() || null)
+    await board.renameColumn(
+      renameTarget.value.id,
+      name,
+      renameDescription.value.trim() || null,
+      renameColor.value,
+    )
     renameDialog.value = false
   } catch (e) {
     console.warn('[board] rename failed', e)
@@ -834,6 +853,7 @@ function fmtSize(bytes: number): string {
 
 function openNewColumn() {
   newColumnName.value = ''
+  newColumnColor.value = '#E8DEF8'
   newColumnDialog.value = true
 }
 
@@ -846,7 +866,7 @@ async function commitNewColumn() {
   const name = newColumnName.value.trim()
   if (!name) return
   try {
-    await board.createColumn(name)
+    await board.createColumn(name, newColumnColor.value)
     newColumnDialog.value = false
   } catch (e) {
     console.warn('[board] create column failed', e)
@@ -867,10 +887,6 @@ async function commitNewTask() {
   } finally {
     newTaskSubmitting.value = false
   }
-}
-
-function backToProjects() {
-  router.push({ name: 'projects' })
 }
 
 function closeTaskDialog() {
@@ -994,6 +1010,14 @@ async function changeColumn(task: Task, newColumnId: unknown) {
   }
 }
 
+provide('boardControls', {
+  viewMode,
+  filtersExpanded,
+  openNewTask,
+  openNewColumn,
+  canWrite: computed(() => board.canWrite),
+})
+
 const accents = ['primary', 'secondary', 'tertiary'] as const
 function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
   return accents[idx % accents.length]
@@ -1002,6 +1026,8 @@ function accentFor(idx: number): 'primary' | 'secondary' | 'tertiary' {
 const boardBackgroundStyle = computed(() => ({
   backgroundImage: cssUrlImageOr(board.project?.background_url),
 }))
+
+board.registerBoardCallbacks({ openNewTask, openNewColumn })
 </script>
 
 <template>
@@ -1012,96 +1038,9 @@ const boardBackgroundStyle = computed(() => ({
       :style="boardBackgroundStyle"
     />
     <div v-if="board.project?.background_url" class="ks-board__bg-scrim" />
-    <header class="ks-board__bar">
-      <v-btn
-        icon="mdi-arrow-left"
-        variant="text"
-        density="comfortable"
-        @click="backToProjects"
-      />
-      <div class="ks-board__title">
-        <v-avatar
-          v-if="board.project"
-          size="32"
-          class="ks-board__logo"
-          color="primary-container"
-        >
-          <v-img
-            v-if="board.project.avatar_url"
-            :src="board.project.avatar_url"
-            cover
-            alt=""
-          />
-          <span v-else class="md-label-large">
-            {{ (board.project.name || '?').slice(0, 1).toUpperCase() }}
-          </span>
-        </v-avatar>
-        <span class="md-title-large">{{ board.project?.name ?? '…' }}</span>
-        <code v-if="board.project" class="ks-board__slug">/{{ board.project.slug }}</code>
-      </div>
-      <v-spacer />
-      <div class="ks-board__view-group mr-4" role="group" aria-label="Режим отображения доски">
-        <v-tooltip text="Колонки" location="bottom">
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              :active="viewMode === 'columns'"
-              :color="viewMode === 'columns' ? 'primary' : undefined"
-              :variant="viewMode === 'columns' ? 'flat' : 'text'"
-              icon="mdi-view-column-outline"
-              size="small"
-              rounded="pill"
-              @click="viewMode = 'columns'"
-            />
-          </template>
-        </v-tooltip>
-        <v-tooltip text="Список" location="bottom">
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              :active="viewMode === 'list'"
-              :color="viewMode === 'list' ? 'primary' : undefined"
-              :variant="viewMode === 'list' ? 'flat' : 'text'"
-              icon="mdi-format-list-bulleted"
-              size="small"
-              rounded="pill"
-              @click="viewMode = 'list'"
-            />
-          </template>
-        </v-tooltip>
-      </div>
-      <v-btn
-        variant="text"
-        rounded="pill"
-        :prepend-icon="filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
-        @click="filtersExpanded = !filtersExpanded"
-      >
-        Фильтры
-      </v-btn>
-      <v-btn
-        v-if="board.canWrite"
-        v-show="viewMode === 'list'"
-        prepend-icon="mdi-plus"
-        variant="tonal"
-        rounded="pill"
-        @click="openNewTask"
-      >
-        Новая задача
-      </v-btn>
-      <v-btn
-        v-if="board.canWrite"
-        prepend-icon="mdi-plus"
-        key="board.canWrite"
-        variant="text"
-        rounded="pill"
-        @click="openNewColumn"
-      >
-        Новый статус
-      </v-btn>
-    </header>
 
     <v-expand-transition>
-      <div v-if="filtersExpanded" class="ks-board__filters">
+      <div v-if="board.filtersExpanded" class="ks-board__filters">
         <v-text-field
           v-model="filterQuery"
           label="Поиск по названию и описанию"
@@ -1193,7 +1132,7 @@ const boardBackgroundStyle = computed(() => ({
       {{ error }}
     </v-alert>
 
-    <div v-else-if="viewMode === 'columns'" ref="colsScroll" class="ks-board__cols">
+    <div v-else-if="board.viewMode === 'columns'" ref="colsScroll" class="ks-board__cols">
       <TransitionGroup name="ks-col-move">
         <BoardColumn
           v-for="(column, idx) in board.orderedColumns"
@@ -1208,7 +1147,7 @@ const boardBackgroundStyle = computed(() => ({
       </TransitionGroup>
     </div>
 
-    <div v-else-if="viewMode === 'list'" class="ks-board__list">
+    <div v-else-if="board.viewMode === 'list'" class="ks-board__list">
       <div class="ks-board__list-controls">
         <ListColumnControl
           v-for="key in listColumnOrder"
@@ -1271,9 +1210,30 @@ const boardBackgroundStyle = computed(() => ({
               :menu-props="{ closeOnContentClick: true }"
               :readonly="!board.canWrite"
               class="ks-table__col-select"
+              :style="columnColorStyle(item.column_id)"
               @click.stop
               @update:model-value="(v: unknown) => changeColumn(item, v)"
-            />
+            >
+              <template #item="{ props: itemProps, item: option }">
+                <v-list-item v-bind="itemProps">
+                  <template #prepend>
+                    <span
+                      class="ks-status-dot"
+                      :style="columnColorStyle(option.id)"
+                    />
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item: option }">
+                <span class="ks-status-selection">
+                  <span
+                    class="ks-status-dot"
+                    :style="columnColorStyle(option.id)"
+                  />
+                  <span>{{ option.name }}</span>
+                </span>
+              </template>
+            </v-select>
           </template>
 
           <template #item.assignee_id="{ item }">
@@ -1341,6 +1301,7 @@ const boardBackgroundStyle = computed(() => ({
             auto-grow
             hide-details
           />
+          <ColorPicker v-model="renameColor" label="цвет статуса" />
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
           <v-spacer />
@@ -1381,6 +1342,7 @@ const boardBackgroundStyle = computed(() => ({
             hide-details
             @keydown.enter.exact.prevent="commitNewColumn"
           />
+          <ColorPicker v-model="newColumnColor" label="цвет статуса" class="mt-4" />
         </v-card-text>
         <v-card-actions class="px-6 pb-6">
           <v-spacer />
@@ -1791,36 +1753,6 @@ const boardBackgroundStyle = computed(() => ({
   position: relative;
   z-index: 1;
 }
-.ks-board__bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  flex-wrap: wrap;
-}
-.ks-board__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: rgb(var(--v-theme-on-surface));
-}
-.ks-board__logo {
-  flex: 0 0 auto;
-}
-.ks-board__slug {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 13px;
-  color: rgba(var(--v-theme-on-surface), 0.55);
-}
-.ks-board__view-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  border-radius: var(--md-shape-full);
-  background: rgb(var(--v-theme-surface-container));
-  border: 1px solid rgba(var(--v-theme-outline), 0.24);
-}
 .ks-board__filters {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1921,11 +1853,31 @@ const boardBackgroundStyle = computed(() => ({
   font-weight: 500;
 }
 .ks-table__col-select {
+  --ks-status-color: #e8def8;
   max-width: 180px;
 }
 .ks-table__col-select :deep(.v-field) {
-  background: rgb(var(--v-theme-surface-container-high));
+  background: color-mix(
+    in srgb,
+    var(--ks-status-color) 28%,
+    rgb(var(--v-theme-surface-container-high))
+  );
   border-radius: var(--md-shape-full);
+}
+.ks-status-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ks-status-dot {
+  --ks-status-color: #e8def8;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--md-shape-full);
+  background: var(--ks-status-color);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-outline), 0.24);
+  flex: 0 0 auto;
 }
 .ks-table__assignee {
   display: inline-flex;

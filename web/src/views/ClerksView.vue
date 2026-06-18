@@ -9,7 +9,6 @@ import {
   PhTrash,
   PhCopy,
   PhFolderPlus,
-  PhBookOpen,
 } from '@phosphor-icons/vue'
 
 const clerks = useClerksStore()
@@ -25,22 +24,6 @@ const form = ref({ display_name: '', agent_role: '', agent_description: '' })
 const saving = ref(false)
 const formError = ref<string | null>(null)
 const revealedToken = ref('')
-const agentsInstruction = `## Kaska Tracker
-
-This project uses Kaska as the task tracker.
-
-Before starting any implementation work:
-
-1. Read the Kaska clerk briefing: https://app.kaska.space/clerk-briefing.md
-2. Load tracker settings and credentials from the local clerk.yml file, if it exists. The public briefing must not contain secrets; tokens should come from clerk.yml, environment variables, or local secret files referenced by clerk.yml.
-3. If the user provided a Kaska task URL or task id, read that task before editing files.
-4. Read the project metadata from Kaska before moving tasks. Column names and workflow steps are project-specific, so do not assume fixed names like todo, in progress, ready to prod, or done. Use column descriptions, project instructions, or workflow metadata returned by Kaska to identify the correct columns.
-5. When you begin work on a task, move it to the project's currently-being-worked-on column and add a short comment saying what you are starting.
-6. When the implementation and relevant checks are complete, move the task to the project's ready-for-review or ready-for-production column and add a short comment summarizing what changed and what was verified.
-7. Never move a task to the final completed/done column unless the user explicitly asks you to. Final acceptance belongs to the user.
-8. If the task already appears to be actively worked on by another agent, do not take it over unless the user explicitly instructed you to do so.
-
-Prefer the Kaska MCP server or a project-provided Kaska CLI when available. Use the REST API described in the clerk briefing as the fallback.`
 
 const uploadingId = ref<string | null>(null)
 const avatarTargetId = ref<string | null>(null)
@@ -173,47 +156,6 @@ function copy(text: string) {
       Клерк — твой агент-бот с позывным, характеристикой и токеном для REST/MCP. Назначай клерков в
       проекты; их комментарии и действия видны от их лица.
     </p>
-
-    <v-expansion-panels variant="accordion" class="mb-6">
-      <v-expansion-panel rounded="lg">
-        <v-expansion-panel-title>
-          <div class="d-flex align-center" style="gap: 12px">
-            <ph-book-open :size="22" weight="regular" />
-            <span class="md-title-medium">Как подключить агентов к Kaska</span>
-          </div>
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <div class="md-body-medium text-medium-emphasis mb-4">
-            Создай клерка, назначь его в нужные проекты и передай токен агенту через локальный
-            `clerk.yml`, переменную окружения или секретный файл. В `AGENTS.md`, `CLAUDE.md` или
-            аналогичный файл проекта добавь этот блок, чтобы агент сам читал инструкцию, брал задачу
-            в работу и возвращал её на проверку.
-          </div>
-          <v-textarea
-            :model-value="agentsInstruction"
-            readonly
-            variant="filled"
-            density="compact"
-            rows="14"
-            auto-grow
-            hide-details
-            class="ks-instruction-textarea"
-          >
-            <template #append-inner>
-              <v-btn
-                variant="text"
-                size="small"
-                :icon="true"
-                title="Скопировать"
-                @click="copy(agentsInstruction)"
-              >
-                <ph-copy :size="18" weight="bold" />
-              </v-btn>
-            </template>
-          </v-textarea>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
 
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
 
@@ -417,12 +359,5 @@ function copy(text: string) {
   justify-content: center;
   border-radius: var(--md-shape-full);
   background: rgb(var(--v-theme-scrim) / 0.45);
-}
-.ks-instruction-textarea :deep(textarea) {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
-  font-size: 0.8125rem;
-  line-height: 1.45;
 }
 </style>

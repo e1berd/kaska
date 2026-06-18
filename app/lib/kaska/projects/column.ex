@@ -12,6 +12,7 @@ defmodule Kaska.Projects.Column do
     field :name, :string
     field :rank, :string
     field :description, :string
+    field :color, :string, default: "#E8DEF8"
 
     belongs_to :project, Project
     has_many :tasks, Task
@@ -21,19 +22,21 @@ defmodule Kaska.Projects.Column do
 
   def create_changeset(column, attrs) do
     column
-    |> cast(attrs, [:name, :rank, :project_id, :description])
-    |> validate_required([:name, :rank, :project_id])
+    |> cast(attrs, [:name, :rank, :project_id, :description, :color])
+    |> validate_required([:name, :rank, :project_id, :color])
     |> validate_length(:name, min: 1, max: 64)
     |> validate_length(:description, max: 2000)
+    |> validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/)
     |> assoc_constraint(:project)
   end
 
   def rename_changeset(column, attrs) do
     column
-    |> cast(attrs, [:name, :description])
-    |> validate_required([:name])
+    |> cast(attrs, [:name, :description, :color])
+    |> validate_required([:name, :color])
     |> validate_length(:name, min: 1, max: 64)
     |> validate_length(:description, max: 2000)
+    |> validate_format(:color, ~r/^#[0-9a-fA-F]{6}$/)
   end
 
   def rank_changeset(column, attrs) do

@@ -25,10 +25,10 @@ defmodule Kaska.AgentsTest do
       project = project_fixture(owner)
 
       assert {:ok, %{agent: agent, token: token}} =
-               Agents.create_agent(owner.id, project.id, %{display_name: "Scout"})
+               Agents.create_agent(owner.id, project.id, %{display_name: "Clerk"})
 
       assert agent.is_agent
-      assert agent.display_name == "Scout"
+      assert agent.display_name == "Clerk"
       assert agent.agent_owner_id == owner.id
       assert String.starts_with?(token, "kaska_pat_")
       assert Projects.member?(project.id, agent.id)
@@ -53,7 +53,7 @@ defmodule Kaska.AgentsTest do
       project = project_fixture(owner)
 
       {:ok, %{agent: agent, token: token}} =
-        Agents.create_agent(owner.id, project.id, %{display_name: "Scout"})
+        Agents.create_agent(owner.id, project.id, %{display_name: "Clerk"})
 
       %{owner: owner, project: project, agent: agent, token: token}
     end
@@ -76,7 +76,7 @@ defmodule Kaska.AgentsTest do
         Projects.create_task_comment(project.id, task.id, %{body: "on it"}, agent.id)
 
       assert comment.author_id == agent.id
-      assert comment.author.display_name == "Scout"
+      assert comment.author.display_name == "Clerk"
       assert comment.author.is_agent
     end
 

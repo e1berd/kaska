@@ -21,7 +21,7 @@ defmodule Kaska.AgentEventsTest do
 
   defp agent_fixture(owner, project) do
     {:ok, %{agent: agent}} =
-      Agents.create_agent(owner.id, project.id, %{display_name: "Scout"})
+      Agents.create_agent(owner.id, project.id, %{display_name: "Clerk"})
 
     agent
   end
@@ -241,7 +241,7 @@ defmodule Kaska.AgentEventsTest do
         Projects.create_task_comment(
           project.id,
           task.id,
-          %{body: "Hey @Scout, can you check this?"},
+          %{body: "Hey @Clerk, can you check this?"},
           owner.id
         )
 

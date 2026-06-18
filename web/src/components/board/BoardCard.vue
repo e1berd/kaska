@@ -504,10 +504,10 @@ onBeforeUnmount(() => {
 
     <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': showTopEdge }" />
     <div class="ks-card__edge ks-card__edge--bottom" :class="{ 'is-on': showBottomEdge }" />
+    <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
+      UUID скопирован
+    </v-snackbar>
   </div>
-  <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
-    UUID скопирован
-  </v-snackbar>
 </template>
 
 <style scoped>

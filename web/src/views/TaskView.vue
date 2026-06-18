@@ -13,6 +13,7 @@ import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
+import { cssColorOr } from '@/utils/css'
 
 import { collabUserColor, base64ToUint8 } from '@/utils/collab'
 
@@ -36,10 +37,12 @@ const taskStartDate = ref<string | null>(null)
 const taskEndDate = ref<string | null>(null)
 const taskType = ref<string | null>(null)
 const taskAssignee = ref<string | null>(null)
+const taskColumn = ref<string | null>(null)
 const editingDescription = ref(false)
 const metaOpen = ref(false)
 const taskSaving = ref(false)
 const taskSyncing = ref(false)
+const taskMoving = ref(false)
 const taskUploading = ref(false)
 const taskUploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -79,6 +82,15 @@ const taskViewers = computed(() => {
     .map((id) => board.users.find((u) => u.id === id))
     .filter((u): u is NonNullable<typeof u> => !!u)
 })
+
+function columnFor(id: string | null | undefined) {
+  if (!id) return null
+  return board.columns.find((column) => column.id === id) ?? null
+}
+
+function columnColorStyle(id: string | null | undefined) {
+  return { '--ks-status-color': cssColorOr(columnFor(id)?.color, '#E8DEF8') }
+}
 
 type TaskFormState = {
   title: string
@@ -162,6 +174,7 @@ function syncFormFromTask(task: Task) {
   taskEndDate.value = task.end_date ?? null
   taskType.value = task.task_type_id ?? null
   taskAssignee.value = task.assignee_id ?? null
+  taskColumn.value = task.column_id
   setTimeout(() => {
     taskSyncing.value = false
   }, 0)
@@ -264,10 +277,6 @@ onBeforeUnmount(() => {
   }
 })
 
-function backToBoard() {
-  router.push({ name: 'board', params: { slug: slug.value } })
-}
-
 async function saveTask() {
   if (!currentTask.value) return
   if (taskSaving.value) {
@@ -307,6 +316,29 @@ async function deleteCurrentTask() {
     void router.push({ name: 'board', params: { slug: slug.value } })
   } catch (e) {
     console.warn('[task] delete failed', e)
+  }
+}
+
+async function changeTaskColumn(newColumnId: unknown) {
+  if (!currentTask.value || taskMoving.value) return
+  const targetId = typeof newColumnId === 'string' ? newColumnId : null
+  if (!targetId || targetId === currentTask.value.column_id) {
+    taskColumn.value = currentTask.value.column_id
+    return
+  }
+  const task = currentTask.value
+  const previousColumnId = task.column_id
+  const trailing = board.tasksFor(targetId).filter((t) => t.id !== task.id)
+  const beforeId = trailing.length ? trailing[trailing.length - 1].id : null
+  taskColumn.value = targetId
+  taskMoving.value = true
+  try {
+    await board.moveTask(task.id, targetId, beforeId, null)
+  } catch (err: any) {
+    taskColumn.value = previousColumnId
+    alert(err?.message || 'Ошибка смены статуса')
+  } finally {
+    taskMoving.value = false
   }
 }
 
@@ -449,7 +481,6 @@ watch(
 <template>
   <div class="ks-task-page">
     <header class="ks-task-page__bar">
-      <v-btn icon="mdi-arrow-left" variant="text" density="comfortable" @click="backToBoard" />
       <span class="md-title-large">Задача</span>
       <v-tooltip text="Нажмите, чтобы скопировать ID" location="bottom">
         <template #activator="{ props }">
@@ -633,6 +664,39 @@ watch(
               prepend-inner-icon="mdi-calendar"
             />
             <v-select
+              :model-value="taskColumn"
+              :items="board.orderedColumns"
+              item-title="name"
+              item-value="id"
+              label="Статус"
+              density="comfortable"
+              :loading="taskMoving"
+              :readonly="!board.canWrite"
+              class="ks-task-page__status-select"
+              :style="columnColorStyle(taskColumn)"
+              @update:model-value="changeTaskColumn"
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item v-bind="itemProps">
+                  <template #prepend>
+                    <span
+                      class="ks-status-dot"
+                      :style="columnColorStyle(item.id)"
+                    />
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <span class="ks-status-selection">
+                  <span
+                    class="ks-status-dot"
+                    :style="columnColorStyle(item.id)"
+                  />
+                  <span>{{ item.name }}</span>
+                </span>
+              </template>
+            </v-select>
+            <v-select
               v-model="taskType"
               :items="board.task_types"
               item-title="name"
@@ -750,8 +814,33 @@ watch(
   display: grid;
   gap: 8px;
 }
+.ks-task-page__status-select {
+  --ks-status-color: #e8def8;
+}
+.ks-status-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ks-status-dot {
+  --ks-status-color: #e8def8;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--md-shape-full);
+  background: var(--ks-status-color);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-outline), 0.24);
+  flex: 0 0 auto;
+}
 .ks-task-page__meta :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
+}
+.ks-task-page__status-select :deep(.v-field) {
+  background: color-mix(
+    in srgb,
+    var(--ks-status-color) 28%,
+    rgb(var(--v-theme-surface-container-highest))
+  );
 }
 .ks-task-page__divider {
   opacity: 0.5;
