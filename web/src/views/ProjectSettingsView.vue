@@ -114,7 +114,8 @@ async function onMediaPicked(kind: 'avatar' | 'background', e: Event) {
   flag.value = true
   error.value = null
   try {
-    await projects.uploadProjectMedia(kind, projectId.value, file)
+    const updated = await projects.uploadProjectMedia(kind, projectId.value, file)
+    board.project = updated
   } catch (err: unknown) {
     error.value = (err as { message?: string })?.message ?? 'Не удалось загрузить файл'
   } finally {
@@ -127,7 +128,8 @@ async function clearMedia(kind: 'avatar' | 'background') {
   const flag = kind === 'avatar' ? avatarUploading : backgroundUploading
   flag.value = true
   try {
-    await projects.clearProjectMedia(kind, projectId.value)
+    const updated = await projects.clearProjectMedia(kind, projectId.value)
+    board.project = updated
   } catch (err: unknown) {
     error.value = (err as { message?: string })?.message ?? 'Не удалось убрать файл'
   } finally {
@@ -197,10 +199,14 @@ function copyPublicUrl() {
           class="mt-2"
         />
 
+        <div v-if="project?.background_url" class="ks-project-settings__background-preview mt-4 mb-2">
+          <v-img :src="project.background_url" cover height="120" rounded="lg" alt="" />
+        </div>
+
         <div class="ks-project-settings__footer mt-2">
           <v-btn variant="tonal" size="small" :loading="backgroundUploading" @click="pickMedia('background')">
             <template #prepend><ph-upload-simple :size="18" weight="bold" /></template>
-            Фон
+            {{ project?.background_url ? 'Заменить фон' : 'Фон' }}
           </v-btn>
           <v-btn
             v-if="project?.background_url"

@@ -10,6 +10,7 @@ body,
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 body {
@@ -182,6 +183,25 @@ body {
 
   &:hover {
     color: rgb(var(--v-theme-primary));
+  }
+}
+
+.ks-attach__download.ks-attach__download {
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 32px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--md-shape-full);
+  background: var(--ks-attach-remove-bg, rgba(0, 0, 0, 0.45));
+  color: var(--ks-attach-remove-color, white);
+  text-decoration: none;
+  transition: background var(--md-duration-short3) var(--md-easing-standard);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.65);
   }
 }
 

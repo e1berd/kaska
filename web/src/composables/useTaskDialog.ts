@@ -446,5 +446,6 @@ export function useTaskDialog(opts: {
     removeAttachmentClick,
     deleteCurrentTask,
     fmtSize,
+    uploadTaskFiles,
   }
 }

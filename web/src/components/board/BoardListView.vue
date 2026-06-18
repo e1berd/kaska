@@ -214,7 +214,9 @@ function compareDates(a: Task, b: Task): number {
 .ks-board__list {
   flex: 1;
   padding: 8px 16px 20px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 .ks-board__table {
   background: rgb(var(--v-theme-surface-container-low));
@@ -310,5 +312,29 @@ function compareDates(a: Task, b: Task): number {
   align-items: center;
   white-space: nowrap;
   color: rgba(var(--v-theme-on-surface), 0.78);
+}
+@media (max-width: 600px) {
+  .ks-board__list {
+    padding: 8px 8px 16px;
+  }
+  .ks-table :deep(th[data-column-key="title"]),
+  .ks-table :deep(td[data-column-key="title"]) {
+    min-width: 140px;
+  }
+  .ks-table :deep(th[data-column-key="column_id"]),
+  .ks-table :deep(td[data-column-key="column_id"]) {
+    min-width: 130px;
+  }
+  .ks-table :deep(th[data-column-key="assignee_id"]),
+  .ks-table :deep(td[data-column-key="assignee_id"]) {
+    min-width: 130px;
+  }
+  .ks-table :deep(th[data-column-key="dates"]),
+  .ks-table :deep(td[data-column-key="dates"]) {
+    min-width: 140px;
+  }
+  .ks-table__col-select {
+    max-width: 130px;
+  }
 }
 </style>

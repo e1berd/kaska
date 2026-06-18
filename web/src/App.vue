@@ -224,36 +224,74 @@ function logout() {
                   </template>
                 </v-tooltip>
               </div>
-              <v-btn
-                variant="text"
-                rounded="pill"
-                size="small"
-                :prepend-icon="board.filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
-                @click="board.filtersExpanded = !board.filtersExpanded"
-              >
-                Фильтры
-              </v-btn>
-              <v-btn
-                v-if="board.canWrite"
-                v-show="board.viewMode === 'list'"
-                prepend-icon="mdi-plus"
-                variant="tonal"
-                rounded="pill"
-                size="small"
-                @click="board.triggerNewTask"
-              >
-                Новая задача
-              </v-btn>
-              <v-btn
-                v-if="board.canWrite"
-                prepend-icon="mdi-plus"
-                variant="text"
-                rounded="pill"
-                size="small"
-                @click="board.triggerNewColumn"
-              >
-                Новый статус
-              </v-btn>
+
+              <v-menu v-if="mobile" location="bottom end">
+                <template #activator="{ props: menuProps }">
+                  <v-btn
+                    v-bind="menuProps"
+                    icon="mdi-dots-vertical"
+                    variant="text"
+                    rounded="pill"
+                    size="small"
+                    aria-label="Ещё"
+                  />
+                </template>
+                <v-list density="compact" rounded="lg" class="bg-surface elevation-3" :elevation="0">
+                  <v-list-item
+                    :prepend-icon="board.filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
+                    @click="board.filtersExpanded = !board.filtersExpanded"
+                  >
+                    <v-list-item-title>{{ board.filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры' }}</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    v-if="board.canWrite"
+                    v-show="board.viewMode === 'list'"
+                    prepend-icon="mdi-plus"
+                    @click="board.triggerNewTask"
+                  >
+                    <v-list-item-title>Новая задача</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    v-if="board.canWrite"
+                    prepend-icon="mdi-plus"
+                    @click="board.triggerNewColumn"
+                  >
+                    <v-list-item-title>Новый статус</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+              <template v-if="!mobile">
+                <v-btn
+                  variant="text"
+                  rounded="pill"
+                  size="small"
+                  :prepend-icon="board.filtersExpanded ? 'mdi-filter-minus-outline' : 'mdi-filter-plus-outline'"
+                  @click="board.filtersExpanded = !board.filtersExpanded"
+                >
+                  Фильтры
+                </v-btn>
+                <v-btn
+                  v-if="board.canWrite"
+                  v-show="board.viewMode === 'list'"
+                  prepend-icon="mdi-plus"
+                  variant="tonal"
+                  rounded="pill"
+                  size="small"
+                  @click="board.triggerNewTask"
+                >
+                  Новая задача
+                </v-btn>
+                <v-btn
+                  v-if="board.canWrite"
+                  prepend-icon="mdi-plus"
+                  variant="text"
+                  rounded="pill"
+                  size="small"
+                  @click="board.triggerNewColumn"
+                >
+                  Новый статус
+                </v-btn>
+              </template>
             </div>
           </template>
           <PresenceGroup
@@ -384,6 +422,7 @@ function logout() {
   backdrop-filter: saturate(180%) blur(8px);
   background: rgba(var(--v-theme-surface), 0.85);
   z-index: 1006;
+  overflow: hidden;
 }
 
 .ks-brand {
@@ -471,12 +510,21 @@ function logout() {
   white-space: nowrap;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   .ks-brand__name {
     display: none;
   }
   .ks-project-header__name {
     max-width: 120px;
+  }
+  .ks-board-controls {
+    gap: 0;
+  }
+}
+@media (max-width: 600px) {
+  .ks-project-header__name {
+    max-width: 90px;
+    font-size: 16px;
   }
 }
 

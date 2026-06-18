@@ -11,6 +11,8 @@ import { useSocketStore, pushAsync } from '@/stores/socket'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
+import ImageLightbox from '@/components/ImageLightbox.vue'
+import { useFileDrop } from '@/composables/useFileDrop'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
 import { cssColorOr } from '@/utils/css'
@@ -411,6 +413,22 @@ async function copyTaskId() {
   }
 }
 
+const lightboxSrc = ref<string | null>(null)
+const lightboxAlt = ref('')
+const lightboxOpen = ref(false)
+
+const { isDragging, onDragEnter, onDragOver, onDragLeave, onDrop } = useFileDrop((files) => {
+  if (currentTask.value) {
+    void uploadTaskFiles(currentTask.value.id, files)
+  }
+})
+
+function openLightbox(src: string, alt: string) {
+  lightboxSrc.value = src
+  lightboxAlt.value = alt
+  lightboxOpen.value = true
+}
+
 watch(
   () => currentTask.value,
   (task) => {
@@ -513,7 +531,14 @@ watch(
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal" class="ma-4">{{ error }}</v-alert>
     <div v-else class="ks-task-page__content">
-      <div class="ks-task-page__main" @paste.capture="onTaskPaste">
+      <div class="ks-task-page__main" @paste.capture="onTaskPaste" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
+        <div v-if="isDragging" class="ks-drop-overlay">
+          <div class="ks-drop-overlay__card">
+            <v-icon size="48" class="mb-3" color="primary">mdi-cloud-upload-outline</v-icon>
+            <div class="md-title-medium">Перетащите файлы сюда</div>
+            <div class="md-body-small mt-1">Файлы будут загружены как вложения</div>
+          </div>
+        </div>
         <v-text-field
           v-model="taskTitle"
           label="Название"
@@ -594,7 +619,13 @@ watch(
             :class="`ks-attach--${a.kind}`"
           >
             <div class="ks-attach__media">
-              <img v-if="a.kind === 'image' && a.url" :src="a.url" :alt="a.filename" />
+              <img
+                v-if="a.kind === 'image' && a.url"
+                :src="a.url"
+                :alt="a.filename"
+                class="ks-attach__img"
+                @click="openLightbox(a.url!, a.filename)"
+              />
               <video
                 v-else-if="a.kind === 'video' && a.url"
                 :src="a.url"
@@ -618,6 +649,17 @@ watch(
               <span v-else class="ks-attach__name md-body-medium">{{ a.filename }}</span>
               <span class="ks-attach__size md-label-medium">{{ fmtSize(a.size) }}</span>
             </div>
+            <a
+              v-if="a.url"
+              :href="a.url"
+              :download="a.filename"
+              target="_blank"
+              rel="noopener"
+              class="ks-attach__download"
+              @click.stop
+            >
+              <v-icon size="18">mdi-download</v-icon>
+            </a>
             <v-btn
               v-if="auth.isAuthed"
               icon="mdi-close"
@@ -733,6 +775,7 @@ watch(
       </aside>
     </div>
   </div>
+  <ImageLightbox v-model="lightboxOpen" :src="lightboxSrc" :alt="lightboxAlt" />
   <v-snackbar v-model="copiedSnack" timeout="2000" location="bottom center" color="surface-container-high">
     UUID скопирован
   </v-snackbar>
@@ -769,12 +812,43 @@ watch(
   min-width: 0;
   overflow-y: auto;
   padding: 8px 24px 24px;
+  position: relative;
 }
 .ks-task-page__comments {
   margin-top: 28px;
 }
 .ks-attach__media {
   background: rgb(var(--v-theme-surface-container));
+}
+.ks-attach__img {
+  cursor: pointer;
+  transition: opacity var(--md-duration-short4) var(--md-easing-standard);
+}
+.ks-attach__img:hover {
+  opacity: 0.85;
+}
+.ks-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--v-theme-surface), 0.88);
+  border: 2px dashed rgba(var(--v-theme-primary), 0.6);
+  border-radius: var(--md-shape-m);
+  backdrop-filter: blur(4px);
+  animation: ks-drop-in var(--md-duration-medium1) var(--md-easing-emphasized-decelerate);
+}
+.ks-drop-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: rgb(var(--v-theme-on-surface));
+}
+@keyframes ks-drop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 .ks-attach__remove {
   --ks-attach-remove-bg: rgba(var(--v-theme-surface), 0.7);
