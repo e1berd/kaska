@@ -26,3 +26,4 @@ erl_crash.dump
 .clerk-state/
 clerk-runner/dist/
 clerk-runner/node_modules/
+/clerks.yml
