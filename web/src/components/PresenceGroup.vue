@@ -82,7 +82,7 @@ const avatarSize = computed(() => (props.size === 'sm' ? 22 : 26))
 .ks-presence__more {
   margin-left: 6px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.74);
 }
 .ks-presence--sm {

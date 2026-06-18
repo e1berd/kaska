@@ -231,7 +231,7 @@ async function removeAttachment(att: Attachment) {
   gap: 8px;
 }
 .ks-comment__author {
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -296,7 +296,7 @@ async function removeAttachment(att: Attachment) {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 0.9em;
   background: rgb(var(--v-theme-surface-container-high));
-  border-radius: 4px;
+  border-radius: var(--md-shape-xs);
   padding: 1px 5px;
 }
 .ks-comment__body :deep(pre code) {

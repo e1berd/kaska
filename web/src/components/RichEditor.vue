@@ -460,7 +460,7 @@ function focusEditableSurface(event: MouseEvent) {
       font-family: 'Roboto Mono', ui-monospace, monospace;
       font-size: 0.92em;
       background: rgb(var(--v-theme-surface-container-high));
-      border-radius: 4px;
+      border-radius: var(--md-shape-xs);
       padding: 1px 4px;
     }
 
@@ -489,10 +489,10 @@ function focusEditableSurface(event: MouseEvent) {
   }
 
   :deep(.ks-collab-caret__label) {
-    border-radius: 4px;
+    border-radius: var(--md-shape-xs);
     color: white;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: normal;
     padding: 0.1rem 0.3rem;
     position: absolute;

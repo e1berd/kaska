@@ -269,9 +269,9 @@ function logout() {
                 <v-btn
                   v-bind="props"
                   variant="text"
-                  rounded="pill"
-                  size="default"
-                  density="comfortable"
+                  height="32"
+                  width="32"
+                  border
                   class="ks-bar__profile"
                   :title="auth.user?.email"
                 >
@@ -461,7 +461,8 @@ function logout() {
 }
 
 .ks-bar__profile {
-  padding: 4px;
+  min-width: 32px;
+  margin-right: 4px;
 }
 .ks-bar__profile-name {
   max-width: 160px;

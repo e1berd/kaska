@@ -315,7 +315,7 @@ async function deleteTaskType(type: TaskType) {
 .ks-colors__item {
   width: 24px;
   height: 24px;
-  border-radius: 999px;
+  border-radius: var(--md-shape-full);
   border: 2px solid transparent;
   cursor: pointer;
 }

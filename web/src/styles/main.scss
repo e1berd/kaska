@@ -64,6 +64,7 @@ body {
   border-radius: var(--md-shape-l);
 }
 :where(.v-btn) {
+  border-radius: var(--md-shape-full);
   text-transform: none;
   letter-spacing: 0.1px;
   font-weight: 500;

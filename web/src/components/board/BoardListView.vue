@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
-import ListColumnControl from '@/components/board/ListColumnControl.vue'
+import ListHeaderCell from '@/components/board/ListHeaderCell.vue'
 import { cssColorOr } from '@/utils/css'
 
 const props = defineProps<{
@@ -97,9 +97,10 @@ function moveListColumn(sourceKey: string, targetKey: string) {
 
 function resizeListColumn(key: string, delta: number) {
   const columnKey = key as ListColumnKey
+  const current = listColumnWidths.value[columnKey] ?? 180
   listColumnWidths.value = {
     ...listColumnWidths.value,
-    [columnKey]: clampListColumnWidth((listColumnWidths.value[columnKey] ?? 180) + delta),
+    [columnKey]: clampListColumnWidth(current + delta),
   }
 }
 
@@ -157,17 +158,6 @@ watch(
 
 <template>
   <div class="ks-board__list">
-    <div class="ks-board__list-controls">
-      <ListColumnControl
-        v-for="key in listColumnOrder"
-        :key="key"
-        :column-key="key"
-        :title="listColumnMap.get(key)?.title ?? key"
-        :width="listColumnWidths[key]"
-        @move="moveListColumn"
-        @resize="resizeListColumn"
-      />
-    </div>
     <v-card class="ks-board__table" rounded="lg" variant="elevated" :elevation="1">
       <v-data-table
         :headers="listHeaders"
@@ -187,6 +177,56 @@ watch(
         </template>
 
         <template #bottom />
+
+        <template #header.title>
+          <ListHeaderCell
+            column-key="title"
+            :title="listColumnMap.get('title')?.title ?? 'title'"
+            :width="listColumnWidths.title"
+            @move="moveListColumn"
+            @resize="resizeListColumn"
+          />
+        </template>
+
+        <template #header.task_type_id>
+          <ListHeaderCell
+            column-key="task_type_id"
+            :title="listColumnMap.get('task_type_id')?.title ?? 'task_type_id'"
+            :width="listColumnWidths.task_type_id"
+            @move="moveListColumn"
+            @resize="resizeListColumn"
+          />
+        </template>
+
+        <template #header.column_id>
+          <ListHeaderCell
+            column-key="column_id"
+            :title="listColumnMap.get('column_id')?.title ?? 'column_id'"
+            :width="listColumnWidths.column_id"
+            @move="moveListColumn"
+            @resize="resizeListColumn"
+          />
+        </template>
+
+        <template #header.assignee_id>
+          <ListHeaderCell
+            column-key="assignee_id"
+            :title="listColumnMap.get('assignee_id')?.title ?? 'assignee_id'"
+            :width="listColumnWidths.assignee_id"
+            @move="moveListColumn"
+            @resize="resizeListColumn"
+          />
+        </template>
+
+        <template #header.dates>
+          <ListHeaderCell
+            column-key="dates"
+            :title="listColumnMap.get('dates')?.title ?? 'dates'"
+            :width="listColumnWidths.dates"
+            @move="moveListColumn"
+            @resize="resizeListColumn"
+          />
+        </template>
 
         <template #item.title="{ item }">
           <span class="ks-table__title md-body-medium">{{ item.title }}</span>
@@ -287,12 +327,6 @@ watch(
   padding: 8px 16px 20px;
   overflow: auto;
 }
-.ks-board__list-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-}
 .ks-board__table {
   background: rgb(var(--v-theme-surface-container-low));
   overflow: hidden;
@@ -305,6 +339,7 @@ watch(
   color: rgba(var(--v-theme-on-surface), 0.7);
   font-weight: 500;
   letter-spacing: 0.1px;
+  position: relative;
 }
 .ks-table :deep(tbody tr) {
   transition: background-color var(--md-duration-short3) var(--md-easing-standard);

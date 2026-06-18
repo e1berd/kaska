@@ -42,7 +42,7 @@
 .ks-404__code {
   margin-top: 24px;
   font-family: 'Roboto Flex', sans-serif;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.02em;
   color: rgb(var(--v-theme-primary));
 }

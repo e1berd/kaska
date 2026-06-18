@@ -95,7 +95,7 @@ watch(() => theme.themesIndex, ensureAll, { deep: true })
   height: 18px;
   border-radius: var(--md-shape-full);
   flex-shrink: 0;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-outline), 0.12);
 }
 .ks-theme__name {
   flex: 1;

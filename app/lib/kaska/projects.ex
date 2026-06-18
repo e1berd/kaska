@@ -703,16 +703,6 @@ defmodule Kaska.Projects do
     )
   end
 
-  defp last_task_rank(column_id) do
-    Repo.one(
-      from t in Task,
-        where: t.column_id == ^column_id,
-        order_by: [desc: t.rank],
-        limit: 1,
-        select: t.rank
-    )
-  end
-
   defp task_rank(_column_id, nil), do: {:ok, nil}
 
   defp task_rank(column_id, id) when is_binary(id) do

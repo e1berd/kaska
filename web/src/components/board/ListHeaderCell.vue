@@ -21,7 +21,31 @@ const emit = defineEmits<{
 const root = ref<HTMLElement | null>(null)
 const dragging = ref(false)
 const over = ref(false)
+const resizing = ref(false)
 let cleanup: (() => void) | null = null
+let startX = 0
+
+function onResizeStart(e: MouseEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  resizing.value = true
+  startX = e.clientX
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+}
+
+function onResizeMove(e: MouseEvent) {
+  if (!resizing.value) return
+  const delta = e.clientX - startX
+  emit('resize', props.columnKey, delta)
+  startX = e.clientX
+}
+
+function onResizeEnd() {
+  resizing.value = false
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+}
 
 onMounted(() => {
   if (!root.value) return
@@ -29,6 +53,7 @@ onMounted(() => {
   cleanup = combine(
     draggable({
       element,
+      canDrag: () => !resizing.value,
       getInitialData: () => ({ type: 'list-column', key: props.columnKey }),
       onGenerateDragPreview: ({ nativeSetDragImage }) => {
         disableNativeDragPreview({ nativeSetDragImage })
@@ -62,70 +87,75 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cleanup?.()
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
 })
 </script>
 
 <template>
   <div
     ref="root"
-    class="ks-list-col"
-    :class="{ 'ks-list-col--dragging': dragging, 'ks-list-col--over': over }"
+    class="ks-list-header"
+    :class="{
+      'ks-list-header--dragging': dragging,
+      'ks-list-header--over': over,
+      'ks-list-header--resizing': resizing,
+    }"
   >
-    <v-icon size="18" class="ks-list-col__grab">mdi-drag</v-icon>
-    <span class="ks-list-col__title md-label-medium">{{ title }}</span>
-    <span class="ks-list-col__width md-label-small">{{ width }}</span>
-    <v-btn
-      icon="mdi-minus"
-      variant="text"
-      density="compact"
-      size="x-small"
-      @click.stop="emit('resize', columnKey, -40)"
-    />
-    <v-btn
-      icon="mdi-plus"
-      variant="text"
-      density="compact"
-      size="x-small"
-      @click.stop="emit('resize', columnKey, 40)"
-    />
+    <v-icon size="14" class="ks-list-header__drag">mdi-drag</v-icon>
+    <span class="ks-list-header__title">{{ title }}</span>
+    <div class="ks-list-header__resize" @mousedown="onResizeStart" />
   </div>
 </template>
 
 <style scoped>
-.ks-list-col {
-  display: inline-flex;
+.ks-list-header {
+  display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
-  height: 36px;
-  padding: 0 6px 0 10px;
-  border: 1px solid rgb(var(--v-theme-outline-variant));
-  border-radius: var(--md-shape-full);
-  background: rgb(var(--v-theme-surface-container-low));
-  color: rgb(var(--v-theme-on-surface));
+  width: 100%;
+  height: 100%;
   cursor: grab;
-  transition:
-    background-color var(--md-duration-short3) var(--md-easing-standard),
-    opacity var(--md-duration-short3) var(--md-easing-standard);
+  position: relative;
+  user-select: none;
 }
 
-.ks-list-col--dragging {
-  opacity: 0.55;
+.ks-list-header--dragging {
+  opacity: 0.5;
 }
 
-.ks-list-col--over {
-  background: rgb(var(--v-theme-secondary-container));
+.ks-list-header--over {
+  background: rgba(var(--v-theme-secondary-container), 0.4);
+  border-radius: var(--md-shape-xs);
 }
 
-.ks-list-col__grab,
-.ks-list-col__width {
-  color: rgb(var(--v-theme-on-surface-variant));
+.ks-list-header--resizing {
+  cursor: col-resize;
 }
 
-.ks-list-col__title {
-  max-width: 120px;
+.ks-list-header__drag {
+  color: rgba(var(--v-theme-on-surface), 0.38);
+  flex-shrink: 0;
+}
+
+.ks-list-header__title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ks-list-header__resize {
+  position: absolute;
+  right: -3px;
+  top: -4px;
+  bottom: -4px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.ks-list-header__resize:hover {
+  background: rgba(var(--v-theme-on-surface), 0.15);
+  border-radius: var(--md-shape-xs);
 }
 </style>

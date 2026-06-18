@@ -849,7 +849,7 @@ async function confirmDelete() {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.35) 100%);
+  background: linear-gradient(180deg, transparent 0%, rgba(var(--v-theme-scrim), 0.35) 100%);
   pointer-events: none;
 }
 .ks-edit__cover-actions {

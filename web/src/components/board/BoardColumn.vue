@@ -430,7 +430,7 @@ function cancelAdd() {
 }
 .ks-col__cards::-webkit-scrollbar { width: 5px; }
 .ks-col__cards::-webkit-scrollbar-thumb {
-  border-radius: 99px;
+  border-radius: var(--md-shape-full);
   background: rgba(var(--v-theme-on-surface), 0.18);
 }
 .ks-col__cards .ks-card-move-move { transition: transform var(--md-duration-medium4) var(--md-easing-emphasized); }
