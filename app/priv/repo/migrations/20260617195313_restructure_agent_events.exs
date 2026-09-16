@@ -1,4 +1,4 @@
-defmodule Kaska.Repo.Migrations.AlterAgentEventsForDeliveryTracking do
+defmodule Kaska.Repo.Migrations.RestructureAgentEvents do
   use Ecto.Migration
 
   def up do
