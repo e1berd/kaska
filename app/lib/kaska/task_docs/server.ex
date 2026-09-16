@@ -3,7 +3,9 @@ defmodule Kaska.TaskDocs.Server do
 
   use GenServer
 
+  alias Kaska.Projects
   alias Kaska.TaskDocs
+  alias Kaska.TaskDocs.Seed
 
   @compact_threshold 100
 
@@ -52,6 +54,10 @@ defmodule Kaska.TaskDocs.Server do
 
     Enum.each(updates, fn u -> :ok = Yex.apply_update(doc, u) end)
 
+    if is_nil(snapshot) and updates == [] do
+      seed_from_body_doc(doc, task_id)
+    end
+
     {:ok,
      %State{
        task_id: task_id,
@@ -59,6 +65,23 @@ defmodule Kaska.TaskDocs.Server do
        last_seq: TaskDocs.max_seq(task_id),
        updates_since_snapshot: length(updates)
      }}
+  end
+
+  # A task created through the REST/agent API (`Kaska.TaskBody.from_markdown/1`)
+  # has a real `body_doc` but no collaborative history yet. Seed the fresh
+  # doc from it once, before anyone joins, so the live editor doesn't open on
+  # an empty document the API already reports as non-empty. Guarded by the
+  # caller on "no snapshot and no updates" so this can never run against a
+  # task that already has real collaborative history.
+  defp seed_from_body_doc(doc, task_id) do
+    with %Projects.Task{body_doc: body_doc} <- Projects.get_task(task_id),
+         true <- Seed.seed(doc, body_doc),
+         {:ok, snapshot} <- Yex.encode_state_as_update(doc),
+         {:ok, state_vector} <- Yex.encode_state_vector(doc) do
+      TaskDocs.save_snapshot(task_id, snapshot, state_vector, 0)
+    end
+
+    :ok
   end
 
   @impl true
