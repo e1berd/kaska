@@ -33,6 +33,17 @@ interface RegisterReply {
 const ACCESS_KEY = 'kaska.access'
 const REFRESH_KEY = 'kaska.refresh'
 const USER_KEY = 'kaska.user'
+const POST_AUTH_REDIRECT_KEY = 'kaska.post_auth_redirect'
+
+export function setPostAuthRedirect(path: string) {
+  localStorage.setItem(POST_AUTH_REDIRECT_KEY, path)
+}
+
+export function consumePostAuthRedirect(): string | null {
+  const path = localStorage.getItem(POST_AUTH_REDIRECT_KEY)
+  localStorage.removeItem(POST_AUTH_REDIRECT_KEY)
+  return path
+}
 
 function readUser(): User | null {
   const raw = localStorage.getItem(USER_KEY)

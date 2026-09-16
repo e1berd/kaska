@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { consumePostAuthRedirect, useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,7 +22,7 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    const next = (route.query.next as string) || '/'
+    const next = consumePostAuthRedirect() || (route.query.next as string) || '/'
     router.push(next)
   } catch (e: any) {
     error.value = e?.message ?? 'Не удалось войти'

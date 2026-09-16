@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { setPostAuthRedirect, useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
@@ -127,6 +127,10 @@ router.beforeEach((to) => {
 
   if (to.meta.authScreen === true || to.meta.guest === true) {
     return
+  }
+
+  if (to.fullPath !== '/') {
+    setPostAuthRedirect(to.fullPath)
   }
 
   return {
