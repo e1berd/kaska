@@ -150,6 +150,16 @@ defmodule Kaska.Accounts do
     end
   end
 
+  def update_user_password(%User{} = user, current_password, attrs) do
+    if User.valid_password?(user, current_password) do
+      user
+      |> User.password_changeset(attrs)
+      |> Repo.update()
+    else
+      {:error, :invalid_current_password}
+    end
+  end
+
   defp confirm_user_multi(user) do
     Ecto.Multi.new()
     |> Ecto.Multi.update(:user, User.confirm_changeset(user))

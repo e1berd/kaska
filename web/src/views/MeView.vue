@@ -16,6 +16,14 @@ const avatarUploading = ref(false)
 const avatarProgress = ref(0)
 const avatarError = ref<string | null>(null)
 
+const changingPassword = ref(false)
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const passwordSubmitting = ref(false)
+const passwordError = ref<string | null>(null)
+const passwordSuccess = ref(false)
+
 const displayedName = computed(
   () => auth.user?.display_name?.trim() || auth.user?.email?.split('@')[0] || '—',
 )
@@ -56,6 +64,50 @@ async function commitName() {
       'не удалось сохранить'
   } finally {
     nameSubmitting.value = false
+  }
+}
+
+function startChangePassword() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+  passwordError.value = null
+  passwordSuccess.value = false
+  changingPassword.value = true
+}
+
+function cancelChangePassword() {
+  changingPassword.value = false
+}
+
+async function commitPassword() {
+  passwordError.value = null
+
+  if (newPassword.value.length < 8) {
+    passwordError.value = 'Минимум 8 символов'
+    return
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    passwordError.value = 'Пароли не совпадают'
+    return
+  }
+
+  passwordSubmitting.value = true
+  try {
+    await auth.changePassword({
+      current_password: currentPassword.value,
+      password: newPassword.value,
+    })
+    passwordSuccess.value = true
+    changingPassword.value = false
+  } catch (e) {
+    const msg = e as { errors?: Record<string, string[]>; message?: string }
+    passwordError.value =
+      (msg.errors && Object.values(msg.errors).flat()[0]) ||
+      msg.message ||
+      'не удалось сменить пароль'
+  } finally {
+    passwordSubmitting.value = false
   }
 }
 
@@ -215,6 +267,96 @@ function logout() {
           </div>
         </li>
       </ul>
+
+      <v-divider class="my-4" />
+
+      <div class="ks-me__password">
+        <div class="d-flex align-center justify-space-between">
+          <div class="md-title-medium">Пароль</div>
+          <v-btn
+            v-if="!changingPassword"
+            variant="text"
+            rounded="pill"
+            density="comfortable"
+            @click="startChangePassword"
+          >
+            Сменить пароль
+          </v-btn>
+        </div>
+
+        <v-form v-if="changingPassword" class="mt-3" @submit.prevent="commitPassword">
+          <v-text-field
+            v-model="currentPassword"
+            label="Текущий пароль"
+            type="password"
+            variant="filled"
+            density="comfortable"
+            autocomplete="current-password"
+            :disabled="passwordSubmitting"
+            autofocus
+          />
+          <v-text-field
+            v-model="newPassword"
+            label="Новый пароль"
+            type="password"
+            variant="filled"
+            density="comfortable"
+            autocomplete="new-password"
+            hint="Минимум 8 символов"
+            persistent-hint
+            :disabled="passwordSubmitting"
+            class="mt-2"
+          />
+          <v-text-field
+            v-model="confirmPassword"
+            label="Повторите новый пароль"
+            type="password"
+            variant="filled"
+            density="comfortable"
+            autocomplete="new-password"
+            :disabled="passwordSubmitting"
+            class="mt-2"
+          />
+          <v-alert
+            v-if="passwordError"
+            type="error"
+            variant="tonal"
+            rounded="lg"
+            class="mt-2"
+            :text="passwordError"
+          />
+          <div class="d-flex ga-2 mt-3">
+            <v-btn
+              type="submit"
+              color="primary"
+              variant="flat"
+              rounded="pill"
+              density="comfortable"
+              :loading="passwordSubmitting"
+            >
+              Сохранить
+            </v-btn>
+            <v-btn
+              variant="text"
+              rounded="pill"
+              density="comfortable"
+              :disabled="passwordSubmitting"
+              @click="cancelChangePassword"
+            >
+              Отмена
+            </v-btn>
+          </div>
+        </v-form>
+
+        <v-alert
+          v-if="passwordSuccess && !changingPassword"
+          type="success"
+          variant="tonal"
+          rounded="lg"
+          class="mt-3"
+          text="Пароль изменён"
+        />
+      </div>
 
       <v-divider class="my-4" />
 

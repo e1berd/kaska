@@ -206,16 +206,39 @@ export function useTaskDialog(opts: {
     }
   }
 
+  let pendingColumnId: string | null = null
+
   function changeColumn(newColumnId: string | null) {
     if (!currentTask.value || !newColumnId || newColumnId === currentTask.value.column_id) return
+    pendingColumnId = newColumnId
     if (changeColumnTimer) clearTimeout(changeColumnTimer)
-    changeColumnTimer = setTimeout(() => {
-      const colTasks = board.tasksFor(newColumnId)
-      const lastId = colTasks.length ? colTasks[colTasks.length - 1].id : null
-      board.moveTask(currentTask.value!.id, newColumnId, lastId, null).catch((e) => {
-        console.warn('[task-dialog] move task failed', e)
-      })
-    }, 300)
+    changeColumnTimer = setTimeout(flushColumnChange, 300)
+  }
+
+  function flushColumnChange() {
+    if (changeColumnTimer) {
+      clearTimeout(changeColumnTimer)
+      changeColumnTimer = null
+    }
+    const newColumnId = pendingColumnId
+    pendingColumnId = null
+    if (!newColumnId || !currentTask.value || newColumnId === currentTask.value.column_id) return
+    const colTasks = board.tasksFor(newColumnId)
+    const lastId = colTasks.length ? colTasks[colTasks.length - 1].id : null
+    board.moveTask(currentTask.value.id, newColumnId, lastId, null).catch((e) => {
+      console.warn('[task-dialog] move task failed', e)
+    })
+  }
+
+  function flushPendingSave() {
+    if (taskSaveTimer) {
+      clearTimeout(taskSaveTimer)
+      taskSaveTimer = null
+    }
+    flushColumnChange()
+    if (board.canWrite && currentTask.value && !isFormSyncedWithTask(currentTask.value)) {
+      void saveTask()
+    }
   }
 
   async function openTask(task: Task) {
@@ -236,10 +259,7 @@ export function useTaskDialog(opts: {
   }
 
   function closeTaskDialog() {
-    if (taskSaveTimer) {
-      clearTimeout(taskSaveTimer)
-      taskSaveTimer = null
-    }
+    flushPendingSave()
     taskDialog.value = false
     taskTargetId.value = null
     collab.tearDownCollab()
@@ -402,9 +422,8 @@ export function useTaskDialog(opts: {
   )
 
   onBeforeUnmount(() => {
+    flushPendingSave()
     collab.tearDownCollab()
-    if (taskSaveTimer) clearTimeout(taskSaveTimer)
-    if (changeColumnTimer) clearTimeout(changeColumnTimer)
   })
 
   return {

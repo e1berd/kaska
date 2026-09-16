@@ -149,6 +149,13 @@ export const useAuthStore = defineStore('auth', () => {
     return me
   }
 
+  async function changePassword(input: { current_password: string; password: string }) {
+    const ch = await userChannel()
+    const me = await pushAsync<User>(ch, 'change_password', input)
+    user.value = me
+    return me
+  }
+
   async function setUserTheme(input: { theme_slug?: string | null; theme_mode?: ThemeMode | null }) {
     const ch = await userChannel()
     const me = await pushAsync<User>(ch, 'set_theme', {
@@ -226,6 +233,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshTokens,
     fetchMe,
     updateProfile,
+    changePassword,
     setUserTheme,
     uploadAvatar,
     logout,

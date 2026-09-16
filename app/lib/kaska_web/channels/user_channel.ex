@@ -57,6 +57,26 @@ defmodule KaskaWeb.UserChannel do
     end
   end
 
+  def handle_in("change_password", payload, socket) do
+    current_password = Map.get(payload, "current_password", "")
+    password = Map.get(payload, "password")
+
+    case Accounts.update_user_password(socket.assigns.current_user, current_password, %{
+           password: password
+         }) do
+      {:ok, user} ->
+        {:reply, {:ok, user_view(user)}, assign(socket, :current_user, user)}
+
+      {:error, :invalid_current_password} ->
+        {:reply,
+         {:error, %{message: "неверный текущий пароль", code: "invalid_current_password"}},
+         socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+    end
+  end
+
   def handle_in("request_avatar_upload", payload, socket) do
     user = socket.assigns.current_user
 
