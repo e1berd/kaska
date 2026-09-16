@@ -526,9 +526,4 @@ function cancelAdd() {
   transition: transform var(--md-duration-medium2) var(--md-easing-emphasized);
   animation: none;
 }
-
-@keyframes ks-dnd-pickup {
-  from { transform: scale(0.98); opacity: 0.7; }
-  to { transform: scale(1); opacity: 1; }
-}
 </style>
