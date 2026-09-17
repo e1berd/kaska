@@ -1,6 +1,10 @@
 # Agent Supervisor — план
 
-Статус: черновик для обсуждения, реализация не начата.
+Статус: Phase 1 в работе. Сделано: `agent_configs`/`agent_runs`, шифрование
+ключа (`cloak_ecto`, `Kaska.Vault`), контекст `Kaska.AgentRuntime`, диспатч в
+супервизор (`Dispatcher`, `SupervisorClient`, per-run PAT), internal callback
+`/internal/agent_runs/:id/{logs,exit}`, reaper. Дальше: сам `agent-supervisor`,
+раннер, UI.
 Область: `app/` (control plane), два новых сервиса — `agent-supervisor/` и
 `agent-runtime/` (образ-раннер).
 
@@ -86,11 +90,24 @@ Chat Completions. Ни один из вариантов не даёт агент
 Узкий внутренний API (auth — shared secret между `api` и `agent-supervisor`,
 сеть — только внутренний docker network, наружу не торчит):
 
-- `POST /runs` `{run_id, image, env, limits}` → создать и стартовать контейнер;
-- `POST /runs/:id/stop` → убить и удалить контейнер;
-- `GET /runs/:id/logs` (SSE/стрим) → живые логи для форварда в Channel;
-- коллбек `POST <api>/internal/agent_runs/:id/callback` от супервизора в
-  Phoenix, когда контейнер завершился (exit code, финальный статус).
+- `POST /runs` `{run_id, image, env, limits: {memory_mb, cpus, pids_limit,
+  walltime_seconds}, callback_url}` → создать и стартовать контейнер, ответ
+  `{container_id}`;
+- `POST /runs/:id/stop` → убить и удалить контейнер (`404` для неизвестного
+  прогона — тоже успех).
+
+Обратно супервизор пушит в Phoenix (тот же bearer-секрет, `callback_url` =
+`<api>/internal/agent_runs/:id`, Caddy `/internal` наружу не проксирует):
+
+- `POST <callback_url>/logs` `{chunk}` — вывод контейнера порциями; Phoenix
+  хранит хвост в `agent_runs.log_tail` и шлёт чанк в PubSub `agent_run:<id>`;
+- `POST <callback_url>/exit` `{outcome: exited|timed_out|failed, exit_code?,
+  reason?, log_object_key?}` — финал. `409` = прогон уже завершён, ретраить не
+  надо.
+
+Если коллбек так и не пришёл, `Kaska.AgentRuntime.Reaper` раз в минуту
+переводит `running` старше walltime + 2 мин в `timed_out`, а зависшие `pending`
+(> 5 мин) — в `failed`.
 
 Сам супервизор без сложной бизнес-логики: создать контейнер с нужными
 лимитами/сетью/env, следить за жизнью, чистить за собой (удалять контейнер

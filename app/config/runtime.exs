@@ -56,6 +56,39 @@ guardian_secret =
 
 config :kaska, Kaska.Guardian, secret_key: guardian_secret
 
+agent_secrets_key =
+  case {System.get_env("AGENT_SECRETS_KEY"), config_env()} do
+    {nil, :prod} ->
+      raise "environment variable AGENT_SECRETS_KEY is missing (base64 of 32 random bytes)"
+
+    {nil, _} ->
+      :crypto.hash(:sha256, "dev_only_agent_secrets_key_DO_NOT_USE_IN_PROD")
+
+    {encoded, _} ->
+      Base.decode64!(encoded)
+  end
+
+config :kaska, Kaska.Vault, key: agent_secrets_key
+
+config :kaska, :agent_supervisor,
+  url: System.get_env("AGENT_SUPERVISOR_URL", "http://agent-supervisor:8080"),
+  shared_secret:
+    System.get_env("AGENT_SUPERVISOR_SECRET") ||
+      if(config_env() == :prod,
+        do: nil,
+        else: "dev_only_agent_supervisor_secret"
+      ),
+  runtime_image: System.get_env("AGENT_RUNTIME_IMAGE", "kaska-agent-runtime:latest"),
+  kaska_api_url: System.get_env("AGENT_RUNTIME_KASKA_API_URL", "http://localhost:4000/api/v1"),
+  callback_base_url: System.get_env("AGENT_CALLBACK_BASE_URL", "http://api:4000/internal"),
+  memory_mb: String.to_integer(System.get_env("AGENT_RUN_MEMORY_MB", "2048")),
+  cpus: String.to_integer(System.get_env("AGENT_RUN_CPUS", "1")),
+  pids_limit: String.to_integer(System.get_env("AGENT_RUN_PIDS_LIMIT", "512")),
+  max_active_runs_per_owner:
+    String.to_integer(System.get_env("AGENT_MAX_ACTIVE_RUNS_PER_OWNER", "2")),
+  max_walltime_seconds: String.to_integer(System.get_env("AGENT_MAX_WALLTIME_SECONDS", "1800")),
+  max_turns: String.to_integer(System.get_env("AGENT_MAX_TURNS", "60"))
+
 # --- S3 / RustFS ---
 config :kaska, :s3,
   bucket: System.get_env("S3_BUCKET", "kaska"),

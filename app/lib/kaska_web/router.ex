@@ -13,6 +13,11 @@ defmodule KaskaWeb.Router do
     plug KaskaWeb.Plugs.ApiAuth
   end
 
+  pipeline :internal do
+    plug :accepts, ["json"]
+    plug KaskaWeb.Plugs.InternalAuth
+  end
+
   pipeline :openapi do
     plug :accepts, ["json"]
     plug OpenApiSpex.Plug.PutApiSpec, module: KaskaWeb.ApiSpec
@@ -62,6 +67,13 @@ defmodule KaskaWeb.Router do
 
     get "/agent/events", AgentEventController, :index
     post "/agent/events/:id/ack", AgentEventController, :ack
+  end
+
+  scope "/internal", KaskaWeb.Internal do
+    pipe_through :internal
+
+    post "/agent_runs/:id/logs", AgentRunController, :logs
+    post "/agent_runs/:id/exit", AgentRunController, :exit
   end
 
   if Application.compile_env(:kaska, :dev_routes) do

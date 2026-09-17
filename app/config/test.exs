@@ -26,6 +26,11 @@ config :kaska, Kaska.Mailer, adapter: Swoosh.Adapters.Test
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 
+config :kaska, :agent_supervisor_req_options,
+  plug: {Req.Test, Kaska.AgentRuntime.SupervisorClient}
+
+config :kaska, :agent_runtime_reaper, false
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

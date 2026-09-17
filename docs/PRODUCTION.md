@@ -177,6 +177,9 @@ openssl rand -base64 64 | tr -d '\n'; echo
 # GUARDIAN_SECRET_KEY
 openssl rand -base64 64 | tr -d '\n'; echo
 
+# AGENT_SECRETS_KEY (ровно 32 байта; не менять после запуска)
+openssl rand -base64 32 | tr -d '\n'; echo
+
 # Сильные пароли для Postgres и RustFS
 openssl rand -base64 32 | tr -d '\n'; echo
 openssl rand -base64 32 | tr -d '\n'; echo
@@ -189,7 +192,7 @@ openssl rand -base64 32 | tr -d '\n'; echo
 - `LANDING_DOMAIN`, `APP_DOMAIN`, `S3_DOMAIN` — твои реальные домены.
 - `ACME_EMAIL` — твой email.
 - `POSTGRES_PASSWORD`, `RUSTFS_ROOT_PASSWORD` — сильные пароли.
-- `SECRET_KEY_BASE`, `GUARDIAN_SECRET_KEY` — сгенерированные секреты.
+- `SECRET_KEY_BASE`, `GUARDIAN_SECRET_KEY`, `AGENT_SECRETS_KEY` — сгенерированные секреты.
 - Все `MAIL_*` — данные SMTP.
 - `WEB_BASE_URL=https://app.example.com`, `S3_PUBLIC_ENDPOINT=https://s3.example.com`, `VITE_API_WS_URL=wss://app.example.com/socket` — без `http://` и `localhost`.
 
