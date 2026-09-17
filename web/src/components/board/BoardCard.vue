@@ -14,6 +14,8 @@ import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { computed } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
 import AgentRunStatusChip from '@/components/board/AgentRunStatusChip.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
+import UserAvatarStack from '@/components/UserAvatarStack.vue'
 import {
   computeTaskPlacement,
   resetTouchDrag,
@@ -66,9 +68,11 @@ const taskTypeChipStyle = computed(() => ({
   color: '#fff',
 }))
 
-const assignee = computed(() => {
-  if (!props.task.assignee_id) return null
-  return board.users.find(u => u.id === props.task.assignee_id) || null
+const assignees = computed(() => board.usersByIds(props.task.assignee_ids))
+const author = computed(() => board.userById(props.task.creator_id))
+const authorTooltip = computed(() => {
+  const user = author.value
+  return user ? `Автор: ${user.display_name || user.email}` : ''
 })
 
 const CARD_RUN_LABELS: Partial<Record<string, string>> = {
@@ -80,7 +84,7 @@ const CARD_RUN_LABELS: Partial<Record<string, string>> = {
 
 const cardRun = computed(() => {
   const run = board.latestRunFor(props.task.id)
-  if (!run || run.agent_id !== props.task.assignee_id) return null
+  if (!run || !props.task.assignee_ids.includes(run.agent_id)) return null
   const label = CARD_RUN_LABELS[run.status]
   return label ? { status: run.status, label } : null
 })
@@ -517,12 +521,9 @@ onBeforeUnmount(() => {
       class="mt-2"
     />
 
-    <div v-if="assignee" class="ks-card__assignee mt-2 text-caption text-medium-emphasis d-flex align-center">
-      <v-avatar size="20" class="mr-1 flex-shrink-0" color="primary">
-        <v-img v-if="assignee.avatar_url" :src="assignee.avatar_url" cover alt="" />
-        <span v-else class="text-white" style="font-size: 10px">{{ assignee.display_name?.slice(0, 1).toUpperCase() || assignee.email.slice(0, 1).toUpperCase() }}</span>
-      </v-avatar>
-      <span class="ks-card__assignee-label">{{ assignee.display_name || assignee.email }}</span>
+    <div v-if="author || assignees.length" class="ks-card__people mt-3 flex items-center justify-between gap-2">
+      <UserAvatarStack :users="assignees" :size="24" :max-visible="4" tooltip-prefix="Исполнитель" />
+      <UserAvatar v-if="author" :user="author" :size="20" :tooltip="authorTooltip" class="ks-card__author ml-auto" />
     </div>
 
     <div class="ks-card__edge ks-card__edge--top" :class="{ 'is-on': showTopEdge }" />
@@ -565,12 +566,14 @@ onBeforeUnmount(() => {
 }
 .ks-card--dragging > *:not(.ks-card__edge) { visibility: hidden; }
 
-.ks-card__assignee { min-width: 0; }
-.ks-card__assignee-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ks-card__people {
+  --ks-avatar-ring: rgb(var(--v-theme-surface-container-lowest));
+  min-height: 24px;
+}
+.ks-card__author {
+  opacity: 0.72;
+  outline: 1px solid rgb(var(--v-theme-outline-variant));
+  outline-offset: 1px;
 }
 .ks-card__title {
   font-weight: 500;

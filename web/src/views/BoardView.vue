@@ -210,7 +210,7 @@ const orderedTasks = computed<Task[]>(() => {
 const filteredTasks = computed<Task[]>(() => {
   const byMeta = orderedTasks.value.filter((task) => {
     if (filterTaskType.value && task.task_type_id !== filterTaskType.value) return false
-    if (filterAssignee.value && task.assignee_id !== filterAssignee.value) return false
+    if (filterAssignee.value && !task.assignee_ids.includes(filterAssignee.value)) return false
     if (filterStartDate.value) {
       if (!task.start_date) return false
       if (task.start_date.slice(0, 10) < filterStartDate.value) return false

@@ -36,7 +36,7 @@ defmodule KaskaWeb.Api.Serializer do
       body_format: format,
       column: column(task.column),
       type: task_type(task.task_type),
-      assignee: user_brief(task.assignee),
+      assignees: Enum.map(task.assignees, &user_brief/1),
       creator: user_brief(task.creator),
       rank: task.rank,
       start_date: task.start_date,

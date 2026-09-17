@@ -13,7 +13,7 @@ type TaskFormState = {
   start_date: string | null
   end_date: string | null
   task_type_id: string | null
-  assignee_id: string | null
+  assignee_ids: string[]
 }
 
 export function useTaskDialog(opts: {
@@ -42,7 +42,7 @@ export function useTaskDialog(opts: {
   const taskStartDate = ref<string | null>(null)
   const taskEndDate = ref<string | null>(null)
   const taskType = ref<string | null>(null)
-  const taskAssignee = ref<string | null>(null)
+  const taskAssignees = ref<string[]>([])
   const taskColumn = ref<string | null>(null)
   let changeColumnTimer: ReturnType<typeof setTimeout> | null = null
   const taskUploading = ref(false)
@@ -126,13 +126,18 @@ export function useTaskDialog(opts: {
     return eachDayOfInterval({ start, end })
   }
 
+  function sameIds(a: readonly string[], b: readonly string[]): boolean {
+    const other = new Set(b)
+    return a.length === other.size && a.every((id) => other.has(id))
+  }
+
   function getTaskFormState(): TaskFormState {
     return {
       title: taskTitle.value.trim(),
       start_date: taskStartDate.value,
       end_date: taskEndDate.value,
       task_type_id: taskType.value,
-      assignee_id: taskAssignee.value,
+      assignee_ids: [...taskAssignees.value],
     }
   }
 
@@ -142,7 +147,7 @@ export function useTaskDialog(opts: {
       start_date: task.start_date ?? null,
       end_date: task.end_date ?? null,
       task_type_id: task.task_type_id ?? null,
-      assignee_id: task.assignee_id ?? null,
+      assignee_ids: task.assignee_ids ?? [],
     }
   }
 
@@ -154,7 +159,7 @@ export function useTaskDialog(opts: {
       form.start_date === server.start_date &&
       form.end_date === server.end_date &&
       form.task_type_id === server.task_type_id &&
-      form.assignee_id === server.assignee_id
+      sameIds(form.assignee_ids, server.assignee_ids)
     )
   }
 
@@ -190,7 +195,7 @@ export function useTaskDialog(opts: {
         start_date: payload.start_date,
         end_date: payload.end_date,
         task_type_id: payload.task_type_id,
-        assignee_id: payload.assignee_id,
+        assignee_ids: payload.assignee_ids,
       })
     } catch (err: any) {
       alert(err?.message || 'Ошибка сохранения задачи')
@@ -250,7 +255,7 @@ export function useTaskDialog(opts: {
     taskStartDate.value = actualTask.start_date ?? null
     taskEndDate.value = actualTask.end_date ?? null
     taskType.value = actualTask.task_type_id ?? null
-    taskAssignee.value = actualTask.assignee_id ?? null
+    taskAssignees.value = [...(actualTask.assignee_ids ?? [])]
     editingDescription.value = false
     taskSyncing.value = false
     taskDialog.value = true
@@ -391,7 +396,7 @@ export function useTaskDialog(opts: {
       taskStartDate.value = task.start_date ?? null
       taskEndDate.value = task.end_date ?? null
       taskType.value = task.task_type_id ?? null
-      taskAssignee.value = task.assignee_id ?? null
+      taskAssignees.value = [...(task.assignee_ids ?? [])]
       taskColumn.value = task.column_id
       setTimeout(() => {
         taskSyncing.value = false
@@ -408,7 +413,7 @@ export function useTaskDialog(opts: {
       taskStartDate.value,
       taskEndDate.value,
       taskType.value,
-      taskAssignee.value,
+      taskAssignees.value,
     ],
     () => {
       if (!taskDialog.value || !currentTask.value || !board.canWrite) return
@@ -433,7 +438,7 @@ export function useTaskDialog(opts: {
     taskStartDate,
     taskEndDate,
     taskType,
-    taskAssignee,
+    taskAssignees,
     taskColumn,
     changeColumn,
     taskUploading,

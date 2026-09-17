@@ -26,7 +26,7 @@ defmodule Kaska.AgentRuntimeFixtures do
     {_p, [todo | _], _t} = Projects.board_snapshot(project.id)
 
     {:ok, task} =
-      Projects.create_task(project.id, todo.id, %{title: "T", assignee_id: agent.id}, owner.id)
+      Projects.create_task(project.id, todo.id, %{title: "T", assignee_ids: [agent.id]}, owner.id)
 
     {:ok, run} = AgentRuntime.request_run(agent, task, owner.id)
 

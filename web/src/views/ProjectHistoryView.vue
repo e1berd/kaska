@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useBoardStore, type Task, type TaskComment } from '@/stores/board'
 import { useProjectsStore } from '@/stores/projects'
 import { docPreview } from '@/utils/tiptap'
+import UserAvatar, { type AvatarUser } from '@/components/UserAvatar.vue'
 
 defineProps<{ slug?: string }>()
 
@@ -13,7 +14,15 @@ type HistoryEntry = {
   title: string
   detail: string
   taskId?: string
+  actor: HistoryActor
 }
+
+type HistoryActor = {
+  name: string
+  user: AvatarUser | null
+}
+
+const UNKNOWN_ACTOR: HistoryActor = { name: 'Неизвестно', user: null }
 
 const route = useRoute()
 const router = useRouter()
@@ -62,6 +71,7 @@ function taskHistoryEntries(task: Task): HistoryEntry[] {
       title: 'Создана задача',
       detail: task.title,
       taskId: task.id,
+      actor: memberActor(task.creator_id),
     })
   }
 
@@ -72,23 +82,38 @@ function taskHistoryEntries(task: Task): HistoryEntry[] {
       title: 'Обновлена задача',
       detail: `${task.title} · ${columnNames.value.get(task.column_id) ?? 'статус неизвестен'}`,
       taskId: task.id,
+      actor: memberActor(task.updated_by_id),
     })
   }
 
   return result
 }
 
+function memberActor(userId: string | null | undefined): HistoryActor {
+  const user = board.userById(userId)
+  return user ? { name: user.display_name || user.email, user } : UNKNOWN_ACTOR
+}
+
+function commentActor(comment: TaskComment): HistoryActor {
+  if (!comment.author_id) return { name: comment.guest_name || 'Гость', user: { display_name: comment.guest_name || 'Гость' } }
+  const name = comment.author_display_name || comment.author_email || 'Неизвестно'
+  return {
+    name,
+    user: { display_name: name, email: comment.author_email, avatar_url: comment.author_avatar_url },
+  }
+}
+
 function commentHistoryEntry(comment: TaskComment): HistoryEntry {
   const task = board.tasks.find((candidate) => candidate.id === comment.task_id)
-  const author = comment.author_display_name || comment.author_email || comment.guest_name || 'Гость'
   const text = comment.body_doc ? docPreview(comment.body_doc, 120) : comment.body
 
   return {
     id: `comment-${comment.id}`,
     at: comment.inserted_at ?? '',
     title: comment.parent_id ? 'Ответ в комментариях' : 'Комментарий',
-    detail: `${author}: ${text || task?.title || 'без текста'}`,
+    detail: text || task?.title || 'без текста',
     taskId: comment.task_id,
+    actor: commentActor(comment),
   }
 }
 
@@ -133,9 +158,17 @@ function openTask(entry: HistoryEntry) {
         class="ks-history__item md-state-layer"
         @click="openTask(entry)"
       >
-        <span class="ks-history__dot" />
+        <span class="ks-history__marker">
+          <UserAvatar v-if="entry.actor.user" :user="entry.actor.user" :size="28" tooltip="" />
+          <v-avatar v-else :size="28" color="surface-container-highest">
+            <v-icon size="16">mdi-account-question-outline</v-icon>
+          </v-avatar>
+        </span>
         <span class="ks-history__body">
-          <span class="ks-history__title md-title-small">{{ entry.title }}</span>
+          <span class="ks-history__head-line">
+            <span class="ks-history__title md-title-small">{{ entry.title }}</span>
+            <span class="ks-history__actor md-label-large">{{ entry.actor.name }}</span>
+          </span>
           <span class="ks-history__detail md-body-medium">{{ entry.detail }}</span>
         </span>
         <time class="ks-history__time md-label-medium">{{ fmtDate(entry.at) }}</time>
@@ -192,7 +225,7 @@ function openTask(entry: HistoryEntry) {
 .ks-history__list::before {
   content: '';
   position: absolute;
-  left: 10px;
+  left: 13px;
   top: 12px;
   bottom: 12px;
   width: 2px;
@@ -218,15 +251,28 @@ function openTask(entry: HistoryEntry) {
   cursor: pointer;
 }
 
-.ks-history__dot {
+.ks-history__marker {
   position: relative;
   z-index: 1;
-  width: 22px;
-  height: 22px;
-  margin-top: 2px;
-  border: 4px solid rgb(var(--v-theme-surface));
+  display: inline-flex;
   border-radius: var(--md-shape-full);
-  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 4px rgb(var(--v-theme-surface));
+}
+
+.ks-history__head-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ks-history__actor {
+  flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--v-theme-primary));
 }
 
 .ks-history__body {

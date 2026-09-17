@@ -12,6 +12,7 @@ import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { useFileDrop } from '@/composables/useFileDrop'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhoenixYProvider } from '@/utils/PhoenixYProvider'
@@ -39,7 +40,7 @@ const taskTitle = ref('')
 const taskStartDate = ref<string | null>(null)
 const taskEndDate = ref<string | null>(null)
 const taskType = ref<string | null>(null)
-const taskAssignee = ref<string | null>(null)
+const taskAssignees = ref<string[]>([])
 const taskColumn = ref<string | null>(null)
 const editingDescription = ref(false)
 const metaOpen = ref(false)
@@ -100,7 +101,18 @@ type TaskFormState = {
   start_date: string | null
   end_date: string | null
   task_type_id: string | null
-  assignee_id: string | null
+  assignee_ids: string[]
+}
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  const other = new Set(b)
+  return a.length === other.size && a.every((id) => other.has(id))
+}
+
+const taskAuthor = computed(() => board.userById(currentTask.value?.creator_id))
+
+function userLabel(user: Pick<User, 'display_name' | 'email'>): string {
+  return user.display_name || user.email
 }
 
 function getTaskFormState(): TaskFormState {
@@ -109,7 +121,7 @@ function getTaskFormState(): TaskFormState {
     start_date: taskStartDate.value,
     end_date: taskEndDate.value,
     task_type_id: taskType.value,
-    assignee_id: taskAssignee.value,
+    assignee_ids: [...taskAssignees.value],
   }
 }
 
@@ -119,7 +131,7 @@ function getTaskServerState(task: Task): TaskFormState {
     start_date: task.start_date ?? null,
     end_date: task.end_date ?? null,
     task_type_id: task.task_type_id ?? null,
-    assignee_id: task.assignee_id ?? null,
+    assignee_ids: task.assignee_ids ?? [],
   }
 }
 
@@ -131,7 +143,7 @@ function isFormSyncedWithTask(task: Task): boolean {
     form.start_date === server.start_date &&
     form.end_date === server.end_date &&
     form.task_type_id === server.task_type_id &&
-    form.assignee_id === server.assignee_id
+    sameIds(form.assignee_ids, server.assignee_ids)
   )
 }
 
@@ -176,7 +188,7 @@ function syncFormFromTask(task: Task) {
   taskStartDate.value = task.start_date ?? null
   taskEndDate.value = task.end_date ?? null
   taskType.value = task.task_type_id ?? null
-  taskAssignee.value = task.assignee_id ?? null
+  taskAssignees.value = [...(task.assignee_ids ?? [])]
   taskColumn.value = task.column_id
   setTimeout(() => {
     taskSyncing.value = false
@@ -296,7 +308,7 @@ async function saveTask() {
       start_date: payload.start_date,
       end_date: payload.end_date,
       task_type_id: payload.task_type_id,
-      assignee_id: payload.assignee_id,
+      assignee_ids: payload.assignee_ids,
     })
   } catch (err: any) {
     alert(err?.message || 'Ошибка сохранения')
@@ -481,7 +493,7 @@ watch(
     taskStartDate.value,
     taskEndDate.value,
     taskType.value,
-    taskAssignee.value,
+    taskAssignees.value,
   ],
   () => {
     if (!auth.isAuthed || !currentTask.value) return
@@ -747,16 +759,44 @@ watch(
               clearable
               :readonly="!auth.isAuthed"
             />
-            <v-select
-              v-model="taskAssignee"
+            <v-autocomplete
+              v-model="taskAssignees"
               :items="board.users"
-              :item-title="(u: User) => u.display_name || u.email"
+              :item-title="userLabel"
               item-value="id"
-              label="Исполнитель"
+              label="Исполнители"
               density="comfortable"
+              multiple
+              chips
+              closable-chips
               clearable
+              auto-select-first
               :readonly="!auth.isAuthed"
-            />
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item v-bind="itemProps">
+                  <template #prepend="{ isSelected }">
+                    <v-checkbox-btn :model-value="isSelected" density="compact" tabindex="-1" class="mr-1" />
+                    <UserAvatar :user="item" :size="24" tooltip="" class="mr-3" />
+                  </template>
+                </v-list-item>
+              </template>
+              <template #chip="{ props: chipProps, item }">
+                <v-chip v-bind="chipProps" size="small">
+                  <template #prepend>
+                    <UserAvatar :user="item" :size="20" tooltip="" class="mr-2" />
+                  </template>
+                  {{ userLabel(item) }}
+                </v-chip>
+              </template>
+            </v-autocomplete>
+            <div v-if="taskAuthor" class="flex items-center gap-3 px-1">
+              <UserAvatar :user="taskAuthor" :size="32" tooltip="" />
+              <div class="min-w-0">
+                <div class="md-label-medium text-on-surface-variant">Автор</div>
+                <div class="md-body-medium text-truncate">{{ userLabel(taskAuthor) }}</div>
+              </div>
+            </div>
           </div>
           <v-btn
             v-if="auth.isAuthed"

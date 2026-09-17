@@ -157,7 +157,7 @@ defmodule Kaska.AgentRuntime.DispatcherTest do
         Kaska.Projects.create_task(
           project.id,
           todo.id,
-          %{title: "T2", assignee_id: agent.id},
+          %{title: "T2", assignee_ids: [agent.id]},
           owner.id
         )
 

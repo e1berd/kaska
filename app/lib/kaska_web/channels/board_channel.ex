@@ -247,7 +247,12 @@ defmodule KaskaWeb.BoardChannel do
     with_owned_project(socket, fn project ->
       {:ok, _} = Projects.remove_member(project.id, user_id)
 
-      for task <- Projects.unassign_user_from_tasks(project.id, user_id) do
+      for task <-
+            Projects.unassign_user_from_tasks(
+              project.id,
+              user_id,
+              socket.assigns.current_user.id
+            ) do
         broadcast!(socket, "task_updated", task_view(task))
       end
 
@@ -429,9 +434,14 @@ defmodule KaskaWeb.BoardChannel do
       description: Map.get(payload, "description"),
       start_date: Map.get(payload, "start_date"),
       end_date: Map.get(payload, "end_date"),
-      assignee_id: Map.get(payload, "assignee_id"),
       task_type_id: Map.get(payload, "task_type_id")
     }
+
+    attrs =
+      case Map.fetch(payload, "assignee_ids") do
+        {:ok, ids} -> Map.put(attrs, :assignee_ids, ids)
+        :error -> attrs
+      end
 
     case Projects.create_task(project_id, column_id, attrs, creator_id) do
       {:ok, task} ->
@@ -454,12 +464,12 @@ defmodule KaskaWeb.BoardChannel do
         "body_doc",
         "start_date",
         "end_date",
-        "assignee_id",
+        "assignee_ids",
         "task_type_id"
       ])
 
     with %Task{} = task <- get_owned_task(id, socket),
-         {:ok, task} <- Projects.update_task(task, attrs) do
+         {:ok, task} <- Projects.update_task(task, attrs, socket.assigns.current_user.id) do
       view = task_view(task)
       broadcast!(socket, "task_updated", view)
       {:reply, {:ok, view}, socket}
@@ -499,7 +509,8 @@ defmodule KaskaWeb.BoardChannel do
              task,
              column_id,
              payload["before_id"],
-             payload["after_id"]
+             payload["after_id"],
+             socket.assigns.current_user.id
            ) do
       view = task_view(task)
       broadcast!(socket, "task_moved", view)
@@ -515,9 +526,10 @@ defmodule KaskaWeb.BoardChannel do
 
   ## Agent runs ──────────────────────────────────────────────────────────
 
-  def handle_in("start_agent_run", %{"task_id" => task_id}, socket) do
+  def handle_in("start_agent_run", %{"task_id" => task_id} = payload, socket) do
     with %Task{} = task <- get_owned_task(task_id, socket),
-         %Kaska.Accounts.User{is_agent: true} = agent <- task_assignee(task),
+         %Kaska.Accounts.User{is_agent: true} = agent <-
+           run_agent(task, Map.get(payload, "agent_id")),
          {:ok, run} <-
            AgentRuntime.request_run(agent, task, socket.assigns.current_user.id) do
       :ok = Dispatcher.dispatch_async(run)
@@ -725,8 +737,18 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
-  defp task_assignee(%Task{assignee_id: nil}), do: nil
-  defp task_assignee(%Task{assignee_id: id}), do: Accounts.get_user(id)
+  defp run_agent(%Task{} = task, nil) do
+    case task |> Projects.list_task_assignees() |> Enum.filter(& &1.is_agent) do
+      [agent] -> agent
+      _ -> nil
+    end
+  end
+
+  defp run_agent(%Task{} = task, agent_id) when is_binary(agent_id) do
+    Enum.find(Projects.list_task_assignees(task), &(&1.id == agent_id))
+  end
+
+  defp run_agent(_task, _agent_id), do: nil
 
   defp get_owned_task_type(id, socket) do
     case Projects.get_task_type(id) do
@@ -801,6 +823,8 @@ defmodule KaskaWeb.BoardChannel do
   end
 
   def task_view(%Task{} = t) do
+    t = Kaska.Repo.preload(t, :assignees)
+
     %{
       id: t.id,
       project_id: t.project_id,
@@ -809,7 +833,8 @@ defmodule KaskaWeb.BoardChannel do
       body_doc: t.body_doc,
       rank: t.rank,
       creator_id: t.creator_id,
-      assignee_id: t.assignee_id,
+      updated_by_id: t.updated_by_id,
+      assignee_ids: Enum.map(t.assignees, & &1.id),
       task_type_id: t.task_type_id,
       start_date: t.start_date,
       end_date: t.end_date,

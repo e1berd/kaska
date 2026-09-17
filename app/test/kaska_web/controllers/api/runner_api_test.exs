@@ -79,11 +79,12 @@ defmodule KaskaWeb.Api.RunnerApiTest do
              |> patch(task_path(project, task), %{
                title: "Renamed",
                body: "**done**",
-               assignee_id: nil
+               assignee_ids: []
              })
              |> json_response(200)
 
-    assert Projects.get_task(task.id).assignee_id == task.assignee_id
+    assert Projects.get_task(task.id) |> Projects.list_task_assignees() |> Enum.map(& &1.id) ==
+             Projects.list_task_assignees(task) |> Enum.map(& &1.id)
 
     {_p, [_todo, in_progress | _], _t} = Projects.board_snapshot(project.id)
 

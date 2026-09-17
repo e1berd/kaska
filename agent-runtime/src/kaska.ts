@@ -30,7 +30,7 @@ export interface KaskaTask {
   title: string;
   body: string;
   column: KaskaColumn | null;
-  assignee: KaskaUser | null;
+  assignees: KaskaUser[];
   comments: KaskaComment[];
 }
 

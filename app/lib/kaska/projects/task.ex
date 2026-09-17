@@ -20,7 +20,13 @@ defmodule Kaska.Projects.Task do
     belongs_to :project, Project
     belongs_to :column, Column
     belongs_to :creator, User
-    belongs_to :assignee, User
+    belongs_to :updated_by, User
+
+    many_to_many :assignees, User,
+      join_through: "task_assignees",
+      join_keys: [task_id: :id, user_id: :id],
+      on_replace: :delete
+
     belongs_to :task_type, Kaska.Projects.TaskType
 
     timestamps()
@@ -35,9 +41,9 @@ defmodule Kaska.Projects.Task do
       :project_id,
       :column_id,
       :creator_id,
+      :updated_by_id,
       :start_date,
       :end_date,
-      :assignee_id,
       :task_type_id
     ])
     |> update_change(:title, fn
@@ -53,7 +59,7 @@ defmodule Kaska.Projects.Task do
 
   def update_changeset(task, attrs) do
     task
-    |> cast(attrs, [:title, :body_doc, :start_date, :end_date, :assignee_id, :task_type_id])
+    |> cast(attrs, [:title, :body_doc, :start_date, :end_date, :task_type_id])
     |> update_change(:title, fn
       nil -> ""
       title -> String.trim(title)

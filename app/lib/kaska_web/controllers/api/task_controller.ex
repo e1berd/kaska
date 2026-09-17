@@ -23,7 +23,8 @@ defmodule KaskaWeb.Api.TaskController do
     project = conn.assigns.project
 
     with %Task{} = task <- Projects.get_project_task(project.id, id),
-         {:ok, updated} <- Projects.update_task(task, update_attrs(params)) do
+         {:ok, updated} <-
+           Projects.update_task(task, update_attrs(params), conn.assigns.current_user.id) do
       reloaded = Projects.get_project_task(project.id, updated.id)
       BoardBroadcast.task(project, "task_updated", reloaded)
       json(conn, %{task: render_task(project, reloaded, format(params))})
@@ -38,7 +39,8 @@ defmodule KaskaWeb.Api.TaskController do
 
     with %Task{} = task <- Projects.get_project_task(project.id, id),
          {before_id, after_id} <- position(column_id, task, params),
-         {:ok, moved} <- Projects.move_task(task, column_id, before_id, after_id) do
+         {:ok, moved} <-
+           Projects.move_task(task, column_id, before_id, after_id, conn.assigns.current_user.id) do
       reloaded = Projects.get_project_task(project.id, moved.id)
       BoardBroadcast.task(project, "task_moved", reloaded)
       json(conn, %{task: render_task(project, reloaded, format(params))})

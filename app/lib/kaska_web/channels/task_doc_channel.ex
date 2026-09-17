@@ -66,7 +66,7 @@ defmodule KaskaWeb.TaskDocChannel do
   end
 
   def handle_in("materialize_body_doc", %{"doc" => %{"type" => "doc"} = doc}, socket) do
-    case TaskDocs.update_body_doc(socket.assigns.task_id, doc) do
+    case TaskDocs.update_body_doc(socket.assigns.task_id, doc, socket.assigns.current_user.id) do
       :ok ->
         broadcast_task_update(socket)
         {:reply, :ok, socket}

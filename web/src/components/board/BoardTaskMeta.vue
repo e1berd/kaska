@@ -6,6 +6,7 @@ import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskAgentPanel from '@/components/board/TaskAgentPanel.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const props = defineProps<{
   taskId: string | null
@@ -17,7 +18,8 @@ const props = defineProps<{
   taskStartDate: string | null
   taskEndDate: string | null
   taskType: string | null
-  taskAssignee: string | null
+  taskAssignees: string[]
+  taskAuthorId: string | null
   taskColumn: string | null
   metaOpen: boolean
 }>()
@@ -27,7 +29,7 @@ const emit = defineEmits<{
   'update:taskStartDate': [value: string | null]
   'update:taskEndDate': [value: string | null]
   'update:taskType': [value: string | null]
-  'update:taskAssignee': [value: string | null]
+  'update:taskAssignees': [value: string[]]
   'update:taskColumn': [value: string]
   'openTaskPage': []
   'copyTaskLink': []
@@ -37,6 +39,11 @@ const emit = defineEmits<{
 }>()
 
 const board = useBoardStore()
+
+const author = computed(() => board.userById(props.taskAuthorId))
+const agentAssignees = computed(() =>
+  board.usersByIds(props.taskAssignees).filter((user) => user.is_agent),
+)
 
 const taskDateRangeModel = computed<Date[]>({
   get: () => {
@@ -83,13 +90,6 @@ function userLabel(item: unknown): string {
   return user.display_name || user.email || '—'
 }
 
-function userInitial(item: unknown): string {
-  return userLabel(item).slice(0, 1).toUpperCase()
-}
-
-function userAvatar(item: unknown): string {
-  return optionUser(item).avatar_url || ''
-}
 </script>
 
 <template>
@@ -176,38 +176,39 @@ function userAvatar(item: unknown): string {
               </v-chip>
             </template>
           </v-select>
-          <v-select
-            :model-value="taskAssignee"
+          <v-autocomplete
+            :model-value="taskAssignees"
             :items="board.users"
-            item-title="display_name"
+            :item-title="userLabel"
             item-value="id"
-            label="Исполнитель"
+            label="Исполнители"
             variant="filled"
             density="comfortable"
+            multiple
+            chips
+            closable-chips
             clearable
+            auto-select-first
             :readonly="!canWrite"
-            @update:model-value="emit('update:taskAssignee', $event)"
+            @update:model-value="emit('update:taskAssignees', $event ?? [])"
           >
             <template #item="{ props: itemProps, item }">
               <v-list-item v-bind="itemProps" :title="userLabel(item)">
-                <template #prepend>
-                  <v-avatar size="24" class="mr-2" color="primary">
-                    <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                    <span v-else class="text-white text-caption">{{ userInitial(item) }}</span>
-                  </v-avatar>
+                <template #prepend="{ isSelected }">
+                  <v-checkbox-btn :model-value="isSelected" density="compact" tabindex="-1" class="mr-1" />
+                  <UserAvatar :user="optionUser(item)" :size="24" tooltip="" class="mr-3" />
                 </template>
               </v-list-item>
             </template>
-            <template #selection="{ item }">
-              <div class="ks-assignee-selection">
-                <v-avatar size="20" class="mr-2" color="primary">
-                  <v-img v-if="userAvatar(item)" :src="userAvatar(item)" cover alt="" />
-                  <span v-else class="text-white" style="font-size: 10px">{{ userInitial(item) }}</span>
-                </v-avatar>
-                <span class="ks-assignee-selection__label">{{ userLabel(item) }}</span>
-              </div>
+            <template #chip="{ props: chipProps, item }">
+              <v-chip v-bind="chipProps" size="small" class="ks-assignee-chip">
+                <template #prepend>
+                  <UserAvatar :user="optionUser(item)" :size="20" tooltip="" class="mr-2" />
+                </template>
+                {{ userLabel(item) }}
+              </v-chip>
             </template>
-          </v-select>
+          </v-autocomplete>
           <v-select
             :model-value="taskColumn"
             :items="board.orderedColumns"
@@ -222,12 +223,23 @@ function userAvatar(item: unknown): string {
         </div>
       </div>
 
-      <TaskAgentPanel
-        v-if="taskId"
-        :task-id="taskId"
-        :assignee-id="taskAssignee"
-        :can-write="canWrite"
-      />
+      <div v-if="author" class="ks-task-meta__author">
+        <UserAvatar :user="author" :size="32" tooltip="" />
+        <div class="min-w-0">
+          <div class="md-label-medium text-on-surface-variant">Автор</div>
+          <div class="md-body-medium text-truncate">{{ author.display_name || author.email }}</div>
+        </div>
+      </div>
+
+      <template v-if="taskId">
+        <TaskAgentPanel
+          v-for="agent in agentAssignees"
+          :key="agent.id"
+          :task-id="taskId"
+          :agent-id="agent.id"
+          :can-write="canWrite"
+        />
+      </template>
     </div>
 
     <footer v-show="!mobile || metaOpen" class="ks-task-meta__foot">
@@ -316,16 +328,13 @@ function userAvatar(item: unknown): string {
 .ks-task-meta__fields :deep(.v-field) {
   background: rgb(var(--v-theme-surface-container-highest));
 }
-.ks-assignee-selection {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
+.ks-assignee-chip {
   max-width: 100%;
 }
-.ks-assignee-selection__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ks-task-meta__author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
 }
 </style>

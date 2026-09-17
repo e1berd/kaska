@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
 import ListHeaderCell from '@/components/board/ListHeaderCell.vue'
+import UserAvatarStack from '@/components/UserAvatarStack.vue'
 import { cssColorOr } from '@/utils/css'
 
 const props = defineProps<{
@@ -19,7 +20,7 @@ const listColumnDefaults = [
   { title: 'Карточка', key: 'title', sortable: true, minWidth: 200 },
   { title: 'Тип', key: 'task_type_id', sortable: true, minWidth: 120 },
   { title: 'Статус', key: 'column_id', sortable: true, minWidth: 160 },
-  { title: 'Исполнитель', key: 'assignee_id', sortable: true, minWidth: 160 },
+  { title: 'Исполнители', key: 'assignee_ids', sortable: true, minWidth: 160 },
   { title: 'Сроки', key: 'dates', sortable: true, minWidth: 200 },
 ] as const
 
@@ -47,9 +48,22 @@ function columnColorStyle(id: string | null | undefined) {
   return { '--ks-status-color': cssColorOr(columnFor(id)?.color, 'rgb(var(--v-theme-secondary-container))') }
 }
 
-function userFor(id: string | null | undefined) {
-  if (!id) return null
-  return board.users.find((u) => u.id === id) ?? null
+function assigneesOf(task: Task) {
+  return board.usersByIds(task.assignee_ids)
+}
+
+function assigneeSortLabel(ids: string[] | undefined): string {
+  const first = board.usersByIds(ids ?? [])[0]
+  return first ? first.display_name || first.email : ''
+}
+
+function compareAssignees(a: string[] | undefined, b: string[] | undefined): number {
+  const aLabel = assigneeSortLabel(a)
+  const bLabel = assigneeSortLabel(b)
+  if (!aLabel && !bLabel) return 0
+  if (!aLabel) return 1
+  if (!bLabel) return -1
+  return aLabel.localeCompare(bLabel)
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -86,7 +100,7 @@ function compareDates(a: Task, b: Task): number {
         :headers="listHeaders"
         :items="filteredTasks"
         :items-per-page="-1"
-        :custom-key-sort="{ dates: compareDates }"
+        :custom-key-sort="{ dates: compareDates, assignee_ids: compareAssignees }"
         item-value="id"
         density="comfortable"
         hover
@@ -168,31 +182,11 @@ function compareDates(a: Task, b: Task): number {
           </v-select>
         </template>
 
-        <template #item.assignee_id="{ item }">
-          <div v-if="userFor(item.assignee_id)" class="ks-table__assignee">
-            <v-avatar
-              :image="userFor(item.assignee_id)?.avatar_url || ''"
-              size="24"
-              color="primary"
-            >
-              <span
-                v-if="!userFor(item.assignee_id)?.avatar_url"
-                class="text-white"
-                style="font-size: 11px"
-              >
-                {{
-                  (
-                    userFor(item.assignee_id)?.display_name ||
-                    userFor(item.assignee_id)?.email ||
-                    '?'
-                  )
-                    .slice(0, 1)
-                    .toUpperCase()
-                }}
-              </span>
-            </v-avatar>
-            <span class="md-body-small">
-              {{ userFor(item.assignee_id)?.display_name || userFor(item.assignee_id)?.email }}
+        <template #item.assignee_ids="{ item }">
+          <div v-if="assigneesOf(item).length" class="ks-table__assignee">
+            <UserAvatarStack :users="assigneesOf(item)" :size="24" :max-visible="3" />
+            <span v-if="assigneesOf(item).length === 1" class="md-body-small">
+              {{ assigneeSortLabel(item.assignee_ids) }}
             </span>
           </div>
           <span v-else class="text-medium-emphasis md-body-small">—</span>
@@ -237,8 +231,8 @@ function compareDates(a: Task, b: Task): number {
 .ks-table :deep(td[data-column-key="column_id"]) {
   min-width: 160px;
 }
-.ks-table :deep(th[data-column-key="assignee_id"]),
-.ks-table :deep(td[data-column-key="assignee_id"]) {
+.ks-table :deep(th[data-column-key="assignee_ids"]),
+.ks-table :deep(td[data-column-key="assignee_ids"]) {
   min-width: 160px;
 }
 .ks-table :deep(th[data-column-key="dates"]),
@@ -325,8 +319,8 @@ function compareDates(a: Task, b: Task): number {
   .ks-table :deep(td[data-column-key="column_id"]) {
     min-width: 130px;
   }
-  .ks-table :deep(th[data-column-key="assignee_id"]),
-  .ks-table :deep(td[data-column-key="assignee_id"]) {
+  .ks-table :deep(th[data-column-key="assignee_ids"]),
+  .ks-table :deep(td[data-column-key="assignee_ids"]) {
     min-width: 130px;
   }
   .ks-table :deep(th[data-column-key="dates"]),

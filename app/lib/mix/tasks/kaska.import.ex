@@ -44,6 +44,7 @@ defmodule Mix.Tasks.Kaska.Import do
       import_columns(tmp_dir)
       import_task_types(tmp_dir)
       import_tasks(tmp_dir)
+      import_task_assignees(tmp_dir)
       import_task_comments(tmp_dir)
       import_project_members(tmp_dir)
       import_project_theme_prefs(tmp_dir)
@@ -120,9 +121,37 @@ defmodule Mix.Tasks.Kaska.Import do
 
     if File.exists?(path) do
       rows = read_json!(path)
-      count = upsert_all("tasks", rows, [:id])
+      count = upsert_all("tasks", Enum.map(rows, &Map.delete(&1, "assignee_id")), [:id])
       Mix.shell().info("  tasks: #{count}")
+
+      legacy_count = rows |> legacy_task_assignees() |> insert_task_assignees()
+      Mix.shell().info("  task_assignees (legacy assignee_id): #{legacy_count}")
     end
+  end
+
+  defp import_task_assignees(tmp_dir) do
+    path = Path.join(tmp_dir, "task_assignees.json")
+
+    if File.exists?(path) do
+      count = path |> read_json!() |> insert_task_assignees()
+      Mix.shell().info("  task_assignees: #{count}")
+    end
+  end
+
+  defp legacy_task_assignees(task_rows) do
+    for %{"id" => task_id, "assignee_id" => user_id} <- task_rows, is_binary(user_id) do
+      %{"task_id" => task_id, "user_id" => user_id}
+    end
+  end
+
+  defp insert_task_assignees([]), do: 0
+
+  defp insert_task_assignees(rows) do
+    rows
+    |> Enum.map(&sanitize_row/1)
+    |> Enum.map(&Map.put_new(&1, :inserted_at, DateTime.utc_now() |> DateTime.truncate(:second)))
+    |> then(&Repo.insert_all("task_assignees", &1, on_conflict: :nothing))
+    |> elem(0)
   end
 
   defp import_task_comments(tmp_dir) do

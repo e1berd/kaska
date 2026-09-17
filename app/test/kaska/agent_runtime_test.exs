@@ -32,7 +32,7 @@ defmodule Kaska.AgentRuntimeTest do
     {_p, [todo | _], _t} = Projects.board_snapshot(project.id)
 
     {:ok, task} =
-      Projects.create_task(project.id, todo.id, %{title: "T", assignee_id: agent.id}, owner.id)
+      Projects.create_task(project.id, todo.id, %{title: "T", assignee_ids: [agent.id]}, owner.id)
 
     %{owner: owner, project: project, agent: agent, task: task, column: todo}
   end
@@ -128,7 +128,7 @@ defmodule Kaska.AgentRuntimeTest do
 
     test "refuses when the agent is not the assignee", %{agent: agent, task: task, owner: owner} do
       {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
-      unassigned = %{task | assignee_id: owner.id}
+      {:ok, unassigned} = Projects.update_task(task, %{assignee_ids: [owner.id]})
       assert {:error, :not_assigned} = AgentRuntime.request_run(agent, unassigned, owner.id)
     end
 
@@ -163,7 +163,7 @@ defmodule Kaska.AgentRuntimeTest do
             Projects.create_task(
               project.id,
               column.id,
-              %{title: "T#{i}", assignee_id: agent.id},
+              %{title: "T#{i}", assignee_ids: [agent.id]},
               owner.id
             )
 

@@ -78,12 +78,13 @@ defmodule Kaska.TaskDocs do
     end)
   end
 
-  def update_body_doc(task_id, %{"type" => "doc"} = doc) when is_binary(task_id) do
+  def update_body_doc(task_id, %{"type" => "doc"} = doc, actor_id \\ nil)
+      when is_binary(task_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     {n, _} =
       from(t in Task, where: t.id == ^task_id)
-      |> Repo.update_all(set: [body_doc: doc, updated_at: now])
+      |> Repo.update_all(set: [body_doc: doc, updated_at: now, updated_by_id: actor_id])
 
     if n == 1, do: :ok, else: {:error, :not_found}
   end

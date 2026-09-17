@@ -80,8 +80,9 @@ defmodule Kaska.AgentRuntime do
     if ready?(agent), do: :ok, else: {:error, :not_configured}
   end
 
-  defp ensure_assigned(%User{id: agent_id}, %Task{assignee_id: agent_id}), do: :ok
-  defp ensure_assigned(_, _), do: {:error, :not_assigned}
+  defp ensure_assigned(%User{id: agent_id}, %Task{id: task_id}) do
+    if Projects.assigned?(task_id, agent_id), do: :ok, else: {:error, :not_assigned}
+  end
 
   defp ensure_member(agent, task) do
     if Projects.member?(task.project_id, agent.id), do: :ok, else: {:error, :not_member}

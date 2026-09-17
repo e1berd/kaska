@@ -47,6 +47,9 @@ defmodule Mix.Tasks.Kaska.Export do
       tasks = export_tasks()
       Mix.shell().info("  tasks: #{length(tasks)}")
 
+      task_assignees = export_task_assignees()
+      Mix.shell().info("  task_assignees: #{length(task_assignees)}")
+
       comments = export_task_comments()
       Mix.shell().info("  task_comments: #{length(comments)}")
 
@@ -67,6 +70,7 @@ defmodule Mix.Tasks.Kaska.Export do
         |> Map.put(:columns, length(columns))
         |> Map.put(:task_types, length(task_types))
         |> Map.put(:tasks, length(tasks))
+        |> Map.put(:task_assignees, length(task_assignees))
         |> Map.put(:task_comments, length(comments))
         |> Map.put(:project_members, length(members))
         |> Map.put(:project_theme_prefs, length(theme_prefs))
@@ -79,6 +83,7 @@ defmodule Mix.Tasks.Kaska.Export do
       write_json!(Path.join(tmp_dir, "columns.json"), columns)
       write_json!(Path.join(tmp_dir, "task_types.json"), task_types)
       write_json!(Path.join(tmp_dir, "tasks.json"), tasks)
+      write_json!(Path.join(tmp_dir, "task_assignees.json"), task_assignees)
       write_json!(Path.join(tmp_dir, "task_comments.json"), comments)
       write_json!(Path.join(tmp_dir, "project_members.json"), members)
       write_json!(Path.join(tmp_dir, "project_theme_prefs.json"), theme_prefs)
@@ -199,10 +204,21 @@ defmodule Mix.Tasks.Kaska.Export do
           project_id: t.project_id,
           column_id: t.column_id,
           creator_id: t.creator_id,
-          assignee_id: t.assignee_id,
+          updated_by_id: t.updated_by_id,
           task_type_id: t.task_type_id,
           inserted_at: t.inserted_at,
           updated_at: t.updated_at
+        }
+    )
+  end
+
+  defp export_task_assignees do
+    Repo.all(
+      from a in "task_assignees",
+        select: %{
+          task_id: a.task_id,
+          user_id: a.user_id,
+          inserted_at: a.inserted_at
         }
     )
   end

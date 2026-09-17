@@ -26,7 +26,8 @@ export interface Task {
   body_doc: TiptapDoc
   rank: string
   creator_id: string | null
-  assignee_id: string | null
+  updated_by_id: string | null
+  assignee_ids: string[]
   task_type_id: string | null
   start_date?: string
   end_date?: string
@@ -437,13 +438,13 @@ export const useBoardStore = defineStore('board', () => {
     })
   }
 
-  function createTask(columnId: string, input: { title: string; description?: string; start_date?: string; end_date?: string; assignee_id?: string | null; task_type_id?: string | null }) {
+  function createTask(columnId: string, input: { title: string; description?: string; start_date?: string; end_date?: string; assignee_ids?: string[]; task_type_id?: string | null }) {
     return pushAsync<Task>(ch(), 'create_task', { column_id: columnId, ...input })
   }
 
   function updateTask(
     id: string,
-    input: { title?: string; body_doc?: TiptapDoc; start_date?: string | null; end_date?: string | null; assignee_id?: string | null; task_type_id?: string | null },
+    input: { title?: string; body_doc?: TiptapDoc; start_date?: string | null; end_date?: string | null; assignee_ids?: string[]; task_type_id?: string | null },
   ) {
     return pushAsync<Task>(ch(), 'update_task', { id, ...input })
   }
@@ -635,8 +636,12 @@ export const useBoardStore = defineStore('board', () => {
     return users.value.find((u) => u.id === id) ?? null
   }
 
-  function startAgentRun(taskId: string) {
-    return pushAsync<AgentRun>(ch(), 'start_agent_run', { task_id: taskId })
+  function usersByIds(ids: readonly string[]): BoardUser[] {
+    return ids.map((id) => userById(id)).filter((user): user is BoardUser => !!user)
+  }
+
+  function startAgentRun(taskId: string, agentId: string) {
+    return pushAsync<AgentRun>(ch(), 'start_agent_run', { task_id: taskId, agent_id: agentId })
   }
 
   function stopAgentRun(runId: string) {
@@ -713,6 +718,7 @@ export const useBoardStore = defineStore('board', () => {
     latestRunFor,
     agentWalltimeSeconds,
     userById,
+    usersByIds,
     startAgentRun,
     stopAgentRun,
     listTaskRuns,

@@ -24,7 +24,7 @@ const task: KaskaTask = {
   title: "Add health check",
   body: "Please add /health.",
   column: project.columns[0],
-  assignee: null,
+  assignees: [],
   comments: [{
     id: "c1",
     body: "Remember the tests",

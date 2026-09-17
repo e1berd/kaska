@@ -7,7 +7,7 @@ import { RUN_STATUS, formatDuration, modelLine, runSeconds, startErrorText } fro
 
 const props = defineProps<{
   taskId: string
-  assigneeId: string | null
+  agentId: string
   canWrite: boolean
 }>()
 
@@ -19,13 +19,22 @@ const busy = ref(false)
 const actionError = ref<string | null>(null)
 
 const agent = computed(() => {
-  const user = board.userById(props.assigneeId)
+  const user = board.userById(props.agentId)
   return user?.is_agent ? user : null
 })
-const latest = computed(() => board.latestRunFor(props.taskId))
+const latest = computed(() => {
+  const run = board.latestRunFor(props.taskId)
+  return run?.agent_id === props.agentId ? run : null
+})
+const otherAgentActive = computed(() => {
+  const run = board.latestRunFor(props.taskId)
+  return !!run && run.agent_id !== props.agentId && isRunActive(run)
+})
 const active = computed(() => (isRunActive(latest.value) ? latest.value : null))
 const lastFinished = computed(() => (active.value ? null : latest.value))
-const pastRuns = computed(() => history.value.filter((r) => r.id !== latest.value?.id).slice(0, 3))
+const pastRuns = computed(() =>
+  history.value.filter((r) => r.agent_id === props.agentId && r.id !== latest.value?.id).slice(0, 3),
+)
 const walltime = computed(() => board.agentWalltimeSeconds)
 
 const elapsed = computed(() => {
@@ -47,7 +56,7 @@ async function loadHistory() {
 }
 
 watch(
-  () => [props.taskId, latest.value?.id, latest.value?.status],
+  () => [props.taskId, props.agentId, board.latestRunFor(props.taskId)?.id, board.latestRunFor(props.taskId)?.status],
   () => {
     if (agent.value) void loadHistory()
   },
@@ -58,7 +67,7 @@ async function start() {
   busy.value = true
   actionError.value = null
   try {
-    await board.startAgentRun(props.taskId)
+    await board.startAgentRun(props.taskId, props.agentId)
   } catch (e: unknown) {
     actionError.value = startErrorText(e)
   } finally {
@@ -163,6 +172,7 @@ function whenOf(run: AgentRun) {
             rounded="pill"
             :prepend-icon="lastFinished ? 'mdi-refresh' : 'mdi-play'"
             :loading="busy"
+            :disabled="otherAgentActive"
             @click="start"
           >
             {{ lastFinished ? 'Запустить снова' : 'Запустить агента' }}

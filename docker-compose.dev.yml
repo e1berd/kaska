@@ -68,6 +68,11 @@ services:
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: ${RUSTFS_ROOT_USER:-rustfsadmin}
       S3_SECRET_KEY: ${RUSTFS_ROOT_PASSWORD:-rustfsadmin}
+      AGENT_SUPERVISOR_URL: http://agent-supervisor:8080
+      AGENT_SUPERVISOR_SECRET: ${AGENT_SUPERVISOR_SECRET:-dev_only_agent_supervisor_secret}
+      AGENT_CALLBACK_BASE_URL: http://api:4000/internal
+      AGENT_RUNTIME_IMAGE: kaska-agent-runtime:dev
+      AGENT_RUNTIME_KASKA_API_URL: http://api:4000/api/v1
     ports:
       - "${API_PORT:-4000}:4000"
     volumes:
@@ -94,6 +99,35 @@ services:
       - ./web:/app
     depends_on:
       - api
+
+  agent-runtime:
+    build:
+      context: ./agent-runtime
+      dockerfile: Dockerfile
+    image: kaska-agent-runtime:dev
+    container_name: kaska-dev-agent-runtime-build
+    restart: "no"
+    network_mode: none
+    command: ["true"]
+
+  agent-supervisor:
+    build:
+      context: ./agent-supervisor
+      dockerfile: Dockerfile
+    image: kaska-agent-supervisor:dev
+    container_name: kaska-dev-agent-supervisor
+    environment:
+      SUPERVISOR_SECRET: ${AGENT_SUPERVISOR_SECRET:-dev_only_agent_supervisor_secret}
+      CALLBACK_BASE_URL: http://api:4000/internal
+      RUNNER_NETWORK: kaska-dev_default
+      ALLOWED_IMAGES: kaska-agent-runtime:dev
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      agent-runtime:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
 
 volumes:
   postgres-data:

@@ -14,6 +14,7 @@ defmodule Kaska.Projects do
   alias Kaska.Repo
   alias Kaska.Rank
   alias Kaska.TaskBody
+  alias Kaska.Accounts.User
 
   alias Kaska.Projects.{
     Column,
@@ -355,7 +356,8 @@ defmodule Kaska.Projects do
           Repo.all(
             from t in Task,
               where: t.project_id == ^project_id,
-              order_by: [asc: t.rank]
+              order_by: [asc: t.rank],
+              preload: :assignees
           )
 
         {project, columns, tasks}
@@ -467,7 +469,7 @@ defmodule Kaska.Projects do
 
   def get_task(_), do: nil
 
-  @task_api_preloads [:column, :task_type, :assignee, :creator]
+  @task_api_preloads [:column, :task_type, :assignees, :creator]
 
   def list_tasks(project_id) when is_binary(project_id) do
     Repo.all(
@@ -523,59 +525,126 @@ defmodule Kaska.Projects do
         |> Map.put(:project_id, project_id)
         |> Map.put(:column_id, column_id)
         |> Map.put(:creator_id, creator_id)
+        |> Map.put(:updated_by_id, creator_id)
         |> Map.put(:rank, rank)
         |> Map.put_new(:body_doc, @empty_doc)
         |> Map.put_new(:start_date, Date.utc_today())
 
-      %Task{}
+      %Task{assignees: []}
       |> Task.create_changeset(attrs)
-      |> validate_assignee_membership(project_id)
+      |> put_assignees(attrs, project_id)
       |> Repo.insert()
     else
       _ -> {:error, :column_not_found}
     end
   end
 
-  def update_task(%Task{} = task, attrs) do
+  def update_task(%Task{} = task, attrs, actor_id \\ nil) do
     task
+    |> Repo.preload(:assignees)
     |> Task.update_changeset(attrs)
-    |> validate_assignee_membership(task.project_id)
+    |> put_assignees(attrs, task.project_id)
+    |> put_updated_by(actor_id)
     |> Repo.update()
   end
 
+  defp put_updated_by(%Ecto.Changeset{changes: changes} = changeset, actor_id)
+       when is_binary(actor_id) and map_size(changes) > 0,
+       do: Ecto.Changeset.put_change(changeset, :updated_by_id, actor_id)
+
+  defp put_updated_by(changeset, _actor_id), do: changeset
+
   def delete_task(%Task{} = task), do: Repo.delete(task)
 
-  def unassign_user_from_tasks(project_id, user_id)
+  def assigned?(task_id, user_id) when is_binary(task_id) and is_binary(user_id) do
+    Repo.exists?(
+      from a in "task_assignees",
+        where: a.task_id == type(^task_id, :binary_id) and a.user_id == type(^user_id, :binary_id)
+    )
+  end
+
+  def assigned?(_, _), do: false
+
+  def list_task_assignees(%Task{} = task) do
+    task |> Repo.preload(:assignees) |> Map.fetch!(:assignees)
+  end
+
+  def unassign_user_from_tasks(project_id, user_id, actor_id \\ nil)
       when is_binary(project_id) and is_binary(user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    {_count, tasks} =
-      Repo.update_all(
-        from(t in Task,
-          where: t.project_id == ^project_id and t.assignee_id == ^user_id,
-          select: t
-        ),
-        set: [assignee_id: nil, updated_at: now]
+    project_task_ids =
+      from t in Task, where: t.project_id == type(^project_id, :binary_id), select: t.id
+
+    {_count, task_ids} =
+      Repo.delete_all(
+        from(a in "task_assignees",
+          where:
+            a.user_id == type(^user_id, :binary_id) and a.task_id in subquery(project_task_ids),
+          select: type(a.task_id, :binary_id)
+        )
       )
 
-    tasks
+    {_count, tasks} =
+      Repo.update_all(
+        from(t in Task, where: t.id in ^task_ids, select: t),
+        set: [updated_at: now, updated_by_id: actor_id]
+      )
+
+    Repo.preload(tasks, :assignees)
   end
 
-  defp validate_assignee_membership(changeset, project_id) do
-    case Ecto.Changeset.fetch_change(changeset, :assignee_id) do
-      {:ok, nil} ->
-        changeset
+  defp put_assignees(changeset, attrs, project_id) do
+    case fetch_assignee_ids(attrs) do
+      {:ok, ids} when is_list(ids) ->
+        put_member_assignees(ids, changeset, project_id)
 
-      {:ok, assignee_id} ->
-        if member?(project_id, assignee_id) do
-          changeset
-        else
-          Ecto.Changeset.add_error(changeset, :assignee_id, "не участник проекта")
-        end
+      {:ok, nil} ->
+        Ecto.Changeset.put_assoc(changeset, :assignees, [])
+
+      {:ok, _} ->
+        Ecto.Changeset.add_error(changeset, :assignee_ids, "должен быть списком")
 
       :error ->
         changeset
     end
+  end
+
+  defp fetch_assignee_ids(attrs) do
+    with :error <- Map.fetch(attrs, :assignee_ids) do
+      Map.fetch(attrs, "assignee_ids")
+    end
+  end
+
+  defp put_member_assignees(ids, changeset, project_id) do
+    valid_ids =
+      ids
+      |> Enum.flat_map(fn id ->
+        case Ecto.UUID.cast(id) do
+          {:ok, uuid} -> [uuid]
+          :error -> []
+        end
+      end)
+      |> Enum.uniq()
+
+    members =
+      Repo.all(
+        from u in User,
+          join: m in ProjectMember,
+          on: m.user_id == u.id,
+          where: m.project_id == ^project_id and u.id in ^valid_ids
+      )
+
+    if length(members) == length(valid_ids) and length(valid_ids) == length(Enum.uniq(ids)) do
+      Ecto.Changeset.put_assoc(changeset, :assignees, order_like(members, valid_ids))
+    else
+      Ecto.Changeset.add_error(changeset, :assignee_ids, "не участник проекта")
+    end
+  end
+
+  defp order_like(users, ids) do
+    by_id = Map.new(users, &{&1.id, &1})
+    Enum.map(ids, &Map.fetch!(by_id, &1))
   end
 
   def list_task_comments(project_id) do
@@ -672,7 +741,7 @@ defmodule Kaska.Projects do
   Moves `task` to `target_column_id` between `before_id` and `after_id`
   (both task ids inside the target column; either can be nil).
   """
-  def move_task(%Task{} = task, target_column_id, before_id, after_id) do
+  def move_task(%Task{} = task, target_column_id, before_id, after_id, actor_id \\ nil) do
     with %Column{project_id: project_id} <- get_column(target_column_id),
          true <- project_id == task.project_id || {:error, :cross_project},
          {:ok, before_rank} <- task_rank(target_column_id, before_id),
@@ -680,6 +749,7 @@ defmodule Kaska.Projects do
          {:ok, rank} <- safe_rank_between(before_rank, after_rank) do
       task
       |> Task.move_changeset(%{column_id: target_column_id, rank: rank})
+      |> put_updated_by(actor_id)
       |> Repo.update()
     else
       nil -> {:error, :column_not_found}
