@@ -54,7 +54,9 @@ Chat Completions. Ни один из вариантов не даёт агент
                                                                   │ kaska-agent-runtime      │
                                                                   │ (Deno, один запуск = один│
                                                                   │ контейнер, эфемерный)    │
-                                                                  │ - Claude Agent SDK       │
+                                                                  │ - Claude Agent SDK /     │
+                                                                  │   openai_compatible loop │
+                                                                  │   / ollama_local         │
                                                                   │ - tools: fs/bash/git/    │
                                                                   │   kaska REST (свой PAT)  │
                                                                   └──────────────────────────┘
@@ -113,20 +115,21 @@ long-running агент-процесс).
 
 - `KASKA_API_URL`, `KASKA_PAT` (PAT агента — уже существующий механизм);
 - `TASK_ID`, `PROJECT_SLUG`;
-- `LLM_PROVIDER`, `LLM_API_KEY` (расшифрован супервизором/control plane
-  непосредственно перед стартом, в контейнер кладётся только на время его
-  жизни);
+- `LLM_PROVIDER_KIND`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` (см. ниже —
+  ключ расшифрован control plane непосредственно перед стартом, в контейнер
+  кладётся только на время его жизни; для локальных моделей `LLM_API_KEY`
+  пустой);
 - `SYSTEM_PROMPT`/инструкции агента;
 - (Phase 3) `GITHUB_INSTALLATION_TOKEN`, `GITHUB_REPO`.
 
-Логика раннера (Deno + **Claude Agent SDK** для MVP — не изобретаем свой
-tool-use loop, SDK уже даёт file edit/bash/context management):
+Логика раннера (Deno):
 
 1. Стянуть контекст задачи и `agent_instructions` проекта через REST (тем же
    PAT, что уже используется в `mcp/`).
 2. (если есть привязанный репозиторий) `git clone` в рабочую директорию.
-3. Прогнать Claude Agent SDK с задачей как промптом, системным промптом из
-   конфига агента, и инструментами:
+3. Прогнать tool-use цикл нужного провайдера (см. «Провайдеры LLM» ниже) с
+   задачей как промптом, системным промптом из конфига агента, и общим для
+   всех провайдеров набором инструментов:
    - файловые (в пределах `/workspace`),
    - `bash` (в пределах контейнера, без сети кроме allowlist — см. ниже),
    - `git` (commit/branch, но не `push` до Phase 3),
@@ -135,16 +138,65 @@ tool-use loop, SDK уже даёт file edit/bash/context management):
 4. По завершении: финальный комментарий на задачу с саммари, `exit 0`.
 5. Супервизор видит exit, шлёт коллбек, удаляет контейнер.
 
+#### Провайдеры LLM
+
+Список из требований — Claude, DeepSeek, Qwen, GLM, Codex(OpenAI), MiMo,
+Grok — выглядит как N разных интеграций, но почти все, кроме Claude,
+говорят одним и тем же диалектом: OpenAI-совместимый Chat Completions с
+`tools`/`tool_calls`. Поэтому адаптеров не N, а три:
+
+- **`anthropic`** — Claude, через **Claude Agent SDK**. Единственный
+  провайдер с готовым, обкатанным Anthropic'ом циклом (file edit, bash,
+  context management из коробки) — не переизобретаем.
+- **`openai_compatible`** — один написанный нами tool-use loop
+  (system+messages, парсинг `tool_calls`, обратная передача результатов
+  тула) с конфигом `{base_url, api_key, model}`. Покрывает: OpenAI/Codex
+  (`api.openai.com`), DeepSeek (`api.deepseek.com`), Qwen через DashScope
+  compatible-mode, GLM через Zhipu open-platform compatible-mode, Grok
+  через `api.x.ai`, LM Studio (свой локальный сервер, необязательно на
+  сервере Kaska), и вообще любой будущий провайдер с OpenAI-совместимым
+  API — без новой строчки кода в раннере, только новый `preset` в UI/конфиге
+  (имя + `base_url` по умолчанию).
+- **`ollama_local`** — локальные модели прямо на сервере Kaska, через
+  официальный `ollama` npm-пакет (`npm:ollama` в Deno) поверх нового
+  сервиса `ollama` в `docker-compose.yml` (образ `ollama/ollama`, отдельный
+  volume под веса). Ollama сама говорит tool-calling JSON-схемой, очень
+  близкой к OpenAI (`tools` в запросе, `tool_calls` в ответе) — вероятно,
+  цикл `openai_compatible` можно переиспользовать почти целиком, поменяв
+  только транспорт на `ollama`-клиент; подтвердить на практике при
+  реализации, т.к. надёжность tool-calling у локальных моделей ощутимо ниже,
+  чем у топовых hosted (см. риски). Модели вроде MiMo, если у них нет
+  удобного hosted API, тоже заходят через этот тир — просто как ещё одна
+  модель, `ollama pull`'нутая на сервере.
+
+UI создания агента: выбор провайдера из пресетов (Claude / OpenAI-Codex /
+DeepSeek / Qwen / GLM / Grok / LM Studio / Ollama (локально) / свой
+OpenAI-совместимый `base_url`), поле модели, поле ключа (скрыто/не нужно
+для `ollama_local`).
+
+Осознанно не рассматриваем как путь интеграции: оборачивание сторонних
+CLI-агентов (например реального Codex CLI как процесса) вместо прямых
+вызовов API. Каждый такой CLI — свой формат конфига/авторизации/вывода
+внутри контейнера, что умножает работу почти как N бespoke-интеграций,
+именно то, чего three-tier-схема выше позволяет избежать. Если для
+какого-то провайдера нет прямого API, а есть только CLI — обсуждаем
+отдельно, в общий цикл он не ляжет.
+
 ## Модель данных (новое)
 
 - `agent_configs` (1:1 с `users.id` там где `is_agent = true`, либо колонки
   прямо на агенте — решить при реализации):
-  `provider` (`anthropic` | `openai` | ...), `model`,
-  `encrypted_api_key` (через `cloak_ecto` — в проекте пока нет шифрования на
-  уровне Ecto, `jose` уже есть транзитивно через `guardian`, но `cloak_ecto`
-  проще для encrypted-at-rest полей), `system_prompt`, `auto_run_enabled`
-  (тумблер из вопроса про триггеры), `kind` (`chat_only` | `code_capable` —
-  чтобы UI не давал coding-агенту в старом `clerk-runner`-режиме).
+  `provider_kind` (`anthropic` | `openai_compatible` | `ollama_local`),
+  `provider_preset` (nullable slug — `openai`, `deepseek`, `qwen_dashscope`,
+  `glm_zhipu`, `xai_grok`, `lm_studio`, `custom`; только для UI-удобства,
+  на поведение раннера не влияет), `base_url` (nullable — обязателен для
+  `openai_compatible`/`ollama_local`, если это не известный preset),
+  `model`, `encrypted_api_key` (nullable — пусто для `ollama_local`; через
+  `cloak_ecto`, в проекте пока нет шифрования на уровне Ecto, `jose` уже
+  есть транзитивно через `guardian`, но `cloak_ecto` проще для
+  encrypted-at-rest полей), `system_prompt`, `auto_run_enabled` (тумблер из
+  вопроса про триггеры), `kind` (`chat_only` | `code_capable` — чтобы UI не
+  давал coding-агенту в старом `clerk-runner`-режиме).
 - `agent_runs`: `id`, `agent_id`, `task_id`, `status`
   (`pending|running|succeeded|failed|stopped|timed_out`), `container_id`,
   `started_at`, `finished_at`, `exit_reason`, `log_object_key` (путь в
@@ -178,12 +230,14 @@ tool-use loop, SDK уже даёт file edit/bash/context management):
 - **Docker socket** — только в `agent-supervisor`, не в `api`. Это отдельный
   сервис в `docker-compose.yml`.
 - **Сеть контейнера-раннера** — отдельный docker network без маршрута до
-  `postgres`/`rustfs`. Наружу — обычный интернет (нужен для пакетных
-  менеджеров при работе с кодом), точный egress-allowlist (только
-  `api.anthropic.com`/`api.openai.com`/registries/`github.com`/публичный домен
-  Kaska) — отдельная, более поздняя задача (в plain Docker это не тривиально,
-  нужен iptables/прокси); в MVP достаточно, что раннер физически не видит
-  внутренние сервисы.
+  `postgres`/`rustfs`, но **с** маршрутом до `ollama` (для `ollama_local`
+  агентов — тот единственный внутренний сервис, к которому раннеру можно).
+  Наружу — обычный интернет (нужен для пакетных менеджеров при работе с
+  кодом и для hosted-провайдеров), точный egress-allowlist (домены
+  провайдеров, которые реально настроены + registries + `github.com` +
+  публичный домен Kaska) — отдельная, более поздняя задача (в plain Docker
+  это не тривиально, нужен iptables/прокси); в MVP достаточно, что раннер
+  физически не видит внутренние сервисы кроме `ollama`.
 - **Ресурсы**: `--memory`, `--cpus`, `--pids-limit`, `--read-only` rootfs +
   `tmpfs` под `/tmp` и рабочую директорию, `--cap-drop=ALL`,
   `--security-opt=no-new-privileges`.
@@ -218,17 +272,25 @@ Everything here follows M3/Vuetify правила из `CLAUDE.md`, ничего
 
 ## Дорожная карта
 
-**Phase 1 — MVP (Anthropic-only, без GitHub)**
+**Phase 1 — MVP (Claude + один openai_compatible провайдер, без GitHub)**
 - Схема `agent_configs`/`agent_runs`, шифрование ключа.
-- `agent-supervisor` (Deno) с минимальным Docker API, сеть/лимиты.
-- `kaska-agent-runtime` образ на Claude Agent SDK + kaska-тулы поверх REST.
+- `agent-supervisor` (Deno + `dockerode`) с минимальным Docker API, сеть/лимиты.
+- `kaska-agent-runtime`: общие тулы (fs/bash/git/kaska REST) + два цикла —
+  Claude Agent SDK и собственный `openai_compatible` loop (обкатать его на
+  одном реальном провайдере, например DeepSeek или OpenAI — остальные
+  пресеты того же тира добавляются конфигом, не кодом).
 - Ручной триггер запуска. Живые логи в UI. Финальный комментарий с саммари.
 
-**Phase 2 — авто-триггеры и multi-provider**
+**Phase 1.5 — остальные пресеты + локальные модели**
+- Пресеты Qwen/GLM/Grok/LM Studio для `openai_compatible` (только конфиг —
+  base_url + модель по умолчанию в UI).
+- Сервис `ollama` в `docker-compose.yml`, тир `ollama_local`, клиент через
+  `npm:ollama`; проверить, насколько цикл `openai_compatible` переиспользуется
+  как есть для tool-calling через Ollama.
+
+**Phase 2 — авто-триггеры и квоты**
 - Событие "назначен"/"перенесён в in-progress" в `Kaska.AgentEvents` (или
   отдельная таблица) + тумблер `auto_run_enabled`.
-- Адаптер под OpenAI (и далее) поверх той же tool-схемы, что уже определена
-  для Claude Agent SDK инструментов.
 - Квоты на конкурентные запуски на пользователя/проект, история и метрики
   расхода (турны/токены, насколько это отдаётся провайдером).
 
@@ -265,3 +327,14 @@ Everything here follows M3/Vuetify правила из `CLAUDE.md`, ничего
 - **Одновременные запуски на одну задачу** от разных триггеров (ручной +
   авто почти одновременно) — нужна блокировка на уровне `agent_runs`
   (partial unique index на `task_id` где `status = 'running'`).
+- **Надёжность tool-calling у некоторых провайдеров/моделей** — топовые
+  hosted (Claude, GPT, DeepSeek, Qwen-max) держат сложные многошаговые
+  tool-loop'ы надёжно; локальные модели через Ollama и более слабые/мелкие
+  модели у любого провайдера — не факт. Нужен явный статус "провайдер
+  экспериментальный" в UI и/или более простая, менее многошаговая
+  инструкция для слабых моделей, а не одна и та же логика на всех.
+- **Железо под `ollama_local`** — CPU-инференс кодового агента практически
+  бесполезен по скорости; нужен GPU на сервере Kaska, иначе тир имеет смысл
+  только для маленьких/быстрых моделей или как демо. Проверить, что стоит
+  на сервере, до того как проектировать под это UI как равноценный
+  hosted-провайдерам вариант.
