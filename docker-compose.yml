@@ -57,6 +57,11 @@ services:
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
       GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:?}
       AGENT_SECRETS_KEY: ${AGENT_SECRETS_KEY:?}
+      AGENT_SUPERVISOR_URL: http://agent-supervisor:8080
+      AGENT_SUPERVISOR_SECRET: ${AGENT_SUPERVISOR_SECRET:-}
+      AGENT_CALLBACK_BASE_URL: http://api:4000/internal
+      AGENT_RUNTIME_IMAGE: ${AGENT_RUNTIME_IMAGE:-kaska-agent-runtime:latest}
+      AGENT_RUNTIME_KASKA_API_URL: ${WEB_BASE_URL:?}/api/v1
       MAIL_HOST: ${MAIL_HOST:?}
       MAIL_PORT: ${MAIL_PORT:-465}
       MAIL_USERNAME: ${MAIL_USERNAME:?}
@@ -76,6 +81,38 @@ services:
       postgres:
         condition: service_healthy
       rustfs:
+        condition: service_started
+
+  agent-runtime:
+    profiles: ["agents"]
+    build:
+      context: ./agent-runtime
+      dockerfile: Dockerfile
+    image: ${AGENT_RUNTIME_IMAGE:-kaska-agent-runtime:latest}
+    container_name: kaska-agent-runtime-build
+    restart: "no"
+    network_mode: none
+    command: ["true"]
+
+  agent-supervisor:
+    profiles: ["agents"]
+    networks:
+      - default
+    build:
+      context: ./agent-supervisor
+      dockerfile: Dockerfile
+    image: kaska-agent-supervisor:latest
+    container_name: kaska-agent-supervisor
+    restart: unless-stopped
+    environment:
+      SUPERVISOR_SECRET: ${AGENT_SUPERVISOR_SECRET:-}
+      CALLBACK_BASE_URL: http://api:4000/internal
+      RUNNER_NETWORK: kaska-agent-runs
+      ALLOWED_IMAGES: ${AGENT_RUNTIME_IMAGE:-kaska-agent-runtime:latest}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      api:
         condition: service_started
 
   web:

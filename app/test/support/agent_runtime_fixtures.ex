@@ -13,11 +13,11 @@ defmodule Kaska.AgentRuntimeFixtures do
         name: "Proj"
       })
 
-    {:ok, %{agent: agent}} = Agents.create_agent(owner.id, project.id, %{display_name: "Coder"})
+    {:ok, agent} = Agents.create_agent(owner.id, %{display_name: "Coder"})
+    {:ok, _} = Agents.assign_to_project(agent, project.id)
 
     {:ok, _config} =
       AgentRuntime.upsert_config(agent, %{
-        kind: "code_capable",
         provider_preset: "deepseek",
         model: "deepseek-chat",
         api_key: "sk-secret-value"

@@ -63,8 +63,8 @@ export class DockerEngine implements ContainerEngine {
         PidsLimit: Math.round(spec.limits.pidsLimit),
         ReadonlyRootfs: true,
         Tmpfs: {
-          "/tmp": "rw,nosuid,nodev,size=512m",
-          "/workspace": "rw,nosuid,nodev,exec,size=4g",
+          "/tmp": "rw,nosuid,nodev,mode=1777,size=512m",
+          "/workspace": "rw,nosuid,nodev,exec,mode=1777,size=4g",
         },
         CapDrop: ["ALL"],
         SecurityOpt: ["no-new-privileges"],

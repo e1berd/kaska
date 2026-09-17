@@ -1,13 +1,16 @@
 defmodule Kaska.AgentRuntime do
   @moduledoc """
-  Control plane for code-capable agents that run inside `agent-supervisor`
-  containers. Holds each agent's runtime config and the history of its runs;
-  never touches Docker itself.
+  Control plane for agents that run inside `agent-supervisor` containers.
+  Holds each agent's runtime config and the history of its runs; never touches
+  Docker itself.
 
   Run lifecycle: `request_run/4` inserts a `pending` run (at most one active run
   per task, bounded per owner), `mark_running/3` records the container and the
-  per-run PAT, `finish_run/2` moves it to a terminal status and revokes the PAT.
-  Every transition is broadcast on `run_topic/1` and `task_runs_topic/1`.
+  per-run token, `finish_run/2` moves it to a terminal status and revokes the
+  token. Every transition is broadcast as `{:agent_run_updated, run}` on
+  `run_topic/1`, `task_runs_topic/1`, `project_runs_topic/1` and
+  `owner_runs_topic/1` of the agent's owner; runner output
+  as `{:agent_run_log, run_id, chunk}` on `run_topic/1`.
   """
 
   import Ecto.Query
@@ -19,8 +22,10 @@ defmodule Kaska.AgentRuntime do
 
   @log_tail_max_lines 200
 
-  def run_topic(run_id), do: "agent_run:#{run_id}"
-  def task_runs_topic(task_id), do: "agent_runs:task:#{task_id}"
+  def run_topic(run_id), do: "agent_runtime:run:#{run_id}"
+  def task_runs_topic(task_id), do: "agent_runtime:task:#{task_id}"
+  def project_runs_topic(project_id), do: "agent_runtime:project:#{project_id}"
+  def owner_runs_topic(owner_id), do: "agent_runtime:owner:#{owner_id}"
 
   def get_config(agent_id) when is_binary(agent_id), do: Repo.get(AgentConfig, agent_id)
 
@@ -35,13 +40,12 @@ defmodule Kaska.AgentRuntime do
     |> Repo.insert_or_update()
   end
 
-  def code_capable?(%AgentConfig{kind: "code_capable"}), do: true
-  def code_capable?(_), do: false
+  def ready?(%User{is_agent: true} = agent), do: agent |> config_for() |> AgentConfig.ready?()
 
   def api_key_set?(%AgentConfig{encrypted_api_key: key}), do: is_binary(key)
 
   @doc """
-  Requests a run of `agent` on `task`. The agent must be code-capable and
+  Requests a run of `agent` on `task`. The agent must be fully configured and
   assigned to the task, the task must have no active run, and the agent's owner
   must be under `max_active_runs_per_owner`.
   """
@@ -51,7 +55,7 @@ defmodule Kaska.AgentRuntime do
         requested_by_id,
         trigger \\ "manual"
       ) do
-    with :ok <- ensure_code_capable(agent),
+    with :ok <- ensure_configured(agent),
          :ok <- ensure_assigned(agent, task),
          :ok <- ensure_member(agent, task),
          :ok <- ensure_owner_quota(agent) do
@@ -72,8 +76,8 @@ defmodule Kaska.AgentRuntime do
     end
   end
 
-  defp ensure_code_capable(agent) do
-    if agent |> config_for() |> code_capable?(), do: :ok, else: {:error, :not_code_capable}
+  defp ensure_configured(agent) do
+    if ready?(agent), do: :ok, else: {:error, :not_configured}
   end
 
   defp ensure_assigned(%User{id: agent_id}, %Task{assignee_id: agent_id}), do: :ok
@@ -100,8 +104,39 @@ defmodule Kaska.AgentRuntime do
     )
   end
 
-  def get_run(id) when is_binary(id), do: Repo.get(AgentRun, id)
+  def get_run(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(AgentRun, uuid)
+      :error -> nil
+    end
+  end
+
   def get_run(_), do: nil
+
+  def active_run_for_token(token_id) when is_binary(token_id) do
+    Repo.one(
+      from r in AgentRun,
+        where: r.api_token_id == ^token_id and r.status in ^AgentRun.active_statuses()
+    )
+  end
+
+  def active_runs_for_agent(agent_id) when is_binary(agent_id) do
+    Repo.all(
+      from r in AgentRun,
+        where: r.agent_id == ^agent_id and r.status in ^AgentRun.active_statuses()
+    )
+  end
+
+  @doc "The newest run of each task in the project that has any, keyed by task id."
+  def latest_runs_by_task(project_id) when is_binary(project_id) do
+    from(r in AgentRun,
+      where: r.project_id == ^project_id and not is_nil(r.task_id),
+      distinct: r.task_id,
+      order_by: [asc: r.task_id, desc: r.inserted_at]
+    )
+    |> Repo.all()
+    |> Map.new(&{&1.task_id, &1})
+  end
 
   def active_run_for_task(task_id) when is_binary(task_id) do
     Repo.one(
@@ -238,6 +273,12 @@ defmodule Kaska.AgentRuntime do
     message = {:agent_run_updated, run}
     Phoenix.PubSub.broadcast(Kaska.PubSub, run_topic(run.id), message)
 
+    Phoenix.PubSub.broadcast(Kaska.PubSub, project_runs_topic(run.project_id), message)
+
+    if owner_id = agent_owner_id(run.agent_id) do
+      Phoenix.PubSub.broadcast(Kaska.PubSub, owner_runs_topic(owner_id), message)
+    end
+
     if run.task_id do
       Phoenix.PubSub.broadcast(Kaska.PubSub, task_runs_topic(run.task_id), message)
     end
@@ -246,4 +287,8 @@ defmodule Kaska.AgentRuntime do
   end
 
   defp broadcast_updated(error), do: error
+
+  defp agent_owner_id(agent_id) do
+    Repo.one(from u in User, where: u.id == ^agent_id, select: u.agent_owner_id)
+  end
 end

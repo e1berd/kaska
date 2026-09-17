@@ -1,8 +1,10 @@
 defmodule Kaska.AgentRuntime.AgentConfig do
   @moduledoc """
-  Runtime settings of an agent (1:1 with a bot `User`): whether it may work
-  with code in a supervisor container, which LLM provider it talks to and the
-  encrypted API key. The plaintext key is write-only: it is never rendered back.
+  Runtime settings of an agent (1:1 with a bot `User`): the LLM provider it
+  talks to, the model and the encrypted API key. The plaintext key is
+  write-only: only whether it is set and its last characters are shown.
+
+  A config may be saved incomplete; `missing/1` lists what still blocks a run.
   """
 
   use Ecto.Schema
@@ -11,8 +13,9 @@ defmodule Kaska.AgentRuntime.AgentConfig do
   alias Kaska.Accounts.User
   alias Kaska.AgentRuntime.Presets
 
-  @kinds ~w(chat_only code_capable)
   @provider_kinds ~w(anthropic openai_compatible ollama_local)
+  @keyless_presets ~w(lm_studio ollama)
+  @visible_key_chars 4
 
   @primary_key false
   @foreign_key_type :binary_id
@@ -21,7 +24,6 @@ defmodule Kaska.AgentRuntime.AgentConfig do
   schema "agent_configs" do
     belongs_to :agent, User, primary_key: true
 
-    field :kind, :string, default: "chat_only"
     field :provider_kind, :string
     field :provider_preset, :string
     field :base_url, :string
@@ -34,13 +36,11 @@ defmodule Kaska.AgentRuntime.AgentConfig do
     timestamps()
   end
 
-  def kinds, do: @kinds
   def provider_kinds, do: @provider_kinds
 
   def changeset(config, attrs) do
     config
     |> cast(attrs, [
-      :kind,
       :provider_kind,
       :provider_preset,
       :base_url,
@@ -52,19 +52,17 @@ defmodule Kaska.AgentRuntime.AgentConfig do
     |> update_change(:base_url, &blank_to_nil/1)
     |> update_change(:model, &blank_to_nil/1)
     |> update_change(:system_prompt, &blank_to_nil/1)
-    |> validate_inclusion(:kind, @kinds)
     |> validate_inclusion(:provider_kind, @provider_kinds)
     |> validate_inclusion(:provider_preset, Presets.slugs())
-    |> apply_preset_defaults()
+    |> apply_preset()
     |> validate_length(:base_url, max: 512)
     |> validate_format(:base_url, ~r{\Ahttps?://}, message: "must be an http(s) URL")
     |> validate_length(:model, max: 200)
     |> validate_length(:system_prompt, max: 20_000)
     |> put_api_key()
-    |> validate_code_capable()
   end
 
-  defp apply_preset_defaults(changeset) do
+  defp apply_preset(changeset) do
     case Presets.get(get_change(changeset, :provider_preset)) do
       nil ->
         changeset
@@ -72,16 +70,14 @@ defmodule Kaska.AgentRuntime.AgentConfig do
       preset ->
         changeset
         |> put_change(:provider_kind, preset.provider_kind)
-        |> put_default_base_url(preset.base_url)
+        |> put_preset_base_url(preset.base_url)
     end
   end
 
-  defp put_default_base_url(changeset, nil), do: changeset
-
-  defp put_default_base_url(changeset, default) do
-    if get_field(changeset, :base_url),
+  defp put_preset_base_url(changeset, default) do
+    if get_change(changeset, :base_url),
       do: changeset,
-      else: put_change(changeset, :base_url, default)
+      else: force_change(changeset, :base_url, default)
   end
 
   defp put_api_key(changeset) do
@@ -91,45 +87,33 @@ defmodule Kaska.AgentRuntime.AgentConfig do
     end
   end
 
-  defp validate_code_capable(changeset) do
-    if get_field(changeset, :kind) == "code_capable" do
-      changeset
-      |> validate_required([:provider_kind, :model])
-      |> validate_provider_requirements()
-    else
-      changeset
-    end
+  @doc "What blocks a run: any of `:provider`, `:model`, `:base_url`, `:api_key`."
+  def missing(%__MODULE__{} = config) do
+    [
+      {:provider, is_nil(config.provider_kind)},
+      {:model, is_nil(config.model)},
+      {:base_url,
+       config.provider_kind in ~w(openai_compatible ollama_local) and is_nil(config.base_url)},
+      {:api_key, needs_api_key?(config) and is_nil(config.encrypted_api_key)}
+    ]
+    |> Enum.filter(fn {_field, missing?} -> missing? end)
+    |> Enum.map(fn {field, _} -> field end)
   end
 
-  defp validate_provider_requirements(changeset) do
-    case get_field(changeset, :provider_kind) do
-      "anthropic" ->
-        require_api_key(changeset)
+  def ready?(%__MODULE__{} = config), do: missing(config) == []
 
-      "openai_compatible" ->
-        changeset |> validate_required([:base_url]) |> require_hosted_api_key()
+  defp needs_api_key?(%__MODULE__{provider_kind: nil}), do: false
+  defp needs_api_key?(%__MODULE__{provider_kind: "ollama_local"}), do: false
+  defp needs_api_key?(%__MODULE__{provider_preset: preset}), do: preset not in @keyless_presets
 
-      "ollama_local" ->
-        validate_required(changeset, [:base_url])
-
-      _ ->
-        changeset
-    end
+  @doc "The last characters of the stored key, for recognising it without revealing it."
+  def api_key_hint(%__MODULE__{encrypted_api_key: key}) when is_binary(key) do
+    if String.length(key) > @visible_key_chars * 3,
+      do: String.slice(key, -@visible_key_chars, @visible_key_chars),
+      else: nil
   end
 
-  defp require_hosted_api_key(changeset) do
-    if get_field(changeset, :provider_preset) == "lm_studio",
-      do: changeset,
-      else: require_api_key(changeset)
-  end
-
-  defp require_api_key(changeset) do
-    if get_field(changeset, :encrypted_api_key) do
-      changeset
-    else
-      add_error(changeset, :api_key, "can't be blank")
-    end
-  end
+  def api_key_hint(_), do: nil
 
   defp blank_to_nil(nil), do: nil
 

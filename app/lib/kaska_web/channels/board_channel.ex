@@ -11,9 +11,10 @@ defmodule KaskaWeb.BoardChannel do
 
   use Phoenix.Channel
 
-  alias Kaska.{Accounts, Agents, Attachments, Projects}
+  alias Kaska.{Accounts, AgentRuntime, Attachments, Projects}
+  alias Kaska.AgentRuntime.{AgentRun, Dispatcher}
   alias Kaska.Accounts.UserNotifier
-  alias KaskaWeb.Endpoint
+  alias KaskaWeb.{AgentViews, Endpoint}
   alias KaskaWeb.Presence
   alias Kaska.Attachments.Attachment
   alias Kaska.Projects.{Column, Project, ProjectInvite, ProjectMember, Task, TaskComment}
@@ -48,6 +49,7 @@ defmodule KaskaWeb.BoardChannel do
         |> assign(:can_write, can_write)
 
       send(self(), :after_join_presence)
+      :ok = Phoenix.PubSub.subscribe(Kaska.PubSub, AgentRuntime.project_runs_topic(project.id))
       task_ids = Enum.map(tasks, & &1.id)
       task_types = Projects.list_task_types(project.id)
       task_comments = Projects.list_task_comments(project.id)
@@ -81,7 +83,12 @@ defmodule KaskaWeb.BoardChannel do
            ),
          settings: %{allow_guest_comments: allow_guest_comments},
          users: Enum.map(users, &user_view/1),
-         attachments: attachments
+         attachments: attachments,
+         agent_runs:
+           project.id
+           |> AgentRuntime.latest_runs_by_task()
+           |> Map.values()
+           |> Enum.map(&AgentViews.run/1)
        }, socket}
     else
       {:error, %{reason: "forbidden"}}
@@ -101,11 +108,16 @@ defmodule KaskaWeb.BoardChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:agent_run_updated, %AgentRun{} = run}, socket) do
+    push(socket, "agent_run_updated", AgentViews.run(run))
+    {:noreply, socket}
+  end
+
   ## Authorization gate ──────────────────────────────────────────────────
 
   @impl true
   def handle_in(event, _payload, %{assigns: %{can_write: false}} = socket)
-      when event != "create_task_comment" do
+      when event not in ["create_task_comment", "list_task_runs"] do
     {:reply, {:error, %{message: "forbidden", code: "forbidden"}}, socket}
   end
 
@@ -239,73 +251,6 @@ defmodule KaskaWeb.BoardChannel do
       broadcast_users(project)
       Endpoint.broadcast("projects:user:#{user_id}", "project_deleted", %{id: project.id})
       {:reply, {:ok, %{user_id: user_id}}, socket}
-    end)
-  end
-
-  def handle_in("list_agents", _payload, socket) do
-    with_owned_project(socket, fn project ->
-      agents = Agents.list_agents(project.id)
-      {:reply, {:ok, %{agents: Enum.map(agents, &agent_view/1)}}, socket}
-    end)
-  end
-
-  def handle_in("create_agent", payload, socket) do
-    with_owned_project(socket, fn project ->
-      attrs = %{display_name: Map.get(payload, "display_name")}
-
-      case Agents.create_agent(socket.assigns.current_user.id, project.id, attrs) do
-        {:ok, %{agent: agent, token: token}} ->
-          broadcast_users(project)
-          {:reply, {:ok, %{agent: agent_view(agent), token: token}}, socket}
-
-        {:error, %Ecto.Changeset{} = cs} ->
-          {:reply, {:error, %{errors: format_errors(cs)}}, socket}
-      end
-    end)
-  end
-
-  def handle_in("update_agent", %{"id" => id} = payload, socket) do
-    with_owned_project(socket, fn project ->
-      attrs = take_present(payload, ["display_name", "avatar_key"])
-
-      with %Kaska.Accounts.User{} = agent <- Agents.get_agent(project.id, id),
-           {:ok, updated} <- Agents.update_agent(agent, attrs) do
-        broadcast_users(project)
-        {:reply, {:ok, %{agent: agent_view(updated)}}, socket}
-      else
-        nil ->
-          {:reply, {:error, %{message: "agent_not_found"}}, socket}
-
-        {:error, %Ecto.Changeset{} = cs} ->
-          {:reply, {:error, %{errors: format_errors(cs)}}, socket}
-      end
-    end)
-  end
-
-  def handle_in("remove_agent", %{"id" => id}, socket) do
-    with_owned_project(socket, fn project ->
-      case Agents.get_agent(project.id, id) do
-        nil ->
-          {:reply, {:error, %{message: "agent_not_found"}}, socket}
-
-        agent ->
-          :ok = Agents.remove_agent(project.id, agent)
-          broadcast_users(project)
-          {:reply, {:ok, %{id: id}}, socket}
-      end
-    end)
-  end
-
-  def handle_in("regenerate_agent_token", %{"id" => id}, socket) do
-    with_owned_project(socket, fn project ->
-      case Agents.get_agent(project.id, id) do
-        nil ->
-          {:reply, {:error, %{message: "agent_not_found"}}, socket}
-
-        agent ->
-          {:ok, token} = Agents.regenerate_token(agent)
-          {:reply, {:ok, %{id: id, token: token}}, socket}
-      end
     end)
   end
 
@@ -565,6 +510,51 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
+  ## Agent runs ──────────────────────────────────────────────────────────
+
+  def handle_in("start_agent_run", %{"task_id" => task_id}, socket) do
+    with %Task{} = task <- get_owned_task(task_id, socket),
+         %Kaska.Accounts.User{is_agent: true} = agent <- task_assignee(task),
+         {:ok, run} <-
+           AgentRuntime.request_run(agent, task, socket.assigns.current_user.id) do
+      :ok = Dispatcher.dispatch_async(run)
+      {:reply, {:ok, AgentViews.run(run)}, socket}
+    else
+      nil ->
+        {:reply, {:error, %{message: "not_assigned_to_agent"}}, socket}
+
+      %Kaska.Accounts.User{} ->
+        {:reply, {:error, %{message: "not_assigned_to_agent"}}, socket}
+
+      {:error, reason} when is_atom(reason) ->
+        {:reply, {:error, %{message: to_string(reason)}}, socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+    end
+  end
+
+  def handle_in("stop_agent_run", %{"id" => id}, socket) do
+    with %AgentRun{} = run <- get_owned_run(id, socket),
+         {:ok, stopped} <- Dispatcher.stop(run) do
+      {:reply, {:ok, AgentViews.run(stopped)}, socket}
+    else
+      nil -> {:reply, {:error, %{message: "run_not_found"}}, socket}
+      {:error, reason} -> {:reply, {:error, %{message: to_string(reason)}}, socket}
+    end
+  end
+
+  def handle_in("list_task_runs", %{"task_id" => task_id}, socket) do
+    case get_owned_task(task_id, socket) do
+      %Task{} = task ->
+        runs = task.id |> AgentRuntime.list_runs_for_task(10) |> Enum.map(&AgentViews.run/1)
+        {:reply, {:ok, %{runs: runs}}, socket}
+
+      nil ->
+        {:reply, {:error, %{message: "task_not_found"}}, socket}
+    end
+  end
+
   ## Attachments ─────────────────────────────────────────────────────────
 
   def handle_in("request_task_attachment_upload", %{"task_id" => task_id} = payload, socket) do
@@ -725,6 +715,16 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
+  defp get_owned_run(id, socket) do
+    case AgentRuntime.get_run(id) do
+      %AgentRun{project_id: pid} = run when pid == socket.assigns.project_id -> run
+      _ -> nil
+    end
+  end
+
+  defp task_assignee(%Task{assignee_id: nil}), do: nil
+  defp task_assignee(%Task{assignee_id: id}), do: Accounts.get_user(id)
+
   defp get_owned_task_type(id, socket) do
     case Projects.get_task_type(id) do
       %Kaska.Projects.TaskType{project_id: pid} = tt when pid == socket.assigns.project_id -> tt
@@ -763,18 +763,6 @@ defmodule KaskaWeb.BoardChannel do
       avatar_url: m.user && avatar_url(m.user),
       is_agent: m.user && m.user.is_agent,
       inserted_at: m.inserted_at
-    }
-  end
-
-  defp agent_view(%Kaska.Accounts.User{} = u) do
-    %{
-      id: u.id,
-      user_id: u.id,
-      display_name: u.display_name,
-      email: u.email,
-      avatar_url: avatar_url(u),
-      is_agent: true,
-      inserted_at: u.inserted_at
     }
   end
 
@@ -861,7 +849,8 @@ defmodule KaskaWeb.BoardChannel do
       confirmed_at: u.confirmed_at,
       display_name: u.display_name,
       avatar_url: avatar_url(u),
-      is_agent: u.is_agent
+      is_agent: u.is_agent,
+      agent: AgentViews.board_agent(u)
     }
   end
 

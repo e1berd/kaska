@@ -3,8 +3,12 @@
 Статус: Phase 1 в работе. Сделано: `agent_configs`/`agent_runs`, шифрование
 ключа (`cloak_ecto`, `Kaska.Vault`), контекст `Kaska.AgentRuntime`, диспатч в
 супервизор (`Dispatcher`, `SupervisorClient`, per-run PAT), internal callback
-`/internal/agent_runs/:id/{logs,exit}`, reaper. Дальше: сам `agent-supervisor`,
-раннер, UI.
+`/internal/agent_runs/:id/{logs,exit}`, reaper, сервис `agent-supervisor/`
+(Deno + dockerode, compose-профиль `agents`, проверен на живом Docker), раннер
+`agent-runtime/` (Claude Agent SDK + свой `openai_compatible` цикл, `ollama_local`
+через его `/v1`; проверен в контейнере против заглушек обоих API). Дальше: UI
+(настройки агента, запуск/стоп с карточки, живой лог) и проверка на реальном
+провайдере.
 Область: `app/` (control plane), два новых сервиса — `agent-supervisor/` и
 `agent-runtime/` (образ-раннер).
 

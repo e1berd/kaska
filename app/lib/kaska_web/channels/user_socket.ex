@@ -4,7 +4,8 @@ defmodule KaskaWeb.UserSocket do
   channel "auth:lobby", KaskaWeb.AuthChannel
   channel "user:*", KaskaWeb.UserChannel
   channel "projects:user:*", KaskaWeb.ProjectsChannel
-  channel "clerks:user:*", KaskaWeb.ClerksChannel
+  channel "agents:user:*", KaskaWeb.AgentsChannel
+  channel "agent_run:*", KaskaWeb.AgentRunChannel
   channel "board:*", KaskaWeb.BoardChannel
   channel "board_slug:*", KaskaWeb.BoardChannel
   channel "task_doc:*", KaskaWeb.TaskDocChannel
@@ -15,14 +16,8 @@ defmodule KaskaWeb.UserSocket do
       when is_binary(token) and token != "" do
     user =
       case Kaska.Guardian.resource_from_token(token) do
-        {:ok, user, _claims} ->
-          user
-
-        _ ->
-          case Kaska.ApiTokens.verify_token(token) do
-            {:ok, user} -> user
-            :error -> nil
-          end
+        {:ok, user, _claims} -> user
+        {:error, _reason} -> nil
       end
 
     {:ok, assign(socket, :current_user, user)}

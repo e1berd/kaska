@@ -5,23 +5,9 @@ defmodule KaskaWeb.Api.CommentController do
   alias KaskaWeb.Api.Serializer
   alias KaskaWeb.BoardBroadcast
 
-  plug KaskaWeb.Plugs.ApiProject
+  plug KaskaWeb.Plugs.RunnerAuth
 
   action_fallback KaskaWeb.Api.FallbackController
-
-  def index(conn, %{"task_id" => task_id} = params) do
-    project = conn.assigns.project
-    format = format(params)
-
-    case Projects.get_project_task(project.id, task_id) do
-      nil ->
-        {:error, :not_found}
-
-      _task ->
-        comments = Projects.list_task_comments_for(project.id, task_id)
-        json(conn, %{comments: Enum.map(comments, &Serializer.comment(&1, format))})
-    end
-  end
 
   def create(conn, %{"task_id" => task_id} = params) do
     project = conn.assigns.project

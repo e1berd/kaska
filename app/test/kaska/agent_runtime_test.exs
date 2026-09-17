@@ -10,9 +10,8 @@ defmodule Kaska.AgentRuntimeTest do
     user
   end
 
-  defp code_capable_attrs do
+  defp ready_attrs do
     %{
-      kind: "code_capable",
       provider_preset: "deepseek",
       model: "deepseek-chat",
       api_key: "sk-secret-value"
@@ -28,7 +27,8 @@ defmodule Kaska.AgentRuntimeTest do
         name: "Proj"
       })
 
-    {:ok, %{agent: agent}} = Agents.create_agent(owner.id, project.id, %{display_name: "Coder"})
+    {:ok, agent} = Agents.create_agent(owner.id, %{display_name: "Coder"})
+    {:ok, _} = Agents.assign_to_project(agent, project.id)
     {_p, [todo | _], _t} = Projects.board_snapshot(project.id)
 
     {:ok, task} =
@@ -40,21 +40,21 @@ defmodule Kaska.AgentRuntimeTest do
   describe "agent config" do
     setup :setup_board
 
-    test "defaults to chat_only without a stored row", %{agent: agent} do
+    test "an unconfigured agent is not ready and says what is missing", %{agent: agent} do
       config = AgentRuntime.config_for(agent)
-      assert config.kind == "chat_only"
-      refute AgentRuntime.code_capable?(config)
+      refute AgentConfig.ready?(config)
+      assert AgentConfig.missing(config) == [:provider, :model]
     end
 
     test "preset fills provider kind and base url", %{agent: agent} do
-      assert {:ok, config} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      assert {:ok, config} = AgentRuntime.upsert_config(agent, ready_attrs())
       assert config.provider_kind == "openai_compatible"
       assert config.base_url == "https://api.deepseek.com/v1"
-      assert AgentRuntime.code_capable?(config)
+      assert AgentConfig.ready?(config)
     end
 
     test "api key is encrypted at rest and decrypted on load", %{agent: agent} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
 
       [raw] =
         Repo.query!("SELECT encrypted_api_key FROM agent_configs WHERE agent_id = $1", [
@@ -68,28 +68,47 @@ defmodule Kaska.AgentRuntimeTest do
     end
 
     test "updating without api_key keeps the stored key", %{agent: agent} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
       assert {:ok, updated} = AgentRuntime.upsert_config(agent, %{model: "deepseek-reasoner"})
       assert updated.encrypted_api_key == "sk-secret-value"
       assert AgentRuntime.api_key_set?(updated)
     end
 
-    test "code_capable hosted provider requires an api key", %{agent: agent} do
-      attrs = Map.delete(code_capable_attrs(), :api_key)
-      assert {:error, changeset} = AgentRuntime.upsert_config(agent, attrs)
-      assert %{api_key: _} = errors_on(changeset)
+    test "a hosted provider without a key saves but is not ready", %{agent: agent} do
+      attrs = Map.delete(ready_attrs(), :api_key)
+      assert {:ok, config} = AgentRuntime.upsert_config(agent, attrs)
+      assert AgentConfig.missing(config) == [:api_key]
+    end
+
+    test "switching preset replaces the base url unless one is given", %{agent: agent} do
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
+      assert {:ok, config} = AgentRuntime.upsert_config(agent, %{provider_preset: "openai"})
+      assert config.base_url == "https://api.openai.com/v1"
+
+      assert {:ok, custom} =
+               AgentRuntime.upsert_config(agent, %{
+                 provider_preset: "custom",
+                 base_url: "https://llm.example/v1"
+               })
+
+      assert custom.base_url == "https://llm.example/v1"
+    end
+
+    test "the key hint shows only the last characters", %{agent: agent} do
+      {:ok, config} = AgentRuntime.upsert_config(agent, ready_attrs())
+      assert AgentConfig.api_key_hint(config) == "alue"
     end
 
     test "local presets do not require an api key", %{agent: agent} do
       assert {:ok, config} =
                AgentRuntime.upsert_config(agent, %{
-                 kind: "code_capable",
                  provider_preset: "ollama",
                  model: "qwen2.5-coder"
                })
 
       assert config.provider_kind == "ollama_local"
       refute AgentRuntime.api_key_set?(config)
+      assert AgentConfig.ready?(config)
     end
 
     test "rejects unknown provider kinds", %{agent: agent} do
@@ -103,18 +122,18 @@ defmodule Kaska.AgentRuntimeTest do
   describe "request_run/4" do
     setup :setup_board
 
-    test "refuses chat_only agents", %{agent: agent, task: task, owner: owner} do
-      assert {:error, :not_code_capable} = AgentRuntime.request_run(agent, task, owner.id)
+    test "refuses agents that are not configured", %{agent: agent, task: task, owner: owner} do
+      assert {:error, :not_configured} = AgentRuntime.request_run(agent, task, owner.id)
     end
 
     test "refuses when the agent is not the assignee", %{agent: agent, task: task, owner: owner} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
       unassigned = %{task | assignee_id: owner.id}
       assert {:error, :not_assigned} = AgentRuntime.request_run(agent, unassigned, owner.id)
     end
 
     test "creates a pending run and broadcasts it", %{agent: agent, task: task, owner: owner} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
       Phoenix.PubSub.subscribe(Kaska.PubSub, AgentRuntime.task_runs_topic(task.id))
 
       assert {:ok, run} = AgentRuntime.request_run(agent, task, owner.id)
@@ -125,7 +144,7 @@ defmodule Kaska.AgentRuntimeTest do
     end
 
     test "allows only one active run per task", %{agent: agent, task: task, owner: owner} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
       assert {:ok, _} = AgentRuntime.request_run(agent, task, owner.id)
       assert {:error, :already_running} = AgentRuntime.request_run(agent, task, owner.id)
     end
@@ -136,7 +155,7 @@ defmodule Kaska.AgentRuntimeTest do
       project: project,
       column: column
     } do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
 
       tasks =
         for i <- 1..(AgentRuntime.max_active_runs_per_owner() + 1) do
@@ -161,7 +180,7 @@ defmodule Kaska.AgentRuntimeTest do
     setup :setup_board
 
     setup %{agent: agent, task: task, owner: owner} do
-      {:ok, _} = AgentRuntime.upsert_config(agent, code_capable_attrs())
+      {:ok, _} = AgentRuntime.upsert_config(agent, ready_attrs())
       {:ok, run} = AgentRuntime.request_run(agent, task, owner.id)
       %{run: run}
     end

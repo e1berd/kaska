@@ -59,7 +59,6 @@ defmodule Kaska.MixProject do
       {:cors_plug, "~> 3.0"},
       {:y_ex, "~> 0.10"},
       {:mdex, "~> 0.13"},
-      {:open_api_spex, "~> 3.22"},
       {:cloak_ecto, "~> 1.3"}
     ]
   end

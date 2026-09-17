@@ -1,11 +1,11 @@
 defmodule Kaska.ApiTokens do
   @moduledoc """
-  Personal access tokens for the REST API (`/api/v1`). A token authenticates
-  as the user that owns it, so the API reuses the same membership checks as the
-  channel layer (`Kaska.Projects.member?/2` and friends).
+  Bearer tokens for the runner REST API (`/api/v1`). Tokens are issued only
+  per agent run (`Kaska.AgentRuntime.issue_run_token/1`), authenticate as the
+  agent and are revoked when the run finishes.
 
-  Only a SHA-256 hash of the token is stored. The plaintext is shown exactly
-  once, at creation time. Tokens are long-lived and revocable.
+  Only a SHA-256 hash of the token is stored; the plaintext exists only in the
+  runner container's environment.
   """
 
   import Ecto.Query
@@ -44,7 +44,15 @@ defmodule Kaska.ApiTokens do
   Resolves a plaintext token to its owner, touching `last_used_at`. Returns
   `{:ok, %User{}}` for a live (non-revoked) token, otherwise `:error`.
   """
-  def verify_token(plaintext) when is_binary(plaintext) do
+  def verify_token(plaintext) do
+    case resolve_token(plaintext) do
+      {:ok, _token, user} -> {:ok, user}
+      :error -> :error
+    end
+  end
+
+  @doc "Like `verify_token/1`, but also returns the token record: `{:ok, token, user}`."
+  def resolve_token(plaintext) when is_binary(plaintext) do
     hashed = hash(plaintext)
 
     query =
@@ -56,14 +64,14 @@ defmodule Kaska.ApiTokens do
     case Repo.one(query) do
       {token, user} ->
         touch_last_used(token)
-        {:ok, user}
+        {:ok, token, user}
 
       nil ->
         :error
     end
   end
 
-  def verify_token(_), do: :error
+  def resolve_token(_), do: :error
 
   def list_tokens(%User{id: user_id}) do
     Repo.all(

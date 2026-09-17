@@ -622,13 +622,8 @@ defmodule Kaska.Projects do
       |> TaskComment.create_changeset(payload)
       |> Repo.insert()
       |> case do
-        {:ok, comment} ->
-          comment = Repo.preload(comment, :author)
-          Kaska.AgentEvents.notify_on_comment_created(comment, project_id)
-          {:ok, comment}
-
-        other ->
-          other
+        {:ok, comment} -> {:ok, Repo.preload(comment, :author)}
+        other -> other
       end
     else
       {:error, _} = err -> err
