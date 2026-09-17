@@ -92,6 +92,7 @@ services:
       - web-dist:/export
 
   landing:
+    profiles: ["landing"]
     networks:
       - default
     build:
@@ -110,7 +111,7 @@ services:
     container_name: kaska-caddy
     restart: unless-stopped
     environment:
-      LANDING_DOMAIN: ${LANDING_DOMAIN:?}
+      LANDING_DOMAIN: ${LANDING_DOMAIN:-landing.invalid}
       APP_DOMAIN: ${APP_DOMAIN:?}
       S3_DOMAIN: ${S3_DOMAIN:?}
       ACME_EMAIL: ${ACME_EMAIL:?}
@@ -127,8 +128,6 @@ services:
       - caddy-config:/config
     depends_on:
       web:
-        condition: service_completed_successfully
-      landing:
         condition: service_completed_successfully
       api:
         condition: service_started
