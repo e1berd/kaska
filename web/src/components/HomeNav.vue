@@ -25,10 +25,10 @@ const navItems = computed<NavItem[]>(() => {
 
   if (auth.isAuthed) {
     items.push({
-      key: 'clerks',
-      label: 'Клерки',
+      key: 'agents',
+      label: 'Агенты',
       icon: PhRobot,
-      to: { name: 'clerks' },
+      to: { name: 'agents' },
     })
     items.push({
       key: 'settings',

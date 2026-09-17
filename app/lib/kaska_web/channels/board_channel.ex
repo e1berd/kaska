@@ -84,6 +84,9 @@ defmodule KaskaWeb.BoardChannel do
          settings: %{allow_guest_comments: allow_guest_comments},
          users: Enum.map(users, &user_view/1),
          attachments: attachments,
+         agent_limits: %{
+           max_walltime_seconds: AgentRuntime.supervisor_setting(:max_walltime_seconds)
+         },
          agent_runs:
            project.id
            |> AgentRuntime.latest_runs_by_task()

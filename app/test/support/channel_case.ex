@@ -16,13 +16,4 @@ defmodule KaskaWeb.ChannelCase do
     Kaska.DataCase.setup_sandbox(tags)
     :ok
   end
-
-  def user_socket(user) do
-    Phoenix.ChannelTest.__socket__(
-      KaskaWeb.UserSocket,
-      nil,
-      %{current_user: user},
-      KaskaWeb.Endpoint
-    )
-  end
 end

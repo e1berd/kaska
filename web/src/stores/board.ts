@@ -96,14 +96,38 @@ export interface ProjectMember {
   inserted_at?: string
 }
 
-export interface Agent {
+export type AgentRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'stopped' | 'timed_out'
+
+export interface AgentRun {
   id: string
-  user_id: string
-  display_name: string | null
-  email: string | null
-  avatar_url: string | null
-  is_agent: true
-  inserted_at?: string
+  agent_id: string
+  task_id: string | null
+  project_id: string
+  requested_by_id: string | null
+  trigger: string
+  status: AgentRunStatus
+  started_at: string | null
+  finished_at: string | null
+  exit_code: number | null
+  exit_reason: string | null
+  inserted_at: string
+}
+
+export interface BoardAgentInfo {
+  provider_preset: string | null
+  model: string | null
+  ready: boolean
+}
+
+export interface BoardUser extends User {
+  is_agent?: boolean
+  agent?: BoardAgentInfo | null
+}
+
+export const ACTIVE_RUN_STATUSES: AgentRunStatus[] = ['pending', 'running']
+
+export function isRunActive(run: AgentRun | null | undefined): boolean {
+  return !!run && ACTIVE_RUN_STATUSES.includes(run.status)
 }
 
 export interface ProjectInvite {
@@ -126,8 +150,10 @@ export interface BoardSnapshot {
   task_types: TaskType[]
   task_comments: TaskComment[]
   settings?: BoardSettings
-  users: User[]
+  users: BoardUser[]
   attachments: Attachment[]
+  agent_runs?: AgentRun[]
+  agent_limits?: { max_walltime_seconds: number }
 }
 
 type PresenceMeta = {
@@ -145,7 +171,9 @@ export const useBoardStore = defineStore('board', () => {
   const columns = ref<Column[]>([])
   const tasks = ref<Task[]>([])
   const task_types = ref<TaskType[]>([])
-  const users = ref<User[]>([])
+  const users = ref<BoardUser[]>([])
+  const latestRuns = ref<Record<string, AgentRun>>({})
+  const agentWalltimeSeconds = ref<number | null>(null)
   const attachments = ref<Attachment[]>([])
   const taskComments = ref<TaskComment[]>([])
   const settings = ref<BoardSettings>({ allow_guest_comments: false })
@@ -229,12 +257,17 @@ export const useBoardStore = defineStore('board', () => {
     settings.value = reply.settings ?? { allow_guest_comments: false }
     if (reply.users) users.value = reply.users.slice()
     attachments.value = (reply.attachments ?? []).slice()
+    agentWalltimeSeconds.value = reply.agent_limits?.max_walltime_seconds ?? null
+    latestRuns.value = Object.fromEntries(
+      (reply.agent_runs ?? []).filter((r) => r.task_id).map((r) => [r.task_id!, r]),
+    )
 
     ch.on('project_updated', (p: Project) => {
       project.value = p
     })
 
-    ch.on('board_users', ({ users: list }: { users: User[] }) => {
+    ch.on('agent_run_updated', (run: AgentRun) => applyRun(run))
+    ch.on('board_users', ({ users: list }: { users: BoardUser[] }) => {
       users.value = list.slice()
     })
 
@@ -285,6 +318,7 @@ export const useBoardStore = defineStore('board', () => {
     tasks.value = []
     task_types.value = []
     users.value = []
+    latestRuns.value = {}
     attachments.value = []
     taskComments.value = []
     settings.value = { allow_guest_comments: false }
@@ -585,27 +619,33 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync<{ user_id: string }>(ch(), 'remove_member', { user_id: userId })
   }
 
-  async function listAgents() {
-    const reply = await pushAsync<{ agents: Agent[] }>(ch(), 'list_agents', {})
-    return reply.agents
+  function applyRun(run: AgentRun) {
+    if (!run.task_id) return
+    const current = latestRuns.value[run.task_id]
+    if (current && current.id !== run.id && current.inserted_at > run.inserted_at) return
+    latestRuns.value = { ...latestRuns.value, [run.task_id]: run }
   }
 
-  function createAgent(displayName: string) {
-    return pushAsync<{ agent: Agent; token: string }>(ch(), 'create_agent', {
-      display_name: displayName,
-    })
+  function latestRunFor(taskId: string): AgentRun | null {
+    return latestRuns.value[taskId] ?? null
   }
 
-  function updateAgent(id: string, input: { display_name?: string; avatar_key?: string | null }) {
-    return pushAsync<{ agent: Agent }>(ch(), 'update_agent', { id, ...input })
+  function userById(id: string | null | undefined): BoardUser | null {
+    if (!id) return null
+    return users.value.find((u) => u.id === id) ?? null
   }
 
-  function removeAgent(id: string) {
-    return pushAsync<{ id: string }>(ch(), 'remove_agent', { id })
+  function startAgentRun(taskId: string) {
+    return pushAsync<AgentRun>(ch(), 'start_agent_run', { task_id: taskId })
   }
 
-  function regenerateAgentToken(id: string) {
-    return pushAsync<{ id: string; token: string }>(ch(), 'regenerate_agent_token', { id })
+  function stopAgentRun(runId: string) {
+    return pushAsync<AgentRun>(ch(), 'stop_agent_run', { id: runId })
+  }
+
+  async function listTaskRuns(taskId: string) {
+    const reply = await pushAsync<{ runs: AgentRun[] }>(ch(), 'list_task_runs', { task_id: taskId })
+    return reply.runs
   }
 
   function setPublicLink(value: boolean) {
@@ -670,11 +710,12 @@ export const useBoardStore = defineStore('board', () => {
     inviteMember,
     revokeInvite,
     removeMember,
-    listAgents,
-    createAgent,
-    updateAgent,
-    removeAgent,
-    regenerateAgentToken,
+    latestRunFor,
+    agentWalltimeSeconds,
+    userById,
+    startAgentRun,
+    stopAgentRun,
+    listTaskRuns,
     setPublicLink,
     setProjectTheme,
     setMyProjectTheme,

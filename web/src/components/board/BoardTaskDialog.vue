@@ -6,6 +6,7 @@ import BoardTaskMeta from '@/components/board/BoardTaskMeta.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
 import TaskCommentsSection from '@/components/TaskCommentsSection.vue'
+import TaskAgentRunLog from '@/components/board/TaskAgentRunLog.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import type { TiptapDoc } from '@/stores/board'
 
@@ -257,6 +258,11 @@ defineExpose({ open })
               />
             </div>
           </div>
+          <TaskAgentRunLog
+            v-if="taskTarget"
+            :task-id="taskTarget.id"
+            class="ks-task-content__agent"
+          />
           <TaskCommentsSection
             v-if="taskTarget"
             :task-id="taskTarget.id"
@@ -265,6 +271,7 @@ defineExpose({ open })
         </section>
 
         <BoardTaskMeta
+          :task-id="taskTarget.id"
           :can-write="board.canWrite"
           :mobile="mobile"
           :task-saving="taskSaving"
@@ -317,6 +324,9 @@ defineExpose({ open })
   position: relative;
 }
 .ks-task-content__comments {
+  margin-top: 28px;
+}
+.ks-task-content__agent {
   margin-top: 28px;
 }
 .ks-task-mbar {

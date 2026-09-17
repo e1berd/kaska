@@ -13,6 +13,7 @@ import {
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
 import { computed } from 'vue'
 import { useBoardStore, type Task } from '@/stores/board'
+import AgentRunStatusChip from '@/components/board/AgentRunStatusChip.vue'
 import {
   computeTaskPlacement,
   resetTouchDrag,
@@ -68,6 +69,20 @@ const taskTypeChipStyle = computed(() => ({
 const assignee = computed(() => {
   if (!props.task.assignee_id) return null
   return board.users.find(u => u.id === props.task.assignee_id) || null
+})
+
+const CARD_RUN_LABELS: Partial<Record<string, string>> = {
+  pending: 'Агент запускается',
+  running: 'Агент работает',
+  failed: 'Прогон упал',
+  timed_out: 'Время вышло',
+}
+
+const cardRun = computed(() => {
+  const run = board.latestRunFor(props.task.id)
+  if (!run || run.agent_id !== props.task.assignee_id) return null
+  const label = CARD_RUN_LABELS[run.status]
+  return label ? { status: run.status, label } : null
 })
 
 const root = useTemplateRef<HTMLElement>('root')
@@ -493,6 +508,14 @@ onBeforeUnmount(() => {
         {{ startDate || '??' }} - {{ endDate || '??' }}
       </span>
     </div>
+
+    <AgentRunStatusChip
+      v-if="cardRun"
+      :status="cardRun.status"
+      :label="cardRun.label"
+      size="x-small"
+      class="mt-2"
+    />
 
     <div v-if="assignee" class="ks-card__assignee mt-2 text-caption text-medium-emphasis d-flex align-center">
       <v-avatar size="20" class="mr-1 flex-shrink-0" color="primary">

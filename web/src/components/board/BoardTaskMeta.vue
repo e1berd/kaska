@@ -5,8 +5,10 @@ import type { User } from '@/stores/auth'
 import { eachDayOfInterval, format, isValid, parse } from 'date-fns'
 import { PhFloppyDisk } from '@phosphor-icons/vue'
 import PresenceGroup from '@/components/PresenceGroup.vue'
+import TaskAgentPanel from '@/components/board/TaskAgentPanel.vue'
 
 const props = defineProps<{
+  taskId: string | null
   canWrite: boolean
   mobile: boolean
   taskSaving: boolean
@@ -219,6 +221,13 @@ function userAvatar(item: unknown): string {
           />
         </div>
       </div>
+
+      <TaskAgentPanel
+        v-if="taskId"
+        :task-id="taskId"
+        :assignee-id="taskAssignee"
+        :can-write="canWrite"
+      />
     </div>
 
     <footer v-show="!mobile || metaOpen" class="ks-task-meta__foot">

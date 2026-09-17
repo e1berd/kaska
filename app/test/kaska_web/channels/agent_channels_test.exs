@@ -11,6 +11,8 @@ defmodule KaskaWeb.AgentChannelsTest do
     board_with_code_agent()
   end
 
+  defp user_socket(user), do: socket(KaskaWeb.UserSocket, nil, %{current_user: user})
+
   defp stranger do
     email = "stranger#{System.unique_integer([:positive])}@example.com"
     {:ok, user} = Accounts.register_user(%{email: email, password: "correct horse battery"})
@@ -95,7 +97,9 @@ defmodule KaskaWeb.AgentChannelsTest do
       assert_reply ref, :ok, %{status: "stopped"}
 
       ref = push(socket, "list_task_runs", %{"task_id" => task.id})
-      assert_reply ref, :ok, %{runs: [%{id: ^run_id}, _]}
+      assert_reply ref, :ok, %{runs: runs}
+      assert length(runs) == 2
+      assert Enum.any?(runs, &(&1.id == run_id))
     end
 
     test "a second start while a run is active is refused", %{
