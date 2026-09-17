@@ -1,8 +1,12 @@
 defmodule Kaska.AgentRuntime.AgentConfig do
   @moduledoc """
   Runtime settings of an agent (1:1 with a bot `User`): the LLM provider it
-  talks to, the model and the encrypted API key. The plaintext key is
+  talks to, the model and the encrypted credential. The plaintext credential is
   write-only: only whether it is set and its last characters are shown.
+
+  `auth_method` says what the credential is: a provider API key, or — for
+  Anthropic only — a Claude subscription OAuth token from `claude setup-token`.
+  Changing the method drops the stored credential unless a new one is given.
 
   A config may be saved incomplete; `missing/1` lists what still blocks a run.
   """
@@ -15,6 +19,7 @@ defmodule Kaska.AgentRuntime.AgentConfig do
 
   @provider_kinds ~w(anthropic openai_compatible ollama_local)
   @keyless_presets ~w(lm_studio ollama)
+  @auth_methods ~w(api_key subscription)
   @visible_key_chars 4
 
   @primary_key false
@@ -26,6 +31,7 @@ defmodule Kaska.AgentRuntime.AgentConfig do
 
     field :provider_kind, :string
     field :provider_preset, :string
+    field :auth_method, :string, default: "api_key"
     field :base_url, :string
     field :model, :string
     field :encrypted_api_key, Kaska.Encrypted.Binary, redact: true
@@ -38,11 +44,14 @@ defmodule Kaska.AgentRuntime.AgentConfig do
 
   def provider_kinds, do: @provider_kinds
 
+  def auth_methods, do: @auth_methods
+
   def changeset(config, attrs) do
     config
     |> cast(attrs, [
       :provider_kind,
       :provider_preset,
+      :auth_method,
       :base_url,
       :model,
       :api_key,
@@ -54,7 +63,9 @@ defmodule Kaska.AgentRuntime.AgentConfig do
     |> update_change(:system_prompt, &blank_to_nil/1)
     |> validate_inclusion(:provider_kind, @provider_kinds)
     |> validate_inclusion(:provider_preset, Presets.slugs())
+    |> validate_inclusion(:auth_method, @auth_methods)
     |> apply_preset()
+    |> put_api_key_auth_for_non_anthropic()
     |> validate_length(:base_url, max: 512)
     |> validate_format(:base_url, ~r{\Ahttps?://}, message: "must be an http(s) URL")
     |> validate_length(:model, max: 200)
@@ -80,10 +91,17 @@ defmodule Kaska.AgentRuntime.AgentConfig do
       else: force_change(changeset, :base_url, default)
   end
 
+  defp put_api_key_auth_for_non_anthropic(changeset) do
+    if get_field(changeset, :provider_kind) == "anthropic",
+      do: changeset,
+      else: put_change(changeset, :auth_method, "api_key")
+  end
+
   defp put_api_key(changeset) do
-    case fetch_change(changeset, :api_key) do
-      {:ok, key} -> put_change(changeset, :encrypted_api_key, blank_to_nil(key))
-      :error -> changeset
+    case {fetch_change(changeset, :api_key), fetch_change(changeset, :auth_method)} do
+      {{:ok, key}, _} -> put_change(changeset, :encrypted_api_key, blank_to_nil(key))
+      {:error, {:ok, _method}} -> put_change(changeset, :encrypted_api_key, nil)
+      {:error, :error} -> changeset
     end
   end
 
@@ -101,6 +119,11 @@ defmodule Kaska.AgentRuntime.AgentConfig do
   end
 
   def ready?(%__MODULE__{} = config), do: missing(config) == []
+
+  def subscription?(%__MODULE__{provider_kind: "anthropic", auth_method: "subscription"}),
+    do: true
+
+  def subscription?(%__MODULE__{}), do: false
 
   defp needs_api_key?(%__MODULE__{provider_kind: nil}), do: false
   defp needs_api_key?(%__MODULE__{provider_kind: "ollama_local"}), do: false

@@ -31,6 +31,7 @@ defmodule KaskaWeb.AgentViews do
     %{
       provider_kind: c.provider_kind,
       provider_preset: c.provider_preset,
+      auth_method: c.auth_method,
       base_url: c.base_url,
       model: c.model,
       api_key_set: AgentRuntime.api_key_set?(c),

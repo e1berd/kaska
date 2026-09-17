@@ -4,11 +4,11 @@ import type { AgentLoop, AgentOutcome, Log, OutcomeStatus } from "../outcome.ts"
 import { oneLine } from "../outcome.ts";
 import type { AgentTool } from "../tools.ts";
 import { invokeTool } from "../tools.ts";
+import type { ClaudeCredentials } from "./claude_credentials.ts";
+import { credentialEnv } from "./claude_credentials.ts";
 
-export interface ClaudeAgentOptions {
+export interface ClaudeAgentOptions extends ClaudeCredentials {
   model: string;
-  apiKey: string;
-  baseUrl: string | null;
   workspace: string;
   processEnv: Record<string, string>;
   log: Log;
@@ -34,8 +34,7 @@ export function claudeAgentLoop(options: ClaudeAgentOptions): AgentLoop {
         systemPrompt: { type: "preset", preset: "claude_code", append: systemPrompt },
         env: {
           ...options.processEnv,
-          ANTHROPIC_API_KEY: options.apiKey,
-          ...(options.baseUrl ? { ANTHROPIC_BASE_URL: options.baseUrl } : {}),
+          ...credentialEnv(options),
           CLAUDE_AGENT_SDK_CLIENT_APP: "kaska-agent-runtime/0.1.0",
         },
         stderr: (data) => options.log(`claude: ${oneLine(data, 400)}`),

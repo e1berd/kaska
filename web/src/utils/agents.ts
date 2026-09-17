@@ -1,11 +1,12 @@
 import type { AgentRunStatus } from '@/stores/board'
-import type { ConfigField } from '@/stores/agents'
+import type { AuthMethod, ConfigField } from '@/stores/agents'
 
 export interface PresetMeta {
   label: string
   modelPlaceholder: string
   experimental?: boolean
   needsKey: boolean
+  supportsSubscription?: boolean
   editableBaseUrl: boolean
 }
 
@@ -26,6 +27,7 @@ export const PRESETS: Record<string, PresetMeta> = {
     label: 'Claude',
     modelPlaceholder: 'claude-opus-5',
     needsKey: true,
+    supportsSubscription: true,
     editableBaseUrl: false,
   },
   openai: { label: 'OpenAI', modelPlaceholder: 'идентификатор модели', needsKey: true, editableBaseUrl: false },
@@ -80,8 +82,14 @@ const MISSING_LABELS: Record<ConfigField, string> = {
   api_key: 'API-ключ',
 }
 
-export function missingText(missing: ConfigField[]): string {
-  return `Не настроен: нет ${missing.map((m) => MISSING_LABELS[m]).join(', ')}`
+export const CREDENTIAL_LABELS: Record<AuthMethod, string> = {
+  api_key: 'API-ключ',
+  subscription: 'токен подписки',
+}
+
+export function missingText(missing: ConfigField[], authMethod: AuthMethod = 'api_key'): string {
+  const labels = { ...MISSING_LABELS, api_key: CREDENTIAL_LABELS[authMethod] }
+  return `Не настроен: нет ${missing.map((m) => labels[m]).join(', ')}`
 }
 
 export interface RunStatusMeta {
@@ -119,7 +127,7 @@ export function runSeconds(
 }
 
 const START_ERRORS: Record<string, string> = {
-  not_configured: 'Агент не настроен — проверьте провайдера, модель и ключ.',
+  not_configured: 'Агент не настроен — проверьте провайдера, модель и ключ или токен подписки.',
   not_assigned: 'Назначьте агента исполнителем задачи.',
   not_assigned_to_agent: 'Исполнитель задачи — не агент.',
   not_member: 'Агент не состоит в проекте.',

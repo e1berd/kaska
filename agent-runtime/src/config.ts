@@ -1,7 +1,10 @@
 export type ProviderKind = "anthropic" | "openai_compatible" | "ollama_local";
 
+export type AuthMethod = "api_key" | "subscription";
+
 export interface ProviderConfig {
   kind: ProviderKind;
+  authMethod: AuthMethod;
   baseUrl: string | null;
   model: string;
   apiKey: string;
@@ -22,6 +25,7 @@ export interface RuntimeConfig {
 type Env = { get(key: string): string | undefined };
 
 const PROVIDER_KINDS: ProviderKind[] = ["anthropic", "openai_compatible", "ollama_local"];
+const AUTH_METHODS: AuthMethod[] = ["api_key", "subscription"];
 
 export const SECRET_ENV_KEYS = ["KASKA_PAT", "LLM_API_KEY"] as const;
 
@@ -29,6 +33,17 @@ export function loadConfig(env: Env = Deno.env): RuntimeConfig {
   const kind = required(env, "LLM_PROVIDER_KIND");
   if (!PROVIDER_KINDS.includes(kind as ProviderKind)) {
     throw new Error(`LLM_PROVIDER_KIND must be one of ${PROVIDER_KINDS.join(", ")}`);
+  }
+
+  const authMethod = optional(env, "LLM_AUTH_METHOD") ?? "api_key";
+  if (!AUTH_METHODS.includes(authMethod as AuthMethod)) {
+    throw new Error(`LLM_AUTH_METHOD must be one of ${AUTH_METHODS.join(", ")}`);
+  }
+  if (authMethod === "subscription" && kind !== "anthropic") {
+    throw new Error("LLM_AUTH_METHOD subscription is only supported for anthropic");
+  }
+  if (authMethod === "subscription" && !optional(env, "LLM_API_KEY")) {
+    throw new Error("LLM_API_KEY must hold the Claude OAuth token for subscription auth");
   }
 
   const baseUrl = optional(env, "LLM_BASE_URL");
@@ -44,6 +59,7 @@ export function loadConfig(env: Env = Deno.env): RuntimeConfig {
     projectSlug: required(env, "PROJECT_SLUG"),
     provider: {
       kind: kind as ProviderKind,
+      authMethod: authMethod as AuthMethod,
       baseUrl: baseUrl?.replace(/\/+$/, "") ?? null,
       model: required(env, "LLM_MODEL"),
       apiKey: optional(env, "LLM_API_KEY") ?? "",

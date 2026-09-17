@@ -15,7 +15,14 @@ defmodule KaskaWeb.AgentsChannel do
   alias KaskaWeb.{AgentViews, BoardChannel}
 
   @profile_fields ["display_name"]
-  @config_fields ["provider_preset", "base_url", "model", "api_key", "system_prompt"]
+  @config_fields [
+    "provider_preset",
+    "auth_method",
+    "base_url",
+    "model",
+    "api_key",
+    "system_prompt"
+  ]
 
   @impl true
   def join("agents:user:" <> user_id, _payload, socket) do

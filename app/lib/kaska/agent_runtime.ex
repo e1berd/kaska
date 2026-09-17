@@ -256,6 +256,8 @@ defmodule Kaska.AgentRuntime do
       "TASK_ID" => run.task_id,
       "PROJECT_SLUG" => project_slug,
       "LLM_PROVIDER_KIND" => config.provider_kind,
+      "LLM_AUTH_METHOD" =>
+        if(AgentConfig.subscription?(config), do: "subscription", else: "api_key"),
       "LLM_BASE_URL" => config.base_url || "",
       "LLM_MODEL" => config.model,
       "LLM_API_KEY" => config.encrypted_api_key || "",

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { PhRobot, PhPlus, PhFolderPlus, PhKey } from '@phosphor-icons/vue'
-import { useAgentsStore, type Agent, type AgentProject, type AgentInput } from '@/stores/agents'
+import {
+  useAgentsStore,
+  type Agent,
+  type AgentProject,
+  type AgentInput,
+  type AuthMethod,
+} from '@/stores/agents'
 import { useNow } from '@/composables/useNow'
 import {
   PRESETS,
@@ -31,6 +37,7 @@ const runsLoading = ref(false)
 const form = ref({
   display_name: '',
   provider_preset: null as string | null,
+  auth_method: 'api_key' as AuthMethod,
   base_url: '',
   model: '',
   api_key: '',
@@ -53,8 +60,25 @@ const presetMeta = computed(() =>
 const presetBaseUrl = computed(
   () => agents.presets.find((p) => p.slug === form.value.provider_preset)?.base_url ?? null,
 )
+const subscriptionAvailable = computed(() => !!presetMeta.value?.supportsSubscription)
+const authMethod = computed<AuthMethod>(() =>
+  subscriptionAvailable.value ? form.value.auth_method : 'api_key',
+)
+const authMethodChanged = computed(
+  () => !!editing.value && editing.value.config.auth_method !== authMethod.value,
+)
 const keyFieldVisible = computed(
-  () => presetMeta.value?.needsKey !== false && (!editing.value?.config.api_key_set || replacingKey.value),
+  () =>
+    presetMeta.value?.needsKey !== false &&
+    (!editing.value?.config.api_key_set || replacingKey.value || authMethodChanged.value),
+)
+const credentialLabel = computed(() =>
+  authMethod.value === 'subscription' ? 'OAuth-токен подписки' : 'API-ключ',
+)
+const credentialHint = computed(() =>
+  authMethod.value === 'subscription'
+    ? 'Выполните claude setup-token в терминале и вставьте токен. Хранится зашифрованным'
+    : 'Хранится зашифрованным, в интерфейсе больше не показывается',
 )
 const agentRuns = computed(() => (editingId.value ? agents.runsByAgent[editingId.value] ?? [] : []))
 const limitText = computed(() =>
@@ -103,6 +127,7 @@ function openCreate() {
   form.value = {
     display_name: '',
     provider_preset: 'anthropic',
+    auth_method: 'api_key',
     base_url: '',
     model: '',
     api_key: '',
@@ -117,6 +142,7 @@ function openEdit(a: Agent) {
   form.value = {
     display_name: a.display_name ?? '',
     provider_preset: a.config.provider_preset,
+    auth_method: a.config.auth_method,
     base_url: a.config.base_url ?? '',
     model: a.config.model ?? '',
     api_key: '',
@@ -138,6 +164,7 @@ function payload(): AgentInput {
   const input: AgentInput = {
     display_name: form.value.display_name.trim(),
     provider_preset: form.value.provider_preset,
+    auth_method: authMethod.value,
     model: form.value.model.trim() || null,
     system_prompt: form.value.system_prompt.trim() || null,
   }
@@ -296,7 +323,7 @@ function runWhen(iso: string) {
           class="md-body-medium text-error d-flex align-center gap-2"
         >
           <v-icon size="18">mdi-alert-circle-outline</v-icon>
-          {{ missingText(a.config.missing) }}
+          {{ missingText(a.config.missing, a.config.auth_method) }}
         </span>
         <span v-else-if="!a.active_runs.length" class="md-body-medium text-medium-emphasis">
           Свободен
@@ -397,15 +424,29 @@ function runWhen(iso: string) {
               />
 
               <template v-if="presetMeta?.needsKey !== false">
+                <v-btn-toggle
+                  v-if="subscriptionAvailable"
+                  v-model="form.auth_method"
+                  mandatory
+                  divided
+                  rounded="pill"
+                  color="secondary-container"
+                  density="comfortable"
+                  variant="outlined"
+                  class="self-start"
+                >
+                  <v-btn value="api_key">API-ключ</v-btn>
+                  <v-btn value="subscription">Подписка Claude</v-btn>
+                </v-btn-toggle>
                 <v-text-field
                   v-if="keyFieldVisible"
                   v-model="form.api_key"
-                  label="API-ключ"
+                  :label="credentialLabel"
                   type="password"
                   autocomplete="off"
                   variant="filled"
                   density="comfortable"
-                  hint="Хранится зашифрованным, в интерфейсе больше не показывается"
+                  :hint="credentialHint"
                   persistent-hint
                 >
                   <template #prepend-inner><ph-key :size="20" /></template>
@@ -413,7 +454,7 @@ function runWhen(iso: string) {
                 <v-text-field
                   v-else
                   :model-value="`Сохранён${editing?.config.api_key_hint ? ` · …${editing.config.api_key_hint}` : ''}`"
-                  label="API-ключ"
+                  :label="credentialLabel"
                   readonly
                   variant="filled"
                   density="comfortable"

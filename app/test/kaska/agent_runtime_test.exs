@@ -111,6 +111,48 @@ defmodule Kaska.AgentRuntimeTest do
       assert AgentConfig.ready?(config)
     end
 
+    test "anthropic can authenticate with a subscription oauth token", %{agent: agent} do
+      assert {:ok, config} =
+               AgentRuntime.upsert_config(agent, %{
+                 provider_preset: "anthropic",
+                 auth_method: "subscription",
+                 model: "claude-opus-5",
+                 api_key: "sk-ant-oat01-token-value"
+               })
+
+      assert AgentConfig.subscription?(config)
+      assert AgentConfig.ready?(config)
+    end
+
+    test "changing the auth method drops the stored credential", %{agent: agent} do
+      {:ok, _} =
+        AgentRuntime.upsert_config(agent, %{
+          provider_preset: "anthropic",
+          model: "claude-opus-5",
+          api_key: "sk-ant-api-key-value"
+        })
+
+      assert {:ok, config} = AgentRuntime.upsert_config(agent, %{auth_method: "subscription"})
+      refute AgentRuntime.api_key_set?(config)
+      assert AgentConfig.missing(config) == [:api_key]
+    end
+
+    test "non-anthropic providers always use an api key", %{agent: agent} do
+      assert {:ok, config} =
+               AgentRuntime.upsert_config(
+                 agent,
+                 Map.put(ready_attrs(), :auth_method, "subscription")
+               )
+
+      assert config.auth_method == "api_key"
+      refute AgentConfig.subscription?(config)
+    end
+
+    test "rejects unknown auth methods", %{agent: agent} do
+      assert {:error, changeset} = AgentRuntime.upsert_config(agent, %{auth_method: "cookie"})
+      assert %{auth_method: _} = errors_on(changeset)
+    end
+
     test "rejects unknown provider kinds", %{agent: agent} do
       assert {:error, changeset} =
                AgentRuntime.upsert_config(agent, %{provider_kind: "gemini_cli"})
@@ -248,6 +290,7 @@ defmodule Kaska.AgentRuntimeTest do
       assert env["TASK_ID"] == run.task_id
       assert env["PROJECT_SLUG"] == project.slug
       assert env["LLM_PROVIDER_KIND"] == "openai_compatible"
+      assert env["LLM_AUTH_METHOD"] == "api_key"
       assert %AgentConfig{} = config
     end
   end

@@ -52,13 +52,14 @@ Deno.exit(
 
 function providerSetup(config: RuntimeConfig): { loop: AgentLoop; tools: AgentTool[] } {
   const { provider } = config;
-  log(`run: ${config.runId} with ${provider.kind} ${provider.model}`);
+  log(`run: ${config.runId} with ${provider.kind} ${provider.model} via ${provider.authMethod}`);
 
   if (provider.kind === "anthropic") {
     return {
       loop: claudeAgentLoop({
         model: provider.model,
         apiKey: provider.apiKey,
+        authMethod: provider.authMethod,
         baseUrl: provider.baseUrl,
         workspace: config.workspace,
         processEnv: childEnv,

@@ -4,6 +4,7 @@ import type { KaskaApi, KaskaProject, KaskaTask, TaskUpdate } from "./kaska.ts";
 import { KaskaApiError, KaskaClient } from "./kaska.ts";
 import type { LoopInput } from "./outcome.ts";
 import { buildSystemPrompt, buildTaskPrompt } from "./prompt.ts";
+import { credentialEnv } from "./providers/claude_credentials.ts";
 import { openAiCompatibleLoop } from "./providers/openai_compatible.ts";
 import { runAgent } from "./run.ts";
 import { kaskaTools } from "./tools.ts";
@@ -257,9 +258,25 @@ Deno.test("loadConfig validates the provider and requires base urls for non-anth
   const config = loadConfig(env(base));
   assertEquals(config.kaskaApiUrl, "https://app.kaska.space/api/v1");
   assertEquals(config.provider.baseUrl, null);
+  assertEquals(config.provider.authMethod, "api_key");
   assertEquals(config.maxTurns, 40);
 
-  for (const broken of [{ LLM_PROVIDER_KIND: "openai_compatible" }, { LLM_PROVIDER_KIND: "x" }]) {
+  const subscription = loadConfig(env({ ...base, LLM_AUTH_METHOD: "subscription" }));
+  assertEquals(subscription.provider.authMethod, "subscription");
+
+  for (
+    const broken of <Record<string, string>[]> [
+      { LLM_PROVIDER_KIND: "openai_compatible" },
+      { LLM_PROVIDER_KIND: "x" },
+      { LLM_AUTH_METHOD: "cookie" },
+      { LLM_AUTH_METHOD: "subscription", LLM_API_KEY: "" },
+      {
+        LLM_AUTH_METHOD: "subscription",
+        LLM_PROVIDER_KIND: "openai_compatible",
+        LLM_BASE_URL: "https://x",
+      },
+    ]
+  ) {
     let failed = false;
     try {
       loadConfig(env({ ...base, ...broken }));
@@ -268,4 +285,15 @@ Deno.test("loadConfig validates the provider and requires base urls for non-anth
     }
     assertEquals(failed, true);
   }
+});
+
+Deno.test("claude credentials go to the api key or the subscription oauth token", () => {
+  assertEquals(
+    credentialEnv({ apiKey: "sk-ant", authMethod: "api_key", baseUrl: "https://proxy" }),
+    { ANTHROPIC_API_KEY: "sk-ant", ANTHROPIC_BASE_URL: "https://proxy" },
+  );
+  assertEquals(
+    credentialEnv({ apiKey: "sk-ant-oat", authMethod: "subscription", baseUrl: "https://proxy" }),
+    { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat" },
+  );
 });

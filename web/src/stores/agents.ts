@@ -7,11 +7,13 @@ import { isRunActive, type AgentRun } from '@/stores/board'
 import { uploadToPresignedUrl } from '@/utils/upload'
 
 export type ProviderKind = 'anthropic' | 'openai_compatible' | 'ollama_local'
+export type AuthMethod = 'api_key' | 'subscription'
 export type ConfigField = 'provider' | 'model' | 'base_url' | 'api_key'
 
 export interface AgentConfig {
   provider_kind: ProviderKind | null
   provider_preset: string | null
+  auth_method: AuthMethod
   base_url: string | null
   model: string | null
   api_key_set: boolean
@@ -58,6 +60,7 @@ export interface AgentLimits {
 export interface AgentInput {
   display_name?: string
   provider_preset?: string | null
+  auth_method?: AuthMethod
   base_url?: string | null
   model?: string | null
   api_key?: string
