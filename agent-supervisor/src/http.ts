@@ -11,17 +11,22 @@ export interface HandlerDeps {
 
 const STOP_PATH = /^\/runs\/([^/]+)\/stop$/;
 
+const patterns: Record<string, URLPattern> = {
+  health: new URLPattern({ pathname: "/health" }),
+  startRun: new URLPattern({ pathname: "/runs" }),
+}
+
 export function createHandler(deps: HandlerDeps): (request: Request) => Promise<Response> {
   return async (request) => {
     const { pathname } = new URL(request.url);
 
-    if (request.method === "GET" && pathname === "/health") {
+    if (request.method === "GET" && patterns.health.exec(request.url)) {
       return json(200, { ok: true, active_runs: deps.runs.activeCount });
     }
 
     if (!await authorized(request, deps.secret)) return json(401, { error: "unauthorized" });
 
-    if (request.method === "POST" && pathname === "/runs") return startRun(request, deps);
+    if (request.method === "POST" && patterns.startRun.exec(request.url)) return startRun(request, deps);
 
     const stopMatch = request.method === "POST" ? STOP_PATH.exec(pathname) : null;
     if (stopMatch) return stopRun(stopMatch[1], deps);
