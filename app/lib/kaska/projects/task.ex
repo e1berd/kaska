@@ -29,6 +29,8 @@ defmodule Kaska.Projects.Task do
 
     belongs_to :task_type, Kaska.Projects.TaskType
 
+    field :history_events, :any, virtual: true, default: []
+
     timestamps()
   end
 
@@ -66,6 +68,7 @@ defmodule Kaska.Projects.Task do
     end)
     |> validate_length(:title, max: 200)
     |> validate_doc(:body_doc)
+    |> foreign_key_constraint(:task_type_id)
   end
 
   # Tiptap doc must be a map with `"type": "doc"`. Anything else is rejected

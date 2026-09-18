@@ -17,7 +17,17 @@ defmodule KaskaWeb.BoardChannel do
   alias KaskaWeb.{AgentViews, Endpoint}
   alias KaskaWeb.Presence
   alias Kaska.Attachments.Attachment
-  alias Kaska.Projects.{Column, Project, ProjectInvite, ProjectMember, Task, TaskComment}
+
+  alias Kaska.Projects.{
+    Column,
+    Project,
+    ProjectInvite,
+    ProjectMember,
+    Task,
+    TaskComment,
+    TaskHistoryEvent
+  }
+
   @guest_comment_max_length 255
   @guest_comment_min_interval_ms 4000
   @guest_comment_rate_table :kaska_guest_comment_rate
@@ -447,6 +457,7 @@ defmodule KaskaWeb.BoardChannel do
       {:ok, task} ->
         view = task_view(task)
         broadcast!(socket, "task_created", view)
+        broadcast_history!(socket, task)
         {:reply, {:ok, view}, socket}
 
       {:error, %Ecto.Changeset{} = cs} ->
@@ -472,6 +483,7 @@ defmodule KaskaWeb.BoardChannel do
          {:ok, task} <- Projects.update_task(task, attrs, socket.assigns.current_user.id) do
       view = task_view(task)
       broadcast!(socket, "task_updated", view)
+      broadcast_history!(socket, task)
       {:reply, {:ok, view}, socket}
     else
       {:error, %Ecto.Changeset{} = cs} ->
@@ -514,6 +526,7 @@ defmodule KaskaWeb.BoardChannel do
            ) do
       view = task_view(task)
       broadcast!(socket, "task_moved", view)
+      broadcast_history!(socket, task)
       {:reply, {:ok, view}, socket}
     else
       {:error, reason} when is_atom(reason) ->
@@ -521,6 +534,55 @@ defmodule KaskaWeb.BoardChannel do
 
       _ ->
         {:reply, {:error, %{message: "task_not_found"}}, socket}
+    end
+  end
+
+  ## Task history ────────────────────────────────────────────────────────
+
+  def handle_in("list_task_history", payload, socket) do
+    opts =
+      [limit: Map.get(payload, "limit", 50)]
+      |> maybe_put_before(Map.get(payload, "before"))
+
+    events = Projects.list_task_history(socket.assigns.project_id, opts)
+    {:reply, {:ok, %{events: Enum.map(events, &task_history_event_view/1)}}, socket}
+  end
+
+  def handle_in("revert_task_history_event", %{"id" => id} = payload, socket) do
+    with %TaskHistoryEvent{} = event <- get_owned_history_event(id, socket),
+         actor_id = socket.assigns.current_user.id,
+         {:ok, task} <-
+           Projects.revert_task_history_event(event, actor_id, present(payload["comment"])) do
+      broadcast_reverted_task!(socket, task)
+      {:reply, {:ok, task_view(task)}, socket}
+    else
+      nil ->
+        {:reply, {:error, %{message: "history_event_not_found"}}, socket}
+
+      {:error, reason} when is_atom(reason) ->
+        {:reply, {:error, %{message: to_string(reason)}}, socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
+    end
+  end
+
+  def handle_in("rollback_task_history_event", %{"id" => id} = payload, socket) do
+    with %TaskHistoryEvent{} = event <- get_owned_history_event(id, socket),
+         actor_id = socket.assigns.current_user.id,
+         {:ok, task} <-
+           Projects.rollback_task_history_event(event, actor_id, present(payload["comment"])) do
+      broadcast_reverted_task!(socket, task)
+      {:reply, {:ok, task_view(task)}, socket}
+    else
+      nil ->
+        {:reply, {:error, %{message: "history_event_not_found"}}, socket}
+
+      {:error, reason} when is_atom(reason) ->
+        {:reply, {:error, %{message: to_string(reason)}}, socket}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:reply, {:error, %{errors: format_errors(cs)}}, socket}
     end
   end
 
@@ -730,6 +792,52 @@ defmodule KaskaWeb.BoardChannel do
     end
   end
 
+  defp get_owned_history_event(id, socket) do
+    case Projects.get_task_history_event(id) do
+      %TaskHistoryEvent{project_id: pid} = e when pid == socket.assigns.project_id -> e
+      _ -> nil
+    end
+  end
+
+  defp maybe_put_before(opts, nil), do: opts
+  defp maybe_put_before(opts, ""), do: opts
+
+  defp maybe_put_before(opts, before) when is_binary(before) do
+    case DateTime.from_iso8601(before) do
+      {:ok, dt, _offset} -> Keyword.put(opts, :before, dt)
+      {:error, _} -> opts
+    end
+  end
+
+  defp present(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp present(_value), do: nil
+
+  defp broadcast_history!(socket, %Task{history_events: events})
+       when is_list(events) and events != [] do
+    broadcast!(socket, "task_history_events_created", %{
+      events: Enum.map(events, &task_history_event_view/1)
+    })
+  end
+
+  defp broadcast_history!(_socket, _task), do: :ok
+
+  defp broadcast_reverted_task!(socket, %Task{} = task) do
+    view = task_view(task)
+    broadcast!(socket, "task_updated", view)
+
+    if Enum.any?(task.history_events || [], &(&1.field == "column_id")) do
+      broadcast!(socket, "task_moved", view)
+    end
+
+    broadcast_history!(socket, task)
+  end
+
   defp get_owned_run(id, socket) do
     case AgentRuntime.get_run(id) do
       %AgentRun{project_id: pid} = run when pid == socket.assigns.project_id -> run
@@ -851,6 +959,24 @@ defmodule KaskaWeb.BoardChannel do
       description: tt.description,
       color: tt.color,
       text_color: tt.text_color
+    }
+  end
+
+  defp task_history_event_view(%TaskHistoryEvent{} = e) do
+    %{
+      id: e.id,
+      task_id: e.task_id,
+      project_id: e.project_id,
+      actor_id: e.actor_id,
+      batch_id: e.batch_id,
+      kind: e.kind,
+      field: e.field,
+      old_value: e.old_value,
+      new_value: e.new_value,
+      regression: e.regression,
+      reverts_event_id: e.reverts_event_id,
+      comment: e.comment,
+      inserted_at: e.inserted_at
     }
   end
 

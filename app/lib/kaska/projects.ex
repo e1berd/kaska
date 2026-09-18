@@ -24,6 +24,7 @@ defmodule Kaska.Projects do
     ProjectThemePref,
     Task,
     TaskComment,
+    TaskHistoryEvent,
     TaskType
   }
 
@@ -530,22 +531,53 @@ defmodule Kaska.Projects do
         |> Map.put_new(:body_doc, @empty_doc)
         |> Map.put_new(:start_date, Date.utc_today())
 
-      %Task{assignees: []}
-      |> Task.create_changeset(attrs)
-      |> put_assignees(attrs, project_id)
-      |> Repo.insert()
+      changeset =
+        %Task{assignees: []}
+        |> Task.create_changeset(attrs)
+        |> put_assignees(attrs, project_id)
+
+      Multi.new()
+      |> Multi.insert(:task, changeset)
+      |> Multi.run(:history, fn repo, %{task: task} ->
+        insert_created_event(repo, task, creator_id)
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{task: task, history: event}} -> {:ok, %{task | history_events: [event]}}
+        {:error, :task, changeset, _} -> {:error, changeset}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
     else
       _ -> {:error, :column_not_found}
     end
   end
 
-  def update_task(%Task{} = task, attrs, actor_id \\ nil) do
-    task
-    |> Repo.preload(:assignees)
-    |> Task.update_changeset(attrs)
-    |> put_assignees(attrs, task.project_id)
-    |> put_updated_by(actor_id)
-    |> Repo.update()
+  @doc """
+  Updates `task`. `opts` (`:batch_id`, `:reverts_event_id`, `:comment`) let
+  `revert_task_history_event/3` and `rollback_task_history_event/3` reuse
+  this for applying a past value while tagging the resulting history
+  record as a revert.
+  """
+  def update_task(%Task{} = task, attrs, actor_id \\ nil, opts \\ []) do
+    task = Repo.preload(task, :assignees)
+
+    Multi.new()
+    |> Multi.run(:updated, fn repo, _ ->
+      task
+      |> Task.update_changeset(attrs)
+      |> put_assignees(attrs, task.project_id)
+      |> put_updated_by(actor_id)
+      |> repo.update()
+    end)
+    |> Multi.run(:history, fn repo, %{updated: updated} ->
+      insert_history_events(repo, task, repo.preload(updated, :assignees), actor_id, opts)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{updated: updated, history: events}} -> {:ok, %{updated | history_events: events}}
+      {:error, :updated, changeset, _} -> {:error, changeset}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   defp put_updated_by(%Ecto.Changeset{changes: changes} = changeset, actor_id)
@@ -740,23 +772,310 @@ defmodule Kaska.Projects do
   @doc """
   Moves `task` to `target_column_id` between `before_id` and `after_id`
   (both task ids inside the target column; either can be nil).
+  See `update_task/4` for `opts`.
   """
-  def move_task(%Task{} = task, target_column_id, before_id, after_id, actor_id \\ nil) do
+  def move_task(
+        %Task{} = task,
+        target_column_id,
+        before_id,
+        after_id,
+        actor_id \\ nil,
+        opts \\ []
+      ) do
     with %Column{project_id: project_id} <- get_column(target_column_id),
          true <- project_id == task.project_id || {:error, :cross_project},
          {:ok, before_rank} <- task_rank(target_column_id, before_id),
          {:ok, after_rank} <- task_rank(target_column_id, after_id),
          {:ok, rank} <- safe_rank_between(before_rank, after_rank) do
-      task
-      |> Task.move_changeset(%{column_id: target_column_id, rank: rank})
-      |> put_updated_by(actor_id)
-      |> Repo.update()
+      old_column_id = task.column_id
+
+      Multi.new()
+      |> Multi.run(:updated, fn repo, _ ->
+        task
+        |> Task.move_changeset(%{column_id: target_column_id, rank: rank})
+        |> put_updated_by(actor_id)
+        |> repo.update()
+      end)
+      |> Multi.run(:history, fn repo, %{updated: updated} ->
+        if old_column_id != updated.column_id do
+          insert_diff_events(repo, task.project_id, task.id, actor_id, opts, [
+            %{
+              field: "column_id",
+              old_value: wrap(old_column_id),
+              new_value: wrap(updated.column_id)
+            }
+          ])
+        else
+          {:ok, []}
+        end
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{updated: updated, history: events}} -> {:ok, %{updated | history_events: events}}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
     else
       nil -> {:error, :column_not_found}
       {:error, _} = err -> err
       false -> {:error, :cross_project}
     end
   end
+
+  ## Task history ────────────────────────────────────────────────────────
+
+  @doc """
+  Returns up to `limit` history events for `project_id`, newest first,
+  paginated by `before` (an `inserted_at` cursor, exclusive).
+  """
+  def list_task_history(project_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    before = Keyword.get(opts, :before)
+
+    query =
+      from e in TaskHistoryEvent,
+        where: e.project_id == ^project_id,
+        order_by: [desc: e.inserted_at],
+        limit: ^limit,
+        preload: [:actor]
+
+    query = if before, do: from(e in query, where: e.inserted_at < ^before), else: query
+
+    Repo.all(query)
+  end
+
+  def get_task_history_event(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _} -> Repo.get(TaskHistoryEvent, id)
+      :error -> nil
+    end
+  end
+
+  def get_task_history_event(_), do: nil
+
+  @doc """
+  Undoes a single history event: sets the field it changed back to its
+  `old_value` and records a new event linking back to it via
+  `reverts_event_id`, optionally carrying `comment`.
+  """
+  def revert_task_history_event(%TaskHistoryEvent{} = event, actor_id, comment \\ nil) do
+    case get_task(event.task_id) do
+      nil ->
+        {:error, :task_not_found}
+
+      task ->
+        apply_revert(task, event, actor_id, batch_id: Ecto.UUID.generate(), comment: comment)
+    end
+  end
+
+  @doc """
+  Undoes every history event recorded for `event`'s task after `event`,
+  newest first, each as its own linked revert sharing one `batch_id` and
+  `comment`. Reverting each event with its own recorded `old_value`,
+  newest-first, converges on the state the task had at `event`'s time
+  even without a full snapshot.
+  """
+  def rollback_task_history_event(%TaskHistoryEvent{} = event, actor_id, comment \\ nil) do
+    case get_task(event.task_id) do
+      nil ->
+        {:error, :task_not_found}
+
+      task ->
+        later_events =
+          Repo.all(
+            from e in TaskHistoryEvent,
+              where:
+                e.task_id == ^event.task_id and e.inserted_at > ^event.inserted_at and
+                  not is_nil(e.field),
+              order_by: [desc: e.inserted_at]
+          )
+
+        if later_events == [] do
+          {:error, :nothing_to_revert}
+        else
+          batch_id = Ecto.UUID.generate()
+
+          Repo.transaction(fn ->
+            case revert_chain(task, later_events, actor_id, batch_id, comment) do
+              {:ok, final_task, all_events} -> %{final_task | history_events: all_events}
+              {:error, reason} -> Repo.rollback(reason)
+            end
+          end)
+        end
+    end
+  end
+
+  defp revert_chain(task, events, actor_id, batch_id, comment) do
+    Enum.reduce_while(events, {:ok, task, []}, fn event, {:ok, current_task, acc} ->
+      case apply_revert(current_task, event, actor_id, batch_id: batch_id, comment: comment) do
+        {:ok, updated} -> {:cont, {:ok, updated, acc ++ (updated.history_events || [])}}
+        {:error, :not_revertible} -> {:cont, {:ok, current_task, acc}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp apply_revert(_task, %TaskHistoryEvent{field: "body_doc"}, _actor_id, _opts),
+    do: {:error, :not_revertible}
+
+  defp apply_revert(task, %TaskHistoryEvent{field: "column_id"} = event, actor_id, opts) do
+    column_id = unwrap_value(event.old_value)
+    before_id = last_task_id(column_id, task.id)
+
+    move_task(
+      task,
+      column_id,
+      before_id,
+      nil,
+      actor_id,
+      Keyword.put(opts, :reverts_event_id, event.id)
+    )
+  end
+
+  defp apply_revert(task, %TaskHistoryEvent{field: field} = event, actor_id, opts) do
+    value = unwrap_value(event.old_value)
+    attrs = %{String.to_existing_atom(field) => value}
+
+    update_task(task, attrs, actor_id, Keyword.put(opts, :reverts_event_id, event.id))
+  end
+
+  defp insert_created_event(repo, %Task{} = task, actor_id) do
+    attrs = %{
+      project_id: task.project_id,
+      task_id: task.id,
+      actor_id: actor_id,
+      batch_id: Ecto.UUID.generate(),
+      kind: "created"
+    }
+
+    %TaskHistoryEvent{} |> TaskHistoryEvent.changeset(attrs) |> repo.insert()
+  end
+
+  defp insert_history_events(repo, %Task{} = old_task, %Task{} = new_task, actor_id, opts) do
+    insert_diff_events(
+      repo,
+      old_task.project_id,
+      old_task.id,
+      actor_id,
+      opts,
+      diff_task(old_task, new_task)
+    )
+  end
+
+  defp insert_diff_events(_repo, _project_id, _task_id, _actor_id, _opts, []), do: {:ok, []}
+
+  defp insert_diff_events(repo, project_id, task_id, actor_id, opts, diffs) do
+    batch_id = Keyword.get(opts, :batch_id) || Ecto.UUID.generate()
+    reverts_event_id = Keyword.get(opts, :reverts_event_id)
+    comment = Keyword.get(opts, :comment)
+
+    diffs
+    |> Enum.reduce_while({:ok, []}, fn diff, {:ok, acc} ->
+      column_move? = diff.field == "column_id"
+
+      attrs = %{
+        project_id: project_id,
+        task_id: task_id,
+        actor_id: actor_id,
+        batch_id: batch_id,
+        kind: if(column_move?, do: "column_moved", else: "field_changed"),
+        field: diff.field,
+        old_value: diff.old_value,
+        new_value: diff.new_value,
+        reverts_event_id: reverts_event_id,
+        comment: comment,
+        regression:
+          column_move? &&
+            column_moved_regression?(
+              repo,
+              task_id,
+              unwrap_value(diff.old_value),
+              unwrap_value(diff.new_value)
+            )
+      }
+
+      case %TaskHistoryEvent{} |> TaskHistoryEvent.changeset(attrs) |> repo.insert() do
+        {:ok, event} -> {:cont, {:ok, [event | acc]}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+    |> case do
+      {:ok, events} -> {:ok, Enum.reverse(events)}
+      error -> error
+    end
+  end
+
+  defp column_moved_regression?(repo, task_id, old_column_id, new_column_id) do
+    already_moved? =
+      repo.exists?(
+        from e in TaskHistoryEvent, where: e.task_id == ^task_id and e.kind == "column_moved"
+      )
+
+    already_moved? and rank_regression?(repo, old_column_id, new_column_id)
+  end
+
+  defp rank_regression?(repo, old_column_id, new_column_id) do
+    ranks =
+      repo.all(
+        from c in Column,
+          where: c.id in ^[old_column_id, new_column_id],
+          select: {c.id, c.rank}
+      )
+      |> Map.new()
+
+    old_rank = Map.get(ranks, old_column_id)
+    new_rank = Map.get(ranks, new_column_id)
+
+    is_binary(old_rank) and is_binary(new_rank) and new_rank < old_rank
+  end
+
+  @diffable_fields [:title, :task_type_id, :start_date, :end_date]
+
+  defp diff_task(%Task{} = old_task, %Task{} = new_task) do
+    @diffable_fields
+    |> Enum.filter(&(Map.get(old_task, &1) != Map.get(new_task, &1)))
+    |> Enum.map(fn field ->
+      %{
+        field: Atom.to_string(field),
+        old_value: wrap(Map.get(old_task, field)),
+        new_value: wrap(Map.get(new_task, field))
+      }
+    end)
+    |> maybe_add_assignee_diff(old_task, new_task)
+    |> maybe_add_body_doc_diff(old_task, new_task)
+  end
+
+  defp maybe_add_assignee_diff(diffs, old_task, new_task) do
+    old_ids = assignee_ids(old_task)
+    new_ids = assignee_ids(new_task)
+
+    if old_ids == new_ids do
+      diffs
+    else
+      diffs ++ [%{field: "assignee_ids", old_value: wrap(old_ids), new_value: wrap(new_ids)}]
+    end
+  end
+
+  defp assignee_ids(%Task{assignees: assignees}) when is_list(assignees) do
+    assignees |> Enum.map(& &1.id) |> Enum.sort()
+  end
+
+  defp assignee_ids(_task), do: []
+
+  defp maybe_add_body_doc_diff(diffs, old_task, new_task) do
+    if old_task.body_doc == new_task.body_doc do
+      diffs
+    else
+      diffs ++ [%{field: "body_doc", old_value: nil, new_value: nil}]
+    end
+  end
+
+  defp wrap(value), do: %{"v" => normalize_value(value)}
+
+  defp normalize_value(%Date{} = date), do: Date.to_iso8601(date)
+  defp normalize_value(value), do: value
+
+  defp unwrap_value(nil), do: nil
+  defp unwrap_value(%{"v" => value}), do: value
 
   defp first_task_rank(column_id) do
     Repo.one(

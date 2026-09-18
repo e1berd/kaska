@@ -131,6 +131,33 @@ export function isRunActive(run: AgentRun | null | undefined): boolean {
   return !!run && ACTIVE_RUN_STATUSES.includes(run.status)
 }
 
+export type TaskHistoryEventKind = 'created' | 'field_changed' | 'column_moved'
+
+export type TaskHistoryField =
+  | 'title'
+  | 'body_doc'
+  | 'task_type_id'
+  | 'start_date'
+  | 'end_date'
+  | 'assignee_ids'
+  | 'column_id'
+
+export interface TaskHistoryEvent {
+  id: string
+  task_id: string
+  project_id: string
+  actor_id: string | null
+  batch_id: string
+  kind: TaskHistoryEventKind
+  field: TaskHistoryField | null
+  old_value: { v: unknown } | null
+  new_value: { v: unknown } | null
+  regression: boolean
+  reverts_event_id: string | null
+  comment: string | null
+  inserted_at: string
+}
+
 export interface ProjectInvite {
   id: string
   token: string
@@ -177,6 +204,7 @@ export const useBoardStore = defineStore('board', () => {
   const agentWalltimeSeconds = ref<number | null>(null)
   const attachments = ref<Attachment[]>([])
   const taskComments = ref<TaskComment[]>([])
+  const taskHistoryEvents = ref<TaskHistoryEvent[]>([])
   const settings = ref<BoardSettings>({ allow_guest_comments: false })
   const presences = ref<PresenceState>({})
   const lastTaskDeleted = ref<TaskDeletedEvent | null>(null)
@@ -294,6 +322,10 @@ export const useBoardStore = defineStore('board', () => {
       removeCommentAttachment(p.comment_id, p.id),
     )
 
+    ch.on('task_history_events_created', ({ events }: { events: TaskHistoryEvent[] }) =>
+      upsertHistoryEvents(events),
+    )
+
     ch.on('task_type_created', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_updated', (tt: TaskType) => upsertTaskType(tt))
     ch.on('task_type_deleted', ({ id }: { id: string }) => removeTaskType(id))
@@ -322,6 +354,7 @@ export const useBoardStore = defineStore('board', () => {
     latestRuns.value = {}
     attachments.value = []
     taskComments.value = []
+    taskHistoryEvents.value = []
     settings.value = { allow_guest_comments: false }
     presences.value = {}
     lastTaskDeleted.value = null
@@ -502,6 +535,30 @@ export const useBoardStore = defineStore('board', () => {
     return pushAsync(ch(), 'delete_task_comment', { id })
   }
 
+  function upsertHistoryEvents(events: TaskHistoryEvent[]) {
+    for (const e of events) {
+      const idx = taskHistoryEvents.value.findIndex((x) => x.id === e.id)
+      if (idx === -1) taskHistoryEvents.value.push(e)
+      else taskHistoryEvents.value[idx] = e
+    }
+    taskHistoryEvents.value.sort((a, b) => Date.parse(b.inserted_at) - Date.parse(a.inserted_at))
+  }
+
+  async function listTaskHistory(opts: { before?: string; limit?: number } = {}) {
+    const { events } = await pushAsync<{ events: TaskHistoryEvent[] }>(ch(), 'list_task_history', opts)
+    if (!opts.before) taskHistoryEvents.value = events.slice()
+    else upsertHistoryEvents(events)
+    return events
+  }
+
+  function revertTaskHistoryEvent(id: string, comment?: string | null) {
+    return pushAsync<Task>(ch(), 'revert_task_history_event', { id, comment: comment ?? null })
+  }
+
+  function rollbackTaskHistoryEvent(id: string, comment?: string | null) {
+    return pushAsync<Task>(ch(), 'rollback_task_history_event', { id, comment: comment ?? null })
+  }
+
   async function uploadCommentAttachment(
     commentId: string,
     file: File,
@@ -677,6 +734,10 @@ export const useBoardStore = defineStore('board', () => {
     users,
     attachments,
     taskComments,
+    taskHistoryEvents,
+    listTaskHistory,
+    revertTaskHistoryEvent,
+    rollbackTaskHistoryEvent,
     settings,
     canWrite,
     isOwner,
